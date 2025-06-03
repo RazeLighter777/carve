@@ -77,11 +77,10 @@ impl Scheduler {
                                         info!("Check successful: {}", message);
                                         let timestamp_ms = check_timestamp * 1000;
                                         
-                                        if let Err(e) = redis_manager.record_check_result(
+                                        if let Err(e) = redis_manager.record_sucessful_check_result(
                                             &competition_name,
                                             &check.name,
                                             timestamp_ms,
-                                            true,
                                             &team.name,
                                             &box_config.name,
                                             &message,
@@ -94,19 +93,6 @@ impl Scheduler {
                                             "Check failed for {} on {}: {}",
                                             team.name, box_config.name, e
                                         );
-                                        
-                                        let timestamp_ms = check_timestamp * 1000;
-                                        if let Err(record_err) = redis_manager.record_check_result(
-                                            &competition_name,
-                                            &check.name,
-                                            timestamp_ms,
-                                            false,
-                                            &team.name,
-                                            &box_config.name,
-                                            &format!("Check failed: {}", e),
-                                        ) {
-                                            error!("Failed to record check result: {}", record_err);
-                                        }
                                     }
                                 }
                             }
