@@ -27,7 +27,7 @@ Canary is a service that conducts automated scoring checks for competitions. It 
 ## How It Works
 
 * Checks run at synchronized intervals across replicas
-* Results are stored in Redis sorted sets using the format: `<competition name>:<check name>:<team name>`
+* Results are stored in Redis sorted sets using the format: `<competition name>:<team name>:<check name>`
 * If ANY replica succeeds, the check succeeds
 * All check results are written to Redis with timestamps, box info, and status
 
