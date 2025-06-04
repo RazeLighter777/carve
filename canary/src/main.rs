@@ -36,7 +36,7 @@ struct CheckScore {
 async fn health_check(data: web::Data<AppState>) -> impl Responder {
     for (i, redis_manager) in data.redis_managers.iter().enumerate() {
         if let Err(e) = redis_manager.health_check() {
-            error!("Redis connection {} failed health check: {}", i, e);
+            error!("Redis connection {} failed the health check: {}", i, e);
             return HttpResponse::InternalServerError().body(format!("Redis connection failed: {}", e));
         }
     }
