@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  vtep:
+    build: .
+    container_name: vtep
+    privileged: true # Grants NET_ADMIN and other capabilities
+    
+    environment:
+      - RUST_LOG=info
+    volumes:
+      - ./competition.yaml:/workspaces/carve/vtep/competition.yaml:ro
+    restart: unless-stopped

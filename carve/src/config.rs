@@ -69,6 +69,7 @@ pub struct Check {
 pub struct Competition {
     pub name: String,
     pub redis: RedisConfig,
+    pub cidr: Option<String>, // Add this field for VTEP
     pub boxes: Vec<Box>,
     pub teams: Vec<Team>,
     pub checks: Vec<Check>,
