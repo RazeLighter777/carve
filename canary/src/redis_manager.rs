@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use redis::Client;
-use crate::config::RedisConfig;
+use carve::config::RedisConfig;
 
 pub struct RedisManager {
     client: Client,

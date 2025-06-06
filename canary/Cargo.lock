@@ -425,6 +425,7 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "anyhow",
+ "carve",
  "chrono",
  "config",
  "env_logger",
@@ -437,6 +438,16 @@ dependencies = [
  "serde_yaml",
  "ssh2",
  "tokio",
+]
+
+[[package]]
+name = "carve"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "config",
+ "serde",
+ "serde_yaml",
 ]
 
 [[package]]

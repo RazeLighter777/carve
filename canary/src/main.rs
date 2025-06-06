@@ -1,5 +1,4 @@
 mod check;
-mod config;
 mod redis_manager;
 mod scheduler;
 
@@ -10,7 +9,7 @@ use log::{error, info};
 use std::sync::Arc;
 use serde::Serialize;
 
-use crate::config::AppConfig;
+use carve::config::AppConfig;
 use crate::redis_manager::RedisManager;
 use crate::scheduler::Scheduler;
 

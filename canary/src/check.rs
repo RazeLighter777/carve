@@ -4,7 +4,7 @@ use ssh2::Session;
 use std::net::TcpStream;
 use std::time::Duration;
 
-use crate::config::{CheckSpec, HttpCheckSpec, IcmpCheckSpec, SshCheckSpec};
+use carve::config::{CheckSpec, HttpCheckSpec, IcmpCheckSpec, SshCheckSpec};
 
 pub async fn perform_http_check(hostname: &str, spec: &HttpCheckSpec) -> Result<String> {
     let client = reqwest::Client::new();

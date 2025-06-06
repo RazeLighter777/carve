@@ -5,9 +5,6 @@ edition = "2024"
 
 [dependencies]
 actix-web = "4.11.0"
-config = { version = "0.13", features = ["yaml"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.9"
 redis = "0.31.0"
 tokio = { version = "1", features = ["full"] }
 ping = "0.4.0"
@@ -17,4 +14,8 @@ env_logger = "0.11.1"
 chrono = "0.4.31"
 ssh2 = "0.9.4"
 reqwest = { version = "0.11", features = ["json"] }
+carve = { path = "../carve" }
 anyhow = "1.0"
+config = { version = "0.13", features = ["yaml"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"

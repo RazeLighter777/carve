@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 use crate::check::perform_check;
-use crate::config::Competition;
+use carve::config::Competition;
 use crate::redis_manager::RedisManager;
 
 pub struct Scheduler {

@@ -1,3 +1,4 @@
+// Configuration logic moved from canary/src/config.rs
 use anyhow::Result;
 use config::{Config, File};
 use serde::Deserialize;
