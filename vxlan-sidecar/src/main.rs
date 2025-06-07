@@ -1,20 +1,21 @@
-use rocket::{get, routes};
+use actix_web::{get, App, HttpServer, Responder};
+use carve::config::AppConfig;
 use std::env;
 use std::process::Command;
 
-#[get("/health")]
-fn health() -> &'static str {
+#[get("/api/health")]
+async fn health() -> impl Responder {
     "Healthy"
 }
 
-fn create_vxlan_interface(vxlan_id: &str, cidr: &str) -> Result<(), String> {
+fn create_vxlan_interface(vxlan_id: &str, cidr: &str, remote: &str) -> Result<(), String> {
     // Remove vxlan0 if it exists
     let _ = Command::new("ip")
         .args(["link", "del", "vxlan0"])
         .status();
-    // Create vxlan0
+    // Create vxlan0 with remote
     let status = Command::new("ip")
-        .args(["link", "add", "vxlan0", "type", "vxlan", "id", vxlan_id, "dev", "eth0", "dstport", "4789"]) // assumes eth0
+        .args(["link", "add", "vxlan0", "type", "vxlan", "id", vxlan_id, "dev", "eth0", "remote", remote, "dstport", "4789"])
         .status()
         .map_err(|e| format!("Failed to create vxlan0: {}", e))?;
     if !status.success() {
@@ -59,15 +60,25 @@ fn create_bridge() -> Result<(), String> {
     Ok(())
 }
 
-#[rocket::main]
-async fn main() -> Result<(), rocket::Error> {
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
     let vxlan_id = env::var("VXLAN_ID").expect("VXLAN_ID env var required");
     let cidr = env::var("CIDR").expect("CIDR env var required");
-    if let Err(e) = create_vxlan_interface(&vxlan_id, &cidr) {
+    let config = AppConfig::new().expect("Failed to load config");
+    // Use vtep_host from the first competition, fallback to localhost if missing
+    let remote = config.competitions.get(0)
+        .and_then(|c| c.vtep_host.as_deref())
+        .unwrap_or("127.0.0.1");
+    if let Err(e) = create_vxlan_interface(&vxlan_id, &cidr, remote) {
         eprintln!("{}", e);
     }
     if let Err(e) = create_bridge() {
         eprintln!("{}", e);
     }
-    rocket::build().mount("/api", routes![health]).launch()
+    HttpServer::new(|| {
+        App::new().service(health)
+    })
+    .bind(("0.0.0.0", 8000))?
+    .run()
+    .await
 }

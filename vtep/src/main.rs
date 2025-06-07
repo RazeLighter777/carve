@@ -3,10 +3,10 @@ use iptables;
 use redis::Commands;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
-use rocket::{get, routes};
+use actix_web::{App, HttpServer, Responder, get};
 
 #[get("/health")]
-fn health() -> &'static str {
+async fn health() -> impl Responder {
     "Healthy"
 }
 
@@ -111,11 +111,17 @@ fn main() {
     }
     // Execute the firewall rules
     
-    // Start Rocket web server for health check
+    // Start Actix-web server for health check
     std::thread::spawn(|| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            rocket::build().mount("/api", routes![health]).launch().await.ok();
+        let sys = actix_rt::System::new();
+        sys.block_on(async {
+            HttpServer::new(|| {
+                App::new().service(health)
+            })
+            .bind(("0.0.0.0", 8000)).expect("Failed to bind Actix server")
+            .run()
+            .await
+            .ok();
         });
     });
     // Keep the main thread alive to continue running the competition setup

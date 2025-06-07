@@ -70,6 +70,7 @@ pub struct Competition {
     pub name: String,
     pub redis: RedisConfig,
     pub cidr: Option<String>, // Add this field for VTEP
+    pub vtep_host: Option<String>, // <-- Add this line for VTEP host
     pub boxes: Vec<Box>,
     pub teams: Vec<Team>,
     pub checks: Vec<Check>,

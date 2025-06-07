@@ -7,5 +7,5 @@ edition = "2024"
 carve = { path = "../carve" }
 iptables = "0.5.3"
 redis = "0.32.0"
-rocket = { version = "0.5.0-rc.3", features = ["json"] }
+actix-web = "4"
 tokio = { version = "1", features = ["full"] }

@@ -12,10 +12,6 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --lib
 
-FROM debian:bullseye-slim AS runtime
-WORKDIR /app
-RUN apt-get update && apt-get install -y libssl1.1 ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/carve /app/carve
 CMD ["true"]
