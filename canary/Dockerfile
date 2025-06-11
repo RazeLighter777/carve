@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7-labs
 
 # Leveraging the pre-built Docker images with 
 # cargo-chef and the Rust toolchain
@@ -6,8 +6,8 @@ FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
 WORKDIR /app
 
 FROM chef AS planner
-COPY . /app/
-RUN cargo chef prepare --recipe-path recipe.json
+COPY --parents **/Cargo.toml **/Cargo.lock /app/
+RUN cargo chef prepare --recipe-path recipe.json --bin canary
 
 # --- Build stage ---
 FROM chef AS builder
@@ -16,8 +16,9 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 COPY --from=planner /app/recipe.json recipe.json
 
 # Build dependencies - this is the caching Docker layer!
+COPY --parents **/Cargo.toml **/Cargo.lock /app/
 RUN cargo chef cook --release --recipe-path recipe.json
-COPY . .
+COPY --parents **/carve/src/ **/canary/src/ /app/
 RUN cargo build --release --bin canary
 
 # --- Runtime stage ---

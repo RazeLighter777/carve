@@ -62,12 +62,6 @@ fn main() {
         ).unwrap();
         // Set up iptables
         let ipt = iptables::new(false).expect("Failed to create iptables instance");        
-        // Enable IPv4 forwarding
-        std::process::Command::new("sysctl")
-            .arg("-w")
-            .arg("net.ipv4.ip_forward=1")
-            .status()
-            .expect("Failed to enable IPv4 forwarding");
         // Create VXLAN interfaces for each team and SNAT their traffic
         for (i, team) in competition.teams.iter().enumerate() {
             let vxlan_name = format!("vxlan_{}_{}", team.name, i + 1);
@@ -79,7 +73,7 @@ fn main() {
                 .status();
             // Create VXLAN interface
             let status = std::process::Command::new("ip")
-                .args(["link", "add", &vxlan_name, "type", "vxlan", "id", &vxlan_id.to_string(), "dev", "eth0", "learning"]) // assumes eth0
+                .args(["link", "add", &vxlan_name, "type", "vxlan", "id", &vxlan_id.to_string(), "dev", "eth0", "learning", "dstport", "4789"]) // assumes eth0
                 .status()
                 .expect("Failed to create vxlan interface");
             if !status.success() {
@@ -98,7 +92,7 @@ fn main() {
                 .expect("Failed to assign IP to vxlan interface");
             // SNAT only traffic from this team's VXLAN interface, using MGMT /24 as --to-source
             let mgmt_cidr = format!("{}/24", mgmt_subnet);
-            let team_snat_rule = format!("-s {}/24 -i {} -j SNAT --to-source {}", team_subnet, vxlan_name, mgmt_cidr);
+            let team_snat_rule = format!("-s {}/24 -j SNAT --to-source {}", team_subnet, Ipv4Addr::from(u32::from(mgmt_subnet) + 1));
             ipt.append("nat", "POSTROUTING", &team_snat_rule)
                 .expect("Failed to add SNAT rule for team");
         }
