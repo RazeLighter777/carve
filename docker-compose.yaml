@@ -27,6 +27,14 @@ services:
       - ./vtep/competition.yaml:/app/competition.yaml:ro
     depends_on:
       - redis
+  carve-web:
+    build:
+      context: .
+      dockerfile: carve-web/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - redis
   redis:
     image: redis:7-alpine
     ports:
