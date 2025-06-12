@@ -1,4 +1,4 @@
-use actix_web::{get, App, HttpServer, Responder};
+use actix_web::{get, App, HttpServer, Responder, web};
 use carve::config::AppConfig;
 use std::env;
 use std::process::Command;
@@ -7,9 +7,21 @@ use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 use std::net::IpAddr;
 
+#[derive(Clone)]
+enum HealthStatus {
+    Healthy,
+    Unhealthy,
+}
+
+type SharedHealth = Arc<Mutex<HealthStatus>>;
+
 #[get("/api/health")]
-async fn health() -> impl Responder {
-    "Healthy"
+async fn health(health: web::Data<SharedHealth>) -> impl Responder {
+    let status = health.lock().await;
+    match *status {
+        HealthStatus::Healthy => "Healthy",
+        HealthStatus::Unhealthy => "Unhealthy",
+    }
 }
 
 fn create_vxlan_interface(vxlan_id: &str) -> Result<(), String> {
@@ -146,8 +158,44 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    HttpServer::new(|| {
-        App::new().service(health)
+    // Health check state
+    let health_status: SharedHealth = Arc::new(Mutex::new(HealthStatus::Healthy));
+    let health_status_clone = health_status.clone();
+    let first_ip = format!("{}.{}.{}.1", octets[0], octets[1], octets[2]);
+    tokio::spawn(async move {
+        let mut fail_count = 0;
+        loop {
+            let output = Command::new("ping")
+                .args(["-c", "1", "-W", "2", &first_ip])
+                .output();
+            match output {
+                Ok(out) if out.status.success() => {
+                    if fail_count > 3 {
+                        println!("Ping to {} successful after {} failures", first_ip, fail_count);
+                    }
+                    fail_count = 0;
+                    let mut status = health_status_clone.lock().await;
+                    *status = HealthStatus::Healthy;
+                    
+                },
+                _ => {
+                    fail_count += 1;
+                    if fail_count >= 3 {
+                        let mut status = health_status_clone.lock().await;
+                        *status = HealthStatus::Unhealthy;
+                        eprintln!("Ping to {} failed {} times, marking as Unhealthy", first_ip, fail_count);
+                    }
+                    
+                }
+            }
+            sleep(Duration::from_secs(10)).await;
+        }
+    });
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(health_status.clone()))
+            .service(health)
     })
     .bind(("0.0.0.0", 8000))?
     .run()
