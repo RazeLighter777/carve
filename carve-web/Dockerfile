@@ -4,11 +4,11 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 # Copy only carve-web's package files for install
-COPY carve-web/package*.json ./
+COPY ./carve-web/package.json ./carve-web/package-lock.json ./
 RUN npm install
 
 # Copy the carve-web source code into the build context
-COPY carve-web/ ./
+COPY carve-web ./
 
 RUN npm run build
 

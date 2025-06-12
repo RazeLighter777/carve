@@ -7,17 +7,18 @@ competitions:
       host: redis
       port: 6379       # Redis port
       db: 0            # Redis database number
+    vtep_host: vtep  # VTEP hostname for VXLAN
     boxes:
       # Define service boxes that will be checked
       - name: web-server
         labels: http
-        hostname: "{{ .TEAM }}-web-server.carve.svc.cluster.local"
+        hostname: "{{ .TEAM }}-web-server"
       - name: db-server
         labels: db
-        hostname: "{{ .TEAM }}-db.carve.svc.cluster.local"
+        hostname: "{{ .TEAM }}-db"
       - name: auth-server
         labels: auth
-        hostname: "{{ .TEAM }}-auth.carve.svc.cluster.local"
+        hostname: "{{ .TEAM }}-auth"
     teams:
       # List of competing teams
       - name: team1

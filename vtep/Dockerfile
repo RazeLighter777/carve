@@ -25,5 +25,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y libssl3 ca-certificates
 # install the tools for iptables and iproute2
 RUN apt-get install -y iptables iproute2 && rm -rf /var/lib/apt/lists/*
+# use update-alternatives to set iptables to use the legacy version
+RUN update-alternatives --set iptables /usr/sbin/iptables-legacy
+RUN update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 COPY --from=builder /app/target/release/vtep /app/vtep
 CMD ["/app/vtep"]

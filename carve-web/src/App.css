@@ -1,7 +1,24 @@
+/* Ensure the app stretches to full viewport */
+html, body, #root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Make the main app container fill the screen */
+body > #root > div {
+  min-height: 100vh;
+  min-width: 100vw;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Remove max-width and centering from #root for full width */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  max-width: none;
+  margin: 0;
+  padding: 0;
   text-align: center;
 }
 
@@ -65,17 +82,30 @@ body {
   color: #60a5fa;
 }
 .main-content {
-  max-width: 900px;
-  margin: 2rem auto;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  margin: 2rem 0;
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  align-items: center;
 }
 .scoreboard, .announcement, .vue-section {
+  width: 90%;
+  max-width: 900px;
   background: #23272f;
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 2px 12px #000a;
+}
+.scoreboard.expanded {
+  width: 98vw;
+  max-width: 1200px;
+  min-height: 60vh;
+  font-size: 1.5rem;
+  margin: 3rem auto;
+  box-shadow: 0 4px 24px #000a;
 }
 .scoreboard h2, .announcement h2, .vue-section h2 {
   margin-top: 0;
@@ -96,6 +126,41 @@ body {
   padding: 1.5rem 0;
   background: #181a20;
   color: #6b7280;
-  margin-top: 3rem;
+  margin-top: auto;
   font-size: 1rem;
+}
+.nav-links {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-left: 2rem;
+}
+.nav-links a {
+  color: #60a5fa;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 1.1rem;
+  transition: color 0.2s;
+}
+.nav-links a:hover {
+  color: #facc15;
+}
+.nav-sep {
+  color: #6b7280;
+  font-size: 1.2rem;
+}
+.back-btn {
+  background: #23272f;
+  color: #60a5fa;
+  border: 1px solid #60a5fa;
+  border-radius: 6px;
+  padding: 0.7em 1.5em;
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin-top: 2rem;
+  transition: background 0.2s, color 0.2s;
+}
+.back-btn:hover {
+  background: #60a5fa;
+  color: #23272f;
 }

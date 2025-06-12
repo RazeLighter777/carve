@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import VueMount from './VueMount';
 import './App.css';
 
 const darkBg = {
@@ -13,10 +12,27 @@ function fetchApi(path) {
   return fetch(`/api/v1/${path}`).then(r => r.json());
 }
 
+function Header({ user, setScoreboardOnly, scoreboardOnly }) {
+  return (
+    <header className="header">
+      <h1>CARVE Competition Portal</h1>
+      <nav className="nav-links">
+        <a href="#" onClick={e => { e.preventDefault(); setScoreboardOnly(false); }}>Home</a>
+        <span className="nav-sep">|</span>
+        <a href="#" onClick={e => { e.preventDefault(); setScoreboardOnly(true); }}>Scoreboard</a>
+      </nav>
+      <div className="user-info">
+        {user ? `Welcome, ${user.name}` : 'Loading...'}
+      </div>
+    </header>
+  );
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [score, setScore] = useState(null);
   const [announcement, setAnnouncement] = useState('');
+  const [scoreboardOnly, setScoreboardOnly] = useState(false);
 
   useEffect(() => {
     fetchApi('user').then(setUser);
@@ -26,28 +42,29 @@ function App() {
 
   return (
     <div style={darkBg}>
-      <header className="header">
-        <h1>CARVE Competition Portal</h1>
-        <div className="user-info">
-          {user ? `Welcome, ${user.name}` : 'Loading...'}
-        </div>
-      </header>
+      <Header user={user} setScoreboardOnly={setScoreboardOnly} scoreboardOnly={scoreboardOnly} />
       <main className="main-content">
-        <section className="scoreboard">
-          <h2>Scoreboard</h2>
-          <div className="score">{score ? score.value : 'Loading...'}</div>
-        </section>
-        <section className="announcement">
-          <h2>Announcement</h2>
-          <div className="announcement-text">{announcement || 'No announcements.'}</div>
-        </section>
-        <section className="vue-section">
-          <h2>Vue Component Demo</h2>
-          <VueMount />
-        </section>
+        {scoreboardOnly ? (
+          <section className="scoreboard expanded">
+            <h2>Scoreboard</h2>
+            <div className="score">{score ? score.value : 'Loading...'}</div>
+            <button className="back-btn" onClick={() => setScoreboardOnly(false)} style={{marginTop: '2rem'}}>Back</button>
+          </section>
+        ) : (
+          <>
+            <section className="scoreboard" onClick={() => setScoreboardOnly(true)} style={{cursor: 'pointer'}}>
+              <h2>Scoreboard</h2>
+              <div className="score">{score ? score.value : 'Loading...'}</div>
+            </section>
+            <section className="announcement">
+              <h2>Announcement</h2>
+              <div className="announcement-text">{announcement || 'No announcements.'}</div>
+            </section>
+          </>
+        )}
       </main>
       <footer className="footer">
-        &copy; {new Date().getFullYear()} CARVE. All rights reserved.
+        Licensed under the AGPL v3.
       </footer>
     </div>
   );

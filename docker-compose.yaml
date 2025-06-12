@@ -18,16 +18,32 @@ services:
       - CIDR=10.10.0.0/16
     depends_on:
       - redis
-  vxlan-sidecar:
+  vxlan-sidecar-team1:
     cap_add:
       - NET_ADMIN
     build:
       context: .
       dockerfile: vxlan-sidecar/Dockerfile
+    environment:
+      - TEAM_NAME=team1
     volumes:
       - ./competition.yaml:/app/competition.yaml:ro
     depends_on:
       - redis
+      - vtep
+  vxlan-sidecar-team2:
+    cap_add:
+      - NET_ADMIN
+    build:
+      context: .
+      dockerfile: vxlan-sidecar/Dockerfile
+    environment:
+      - TEAM_NAME=team2
+    volumes:
+      - ./competition.yaml:/app/competition.yaml:ro
+    depends_on:
+      - redis
+      - vtep
   canary:
     build:
       context: .

@@ -4,3 +4,10 @@
 !**/src/
 !**/Cargo.lock
 !**/Cargo.toml
+!**.json
+!**.html
+!**.js
+!**.css
+!**.ts
+!**.tsx
+!**.jsx

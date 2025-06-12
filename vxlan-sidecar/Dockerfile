@@ -22,6 +22,7 @@ RUN cargo build --release --bin vxlan-sidecar
 # --- Runtime stage ---
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
-RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libssl3 ca-certificates
+RUN apt-get install -y iproute2 iputils-ping && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/vxlan-sidecar /app/vxlan-sidecar
 CMD ["/app/vxlan-sidecar"]
