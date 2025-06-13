@@ -123,7 +123,7 @@ qemu-system-x86_64 \
     -drive file="$DISK_IMAGE",format=qcow2 \
     -net nic,model=virtio,macaddr=$MAC_ADDRESS \
     -net bridge,br=br0 \
-    -smbios type=1,serial=ds='nocloud;\'http://127.0.0.1:8001/\' \
+    -smbios type=1,serial=ds='nocloud;\'http://$CONTAINER_IP:8001/\' \
     -display vnc=0.0.0.0:0 \
     -daemonize \
     -pidfile /tmp/qemu.pid

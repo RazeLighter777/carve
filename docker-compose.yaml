@@ -22,7 +22,7 @@ services:
     cap_add:
       - NET_ADMIN
     ports:
-      - "5900:5900"
+      - "5901:5900"
     build:
       context: .
       dockerfile: vxlan-sidecar/Dockerfile
@@ -46,6 +46,7 @@ services:
       - COMPETITION_NAME=defcon
     depends_on:
       - vxlan-sidecar-team1-web
+      - carve-dnsmasq
     network_mode: service:vxlan-sidecar-team1-web
     cap_add:
       - NET_ADMIN
@@ -83,4 +84,6 @@ services:
       - ./competition.yaml:/config/competition.yaml:ro
     depends_on:
       - vtep
+    cap_add:
+      - NET_ADMIN
     network_mode: service:vtep

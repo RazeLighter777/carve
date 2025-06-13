@@ -9,4 +9,4 @@ RUN apt-get update && apt-get install -y \
 COPY ./carve-dnsmasq/entry.sh /entry.sh
 RUN chmod +x /entry.sh
 
-ENTRYPOINT ["bash"]
+ENTRYPOINT ["/entry.sh"]

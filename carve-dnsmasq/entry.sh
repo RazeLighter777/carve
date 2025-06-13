@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-set -x
 
 # Check for COMPETITION_NAME
 if [ -z "$COMPETITION_NAME" ]; then
@@ -17,15 +16,8 @@ if [ ! -f "$CONFIG_FILE" ]; then
   exit 1
 fi
 
-# Find the competition entry
-competition_index=$(yq r "$CONFIG_FILE" "competitions.(name==\"${COMPETITION_NAME}\").path[0]")
-if [ "$competition_index" = "null" ]; then
-  echo "Competition $COMPETITION_NAME not found in $CONFIG_FILE!"
-  exit 1
-fi
-
 # Get the competition CIDR
-competition_cidr=$(yq e ".competitions[$competition_index].cidr" "$CONFIG_FILE")
+competition_cidr=$(yq ".competitions[] | select(.name == \"$COMPETITION_NAME\") | .cidr" $CONFIG_FILE)
 competition_domain="$COMPETITION_NAME.local"
 
 # Write global dnsmasq config
@@ -33,19 +25,20 @@ cat > "$DNSMASQ_CONF" <<EOF
 except-interface=lo
 except-interface=eth0
 domain=$competition_domain
+dhcp-fqdn
 no-resolv
 EOF
 
 # Get teams
-team_count=$(yq e ".competitions[$competition_index].teams | length" "$CONFIG_FILE")
+team_count=$(yq ".competitions[] | select(.name == \"$COMPETITION_NAME\") | .teams | length" $CONFIG_FILE)
 
 # Calculate base network (e.g., 10.13.0.0)
-base_net=$(echo $competition_cidr | cut -d'/' -f1)
+base_net=$(echo $competition_cidr | cut -d'/' -f1 | tr -d \")
 IFS='.' read -r o1 o2 o3 o4 <<< "$base_net"
 
 # For each team, assign a /24 subnet (skip the first /24 for management)
 for ((i=0;i<$team_count;i++)); do
-  team_name=$(yq e ".competitions[$competition_index].teams[$i].name" "$CONFIG_FILE")
+  team_name=$(yq ".competitions[] | select(.name == \"$COMPETITION_NAME\").teams[$i].name" "$CONFIG_FILE" | tr -d \")
   subnet_index=$((i+1)) # skip .0 for management
   team_net="$o1.$o2.$subnet_index.0"
   dhcp_start="$o1.$o2.$subnet_index.16"
@@ -53,17 +46,21 @@ for ((i=0;i<$team_count;i++)); do
   router_ip="$o1.$o2.$subnet_index.254"
 
   cat >> "$DNSMASQ_CONF" <<TEAMCONF
-# Team: $team_name
-# Subnet: $team_net/24
-dhcp-range=$dhcp_start,$dhcp_end,255.255.255.0,12h
-dhcp-option=option:router,$router_ip
-dhcp-option=option:dns-server,$router_ip
-dhcp-authoritative
+  # Team: $team_name
+  # Subnet: $team_net/24
+  dhcp-range=set:net$i,$dhcp_start,$dhcp_end,12h
+  domain=$team_name.$COMPETITION_NAME.local,$dhcp_start,$dhcp_end,12h
+  dhcp-option=option:router,$router_ip
+  dhcp-option=option:dns-server,$router_ip
+  dhcp-option=119,$team_name.$COMPETITION_NAME.local
+  dhcp-authoritative
 TEAMCONF
 
 done
 
 echo "dnsmasq configuration generated at $DNSMASQ_CONF"
+
+echo `cat $DNSMASQ_CONF`
 
 # Start dnsmasq in the foreground
 dnsmasq --no-daemon --conf-file=$DNSMASQ_CONF
