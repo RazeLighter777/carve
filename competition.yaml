@@ -12,13 +12,13 @@ competitions:
       # Define service boxes that will be checked
       - name: web-server
         labels: http
-        hostname: "{{ .TEAM }}-web-server"
+        hostname: "web-server"
       - name: db-server
         labels: db
-        hostname: "{{ .TEAM }}-db"
+        hostname: "db"
       - name: auth-server
         labels: auth
-        hostname: "{{ .TEAM }}-auth"
+        hostname: "auth"
     teams:
       # List of competing teams
       - name: team1

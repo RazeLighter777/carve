@@ -18,9 +18,11 @@ services:
       - CIDR=10.10.0.0/16
     depends_on:
       - redis
-  vxlan-sidecar-team1:
+  vxlan-sidecar-team1-web:
     cap_add:
       - NET_ADMIN
+    ports:
+      - "5900:5900"
     build:
       context: .
       dockerfile: vxlan-sidecar/Dockerfile
@@ -31,19 +33,26 @@ services:
     depends_on:
       - redis
       - vtep
-  vxlan-sidecar-team2:
-    cap_add:
-      - NET_ADMIN
+  team1-web:
     build:
       context: .
-      dockerfile: vxlan-sidecar/Dockerfile
-    environment:
-      - TEAM_NAME=team2
+      dockerfile: qemu-box/Dockerfile
     volumes:
-      - ./competition.yaml:/app/competition.yaml:ro
+      - ./competition.yaml:/config/competition.yaml:ro
+      - ./disks/ubuntu/ubuntu-24.04-nocloud.qcow2:/disk/ubuntu-24.04-nocloud.qcow2
+    environment:
+      - TEAM_NAME=team1
+      - BOX_NAME=web
+      - COMPETITION_NAME=defcon
     depends_on:
-      - redis
-      - vtep
+      - vxlan-sidecar-team1-web
+    network_mode: service:vxlan-sidecar-team1-web
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+      - /dev/kvm
+
   canary:
     build:
       context: .
