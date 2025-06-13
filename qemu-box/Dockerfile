@@ -24,4 +24,4 @@ RUN chmod +x /entry.sh
 EXPOSE 5900 8000
 
 # Set the entrypoint
-ENTRYPOINT ["/entry.sh"]
+ENTRYPOINT ["./entry.sh"]
