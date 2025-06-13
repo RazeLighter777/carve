@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -e
 
 # Parse environment variables
