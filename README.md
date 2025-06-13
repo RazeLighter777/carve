@@ -8,3 +8,4 @@
 ### redis : COT redis container
 ### carve-web : vue + react 
 ### qemu-box : Runs the actual VM. Requires passthrough of KVM and tun devices. Exposes VM on vnc.
+### carve-dnsmasq : CARVE DNS and DHCP server for CARVE boxes.

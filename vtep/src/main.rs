@@ -87,7 +87,7 @@ fn main() {
 
         // Create VXLAN interfaces for each team and SNAT their traffic
         for (i, team) in competition.teams.iter().enumerate() {
-            let vxlan_name = format!("vxlan_{}_{}", team.name, i + 1);
+            let vxlan_name = format!("vxlan_{}", team.name);
             let vxlan_id = 1338 + i as u32; // Start VXLAN IDs from 1338
             let team_subnet = subnets.get(i).expect("subnet");
             // Remove interface if it exists

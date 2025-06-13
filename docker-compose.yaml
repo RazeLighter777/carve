@@ -73,3 +73,14 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+  carve-dnsmasq:
+    build:
+      context: .
+      dockerfile: carve-dnsmasq/Dockerfile
+    environment:
+      - COMPETITION_NAME=defcon
+    volumes:
+      - ./competition.yaml:/config/competition.yaml:ro
+    depends_on:
+      - vtep
+    network_mode: service:vtep
