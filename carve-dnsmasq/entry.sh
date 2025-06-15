@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+
+
+
 # Check for COMPETITION_NAME
 if [ -z "$COMPETITION_NAME" ]; then
   echo "COMPETITION_NAME environment variable not set!"
@@ -50,9 +53,8 @@ for ((i=0;i<$team_count;i++)); do
   # Subnet: $team_net/24
   dhcp-range=set:net$i,$dhcp_start,$dhcp_end,12h
   domain=$team_name.$COMPETITION_NAME.local,$dhcp_start,$dhcp_end,12h
-  dhcp-option=option:router,$router_ip
-  dhcp-option=option:dns-server,$router_ip
-  dhcp-option=119,$team_name.$COMPETITION_NAME.local
+  dhcp-option=tag:net$i,option:router,$router_ip
+  dhcp-option=tag:net$i,option:dns-server,$router_ip
   dhcp-authoritative
 TEAMCONF
 
@@ -60,7 +62,8 @@ done
 
 echo "dnsmasq configuration generated at $DNSMASQ_CONF"
 
-echo `cat $DNSMASQ_CONF`
+cat $DNSMASQ_CONF
+
 
 # Start dnsmasq in the foreground
 dnsmasq --no-daemon --conf-file=$DNSMASQ_CONF

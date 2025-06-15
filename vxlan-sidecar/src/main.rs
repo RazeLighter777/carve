@@ -71,6 +71,7 @@ fn create_bridge(cidr : &str) -> Result<(), String> {
     // Add IP address to br0
     // Set vxlan0 address to .254 of the given CIDR
     let ip_address = format!("{}/24", cidr.trim_end_matches(".0").to_string() + ".254");
+    // println!("Setting br0 address to {}", ip_address);
     Command::new("ip")
         .args(["addr", "add", &ip_address, "dev", "br0"])
         .status()
@@ -82,7 +83,9 @@ fn create_bridge(cidr : &str) -> Result<(), String> {
 async fn main() -> std::io::Result<()> {
     let team_name = env::var("TEAM_NAME").expect("TEAM_NAME env var required");
     let config = AppConfig::new().expect("Failed to load config");
-    let competition = config.competitions.get(0).expect("No competition in config");
+    let competition_name = env::var("COMPETITION_NAME").expect("COMPETITION_NAME env var required");
+    let competition = config.competitions.iter().find(|c| c.name == competition_name)
+        .expect(format!("Competition {} not found in config", competition_name.as_str()).as_str());
     let teams: Vec<String> = competition.teams.iter().map(|t| t.name.clone()).collect();
     let team_index = teams.iter().position(|n| n == &team_name).expect("TEAM_NAME not found in config");
     let vxlan_id = 1338 + team_index as u32;
@@ -123,6 +126,7 @@ async fn main() -> std::io::Result<()> {
     let vtep_host = remote.to_string();
     let last_ip = Arc::new(Mutex::new(None::<IpAddr>));
     let last_ip_clone = last_ip.clone();
+    print!("Starting DNS resolution loop for VTEP host: {}\n", vtep_host);
     tokio::spawn(async move {
         loop {
             match tokio::net::lookup_host((vtep_host.as_str(), 0)).await {

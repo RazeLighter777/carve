@@ -63,10 +63,12 @@ fn main() {
         // Set up iptables
         let ipt = iptables::new(false).expect("Failed to create iptables instance");        
         // Create MGMT VXLAN interface
-        let vxlan_mgmt_name = "vxlan_mgmt";
+        // Use a short index for interface names to avoid long names
+        let comp_idx = config.competitions.iter().position(|c| c.name == competition.name).unwrap_or(0);
+        let vxlan_mgmt_name = format!("vxlan_mgmt_{}", comp_idx);
         let vxlan_mgmt_id = 1337; // MGMT VXLAN ID is 1337
         let status = std::process::Command::new("ip")
-            .args(["link", "add", vxlan_mgmt_name, "type", "vxlan", "id", &vxlan_mgmt_id.to_string(), "dev", "eth0", "learning", "dstport", "4789"]) // assumes eth0
+            .args(["link", "add", &vxlan_mgmt_name, "type", "vxlan", "id", &vxlan_mgmt_id.to_string(), "dev", "eth0", "learning", "dstport", "4789"])
             .status()
             .expect("Failed to create vxlan interface");
         if !status.success() {
@@ -74,20 +76,19 @@ fn main() {
         }
         // Bring up the MGMT VXLAN interface
         std::process::Command::new("ip")
-            .args(["link", "set", vxlan_mgmt_name, "up"])
+            .args(["link", "set", &vxlan_mgmt_name, "up"])
             .status()
             .expect("Failed to bring up vxlan interface");
         // Assign MGMT subnet IP to interface (first IP in subnet)
-        //add one to the MGMT subnet to get the first usable IP
         let mgmt_gateway_ip = Ipv4Addr::from(u32::from(mgmt_subnet) + 1);
         std::process::Command::new("ip")
-            .args(["addr", "add", &format!("{}/24", mgmt_gateway_ip), "dev", vxlan_mgmt_name])
+            .args(["addr", "add", &format!("{}/24", mgmt_gateway_ip), "dev", &vxlan_mgmt_name])
             .status()
             .expect("Failed to assign IP to vxlan interface");
 
         // Create VXLAN interfaces for each team and SNAT their traffic
         for (i, team) in competition.teams.iter().enumerate() {
-            let vxlan_name = format!("vxlan_{}", team.name);
+            let vxlan_name = format!("vxlan_{}_{}", comp_idx, i);
             let vxlan_id = 1338 + i as u32; // Start VXLAN IDs from 1338
             let team_subnet = subnets.get(i).expect("subnet");
             // Remove interface if it exists
@@ -96,7 +97,7 @@ fn main() {
                 .status();
             // Create VXLAN interface
             let status = std::process::Command::new("ip")
-                .args(["link", "add", &vxlan_name, "type", "vxlan", "id", &vxlan_id.to_string(), "dev", "eth0", "learning", "dstport", "4789"]) // assumes eth0
+                .args(["link", "add", &vxlan_name, "type", "vxlan", "id", &vxlan_id.to_string(), "dev", "eth0", "learning", "dstport", "4789"])
                 .status()
                 .expect("Failed to create vxlan interface");
             if !status.success() {
@@ -114,7 +115,6 @@ fn main() {
                 .status()
                 .expect("Failed to assign IP to vxlan interface");
             // SNAT only traffic from this team's VXLAN interface, using MGMT /24 as --to-source
-            //let mgmt_cidr = format!("{}/24", mgmt_subnet);
             let team_snat_rule = format!("-o {} -j MASQUERADE", vxlan_name);
             ipt.append("nat", "POSTROUTING", &team_snat_rule)
                 .expect("Failed to add SNAT rule for team");

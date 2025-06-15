@@ -16,6 +16,8 @@ pub struct Box {
     pub name: String,
     pub labels: String,
     pub hostname: String,
+    pub cores: Option<u32>, // Optional number of CPU cores
+    pub ram_mb: Option<u32>, // Optional RAM in MB
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -84,7 +86,9 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn new() -> Result<Self> {
         let config = Config::builder()
-            .add_source(File::with_name("competition.yaml"))
+            .add_source(File::with_name("competition.yaml").required(false))
+            .add_source(File::with_name("/app/competition.yaml").required(false))
+            .add_source(File::with_name("/config/competition.yaml").required(false))
             .build()?;
 
         let app_config: AppConfig = config.try_deserialize()?;

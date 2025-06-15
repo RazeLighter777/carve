@@ -6,7 +6,7 @@ use tokio::time::{sleep, Duration};
 
 use crate::check::perform_check;
 use carve::config::Competition;
-use crate::redis_manager::RedisManager;
+use carve::redis_manager::RedisManager;
 
 pub struct Scheduler {
     competition: Competition,
@@ -62,9 +62,10 @@ impl Scheduler {
                             
                             if should_check {
                                 // Replace {{.TEAM}} placeholder in hostname with actual team name
-                                let hostname = box_config.hostname
-                                    .replace("{{ .TEAM }}", &team.name)
-                                    .replace("{{.TEAM}}", &team.name);
+                                let hostname = format!("{}.{}.{}.local", 
+                                    box_config.name, 
+                                    team.name, 
+                                    competition_name);
                                 
                                 info!(
                                     "Running check {} for team {} on box {} ({})",

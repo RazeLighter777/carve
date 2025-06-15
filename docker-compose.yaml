@@ -28,6 +28,7 @@ services:
       dockerfile: vxlan-sidecar/Dockerfile
     environment:
       - TEAM_NAME=team1
+      - COMPETITION_NAME=defcon
     volumes:
       - ./competition.yaml:/app/competition.yaml:ro
     depends_on:
@@ -39,11 +40,12 @@ services:
       dockerfile: qemu-box/Dockerfile
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
-      - ./disks/ubuntu/ubuntu-24.04-nocloud.qcow2:/disk/ubuntu-24.04-nocloud.qcow2
+      - ./disks/alpine:/disk
     environment:
       - TEAM_NAME=team1
       - BOX_NAME=web
       - COMPETITION_NAME=defcon
+      - RUST_LOG=debug
     depends_on:
       - vxlan-sidecar-team1-web
       - carve-dnsmasq
@@ -62,6 +64,7 @@ services:
       - ./competition.yaml:/app/competition.yaml:ro
     depends_on:
       - redis
+    network_mode: service:vtep
   carve-web:
     build:
       context: .

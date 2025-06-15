@@ -10,15 +10,21 @@ competitions:
     vtep_host: vtep  # VTEP hostname for VXLAN
     boxes:
       # Define service boxes that will be checked
-      - name: web-server
+      - name: web
         labels: http
         hostname: "web-server"
-      - name: db-server
+        cores: 2
+        ram_mb: 2048
+      - name: db
         labels: db
         hostname: "db"
-      - name: auth-server
+        cores: 4
+        ram_mb: 4096
+      - name: auth
         labels: auth
         hostname: "auth"
+        cores: 1
+        ram_mb: 1024
     teams:
       # List of competing teams
       - name: team1

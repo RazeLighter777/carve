@@ -1,5 +1,4 @@
 mod check;
-mod redis_manager;
 mod scheduler;
 
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
@@ -10,7 +9,7 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use carve::config::AppConfig;
-use crate::redis_manager::RedisManager;
+use carve::redis_manager::RedisManager;
 use crate::scheduler::Scheduler;
 
 struct AppState {
