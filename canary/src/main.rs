@@ -139,7 +139,6 @@ async fn get_team_score_by_check(
         competition_name
     ))
 }
-
 #[actix_web::main]
 async fn main() -> Result<()> {
     // Initialize logger

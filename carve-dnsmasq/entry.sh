@@ -29,16 +29,8 @@ cat > "$DNSMASQ_CONF" <<EOF
 domain=$competition_domain
 dhcp-fqdn
 no-resolv
+local=/$competition_domain/
 EOF
-
-# parse current /etc/resolv.conf to get the existing dns servers to set as fallback
-existing_dns_servers=$(awk '/^nameserver/ { print $2 }' /etc/resolv.conf | tr '\n' ',' | sed 's/,$//')
-if [ -z "$existing_dns_servers" ]; then
-  echo "No existing DNS servers found in /etc/resolv.conf"
-else
-  echo "Using existing DNS servers: $existing_dns_servers"
-  echo "server=$existing_dns_servers" >> "$DNSMASQ_CONF"
-fi
 
 
 # Get teams
@@ -56,6 +48,7 @@ for ((i=0;i<$team_count;i++)); do
   dhcp_start="$o1.$o2.$subnet_index.16"
   dhcp_end="$o1.$o2.$subnet_index.253"
   router_ip="$o1.$o2.$subnet_index.254"
+  dns_ip="$o1.$o2.$subnet_index.1"
 
   cat >> "$DNSMASQ_CONF" <<TEAMCONF
   # Team: $team_name
@@ -63,7 +56,7 @@ for ((i=0;i<$team_count;i++)); do
   dhcp-range=set:net$i,$dhcp_start,$dhcp_end,12h
   domain=$team_name.$COMPETITION_NAME.local,$dhcp_start,$dhcp_end,12h
   dhcp-option=tag:net$i,option:router,$router_ip
-  dhcp-option=tag:net$i,option:dns-server,$router_ip
+  dhcp-option=tag:net$i,option:dns-server,$dns_ip
   dhcp-authoritative
 TEAMCONF
 

@@ -91,6 +91,7 @@ fn main() {
             let vxlan_name = format!("vxlan_{}_{}", comp_idx, i);
             let vxlan_id = 1338 + i as u32; // Start VXLAN IDs from 1338
             let team_subnet = subnets.get(i).expect("subnet");
+            println!("Creating vxlan interface for {} named {}", team.name, vxlan_name);
             // Remove interface if it exists
             let _ = std::process::Command::new("ip")
                 .args(["link", "del", &vxlan_name])
@@ -118,14 +119,13 @@ fn main() {
             let team_snat_rule = format!("-o {} -j MASQUERADE", vxlan_name);
             ipt.append("nat", "POSTROUTING", &team_snat_rule)
                 .expect("Failed to add SNAT rule for team");
-            // Drop incoming traffic to this team's VXLAN interface not from the competition CIDR /16
-            let team_drop_rule = format!("-i {} -s {}/16 -j DROP", vxlan_name, cidr);
-            ipt.append("filter", "FORWARD", &team_drop_rule)
-                .expect("Failed to add DROP rule for team");
-            // Drop outgoing traffic to this team's VXLAN interface not to the competition CIDR /16
-            let team_drop_out_rule = format!("-o {} -d {}/16 -j DROP", vxlan_name, cidr);
-            ipt.append("filter", "FORWARD", &team_drop_out_rule)
-                .expect("Failed to add DROP rule for team");
+            // drop traffic on the vxlan interface not going to the competition cidr
+            println!("cidr is {}", cidr);
+            let team_accept_rule = format!("-i {} ! -d {} -j DROP", vxlan_name, cidr.trim());
+            print!("rule {}", team_accept_rule);
+            ipt.append("filter", "FORWARD", &team_accept_rule)
+                .expect("Failed to add drop rule for team");
+
         }
         // print iptables command for debugging
 

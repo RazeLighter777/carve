@@ -19,25 +19,6 @@ struct CloudInit {
     network_config: String,
 }
 
-#[get("/user-data")]
-async fn user_data(data: actix_web::web::Data<CloudInit>) -> impl Responder {
-    HttpResponse::Ok().content_type("text/yaml").body(data.user_data.clone())
-}
-
-#[get("/meta-data")]
-async fn meta_data(data: actix_web::web::Data<CloudInit>) -> impl Responder {
-    HttpResponse::Ok().content_type("text/yaml").body(data.meta_data.clone())
-}
-
-#[get("/vendor-data")]
-async fn vendor_data(data: actix_web::web::Data<CloudInit>) -> impl Responder {
-    HttpResponse::Ok().content_type("text/yaml").body(data.vendor_data.clone())
-}
-
-#[get("/network-config")]
-async fn network_config(data: actix_web::web::Data<CloudInit>) -> impl Responder {
-    HttpResponse::Ok().content_type("text/yaml").body(data.network_config.clone())
-}
 
 #[get("/api/health")]
 async fn health_check() -> impl Responder {
@@ -229,10 +210,7 @@ users:
         App::new()
             .wrap(Logger::default())
             .app_data(actix_web::web::Data::new(cloud_init.clone()))
-            .service(user_data)
-            .service(meta_data)
-            .service(vendor_data)
-            .service(network_config)
+            .service(health_check)
     }).bind(("0.0.0.0", 8001))?
     .run()
     .await?;
