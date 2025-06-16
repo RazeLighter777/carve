@@ -64,7 +64,7 @@ async fn get_team_score(
         let mut scores = Vec::new();
         for check in &competition.checks {
             // Try to get the score using this manager
-            match redis_manager.get_team_score_check(&competition_name, &team_name, &check.name, check.points as i64) {
+            match redis_manager.get_team_score_by_check(&competition_name, &team_name, &check.name, check.points as i64) {
                 Ok(score) => {
                     total_score += score;
                     scores.push(CheckScore {
@@ -116,7 +116,7 @@ async fn get_team_score_by_check(
     // Find the Redis manager for this competition
     for redis_manager in &data.redis_managers {
         // Try to get the score using this manager
-        match redis_manager.get_team_score_check(&competition_name, &team_name, &check_name, check_points) {
+        match redis_manager.get_team_score_by_check(&competition_name, &team_name, &check_name, check_points) {
             Ok(score) => {
                 return HttpResponse::Ok().json(ScoreResponse {
                     competition: competition_name.clone(),

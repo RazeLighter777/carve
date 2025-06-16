@@ -1,2 +1,2 @@
 [workspace]
-members = ["carve", "canary", "vtep", "vxlan-sidecar", "qemu-box"]
+members = ["carve", "canary", "vtep", "vxlan-sidecar", "qemu-box", "carve-api"]
