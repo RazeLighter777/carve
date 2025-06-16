@@ -1,6 +1,8 @@
 # Example configuration for the canary service
 # This file defines competitions, teams, boxes, and checks for scoring
 competitions:
+  # Example configuration for the canary service
+# This file defines competitions, teams, boxes, and checks for scoring
   - name: defcon
     cidr: 10.13.0.0/16  # CIDR for the competition networkss
     redis:

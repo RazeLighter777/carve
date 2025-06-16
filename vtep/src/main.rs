@@ -118,6 +118,14 @@ fn main() {
             let team_snat_rule = format!("-o {} -j MASQUERADE", vxlan_name);
             ipt.append("nat", "POSTROUTING", &team_snat_rule)
                 .expect("Failed to add SNAT rule for team");
+            // Drop incoming traffic to this team's VXLAN interface not from the competition CIDR /16
+            let team_drop_rule = format!("-i {} -s {}/16 -j DROP", vxlan_name, cidr);
+            ipt.append("filter", "FORWARD", &team_drop_rule)
+                .expect("Failed to add DROP rule for team");
+            // Drop outgoing traffic to this team's VXLAN interface not to the competition CIDR /16
+            let team_drop_out_rule = format!("-o {} -d {}/16 -j DROP", vxlan_name, cidr);
+            ipt.append("filter", "FORWARD", &team_drop_out_rule)
+                .expect("Failed to add DROP rule for team");
         }
         // print iptables command for debugging
 

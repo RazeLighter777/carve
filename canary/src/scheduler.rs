@@ -66,14 +66,41 @@ impl Scheduler {
                                     box_config.name, 
                                     team.name, 
                                     competition_name);
-                                
+                                // launch dig with cmd to resolve the hostname to an IP address with the vtep's DNS server
+                                let ip = match std::process::Command::new("dig")
+                                    .arg(&hostname)
+                                    .arg("@vtep")
+                                    .arg("+short")
+                                    .output() {
+                                        Ok(output) if output.status.success() => {
+                                            String::from_utf8_lossy(&output.stdout)
+                                                .trim()
+                                                .to_string()
+                                        }
+                                        _ => {
+                                            error!("Failed to resolve hostname: {}", hostname);
+                                            continue;
+                                        }
+                                    };
+                                // check if we got a valid IP address
+                                let ip = match ip.parse::<std::net::IpAddr>() {
+                                    Ok(ip) => ip,
+                                    Err(_) => {
+                                        println!("Box {}.{}.{}.local has no dns entry (yet), skipping",
+                                            box_config.name,
+                                            team.name,
+                                            competition_name);
+                                        continue;
+                                    }
+                                };
+
                                 info!(
                                     "Running check {} for team {} on box {} ({})",
-                                    check.name, team.name, box_config.name, hostname
+                                    check.name, team.name, box_config.name, ip
                                 );
                                 
                                 // Perform the check
-                                match perform_check(&hostname, &check.spec).await {
+                                match perform_check(&ip.to_string(), &check.spec).await {
                                     Ok(message) => {
                                         info!("Check successful: {}", message);
                                         let timestamp_ms = check_timestamp * 1000;

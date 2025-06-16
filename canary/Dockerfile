@@ -24,6 +24,6 @@ RUN cargo build --release --bin canary
 # --- Runtime stage ---
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
-RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libssl3 ca-certificates bind9-dnsutils inetutils-ping && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/canary /app/canary
 CMD ["/app/canary"]

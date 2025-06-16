@@ -12,6 +12,9 @@ use carve::config::AppConfig;
 use carve::redis_manager::RedisManager;
 use crate::scheduler::Scheduler;
 
+use std::net::{SocketAddr, ToSocketAddrs};
+
+
 struct AppState {
     redis_managers: Vec<Arc<RedisManager>>,
 }
@@ -141,7 +144,8 @@ async fn get_team_score_by_check(
 async fn main() -> Result<()> {
     // Initialize logger
     env_logger::init_from_env(Env::default().default_filter_or("info"));
-    
+
+
     // Load configuration
     let config = match AppConfig::new() {
         Ok(cfg) => cfg,

@@ -23,14 +23,23 @@ fi
 competition_cidr=$(yq ".competitions[] | select(.name == \"$COMPETITION_NAME\") | .cidr" $CONFIG_FILE)
 competition_domain="$COMPETITION_NAME.local"
 
+
 # Write global dnsmasq config
 cat > "$DNSMASQ_CONF" <<EOF
-except-interface=lo
-except-interface=eth0
 domain=$competition_domain
 dhcp-fqdn
 no-resolv
 EOF
+
+# parse current /etc/resolv.conf to get the existing dns servers to set as fallback
+existing_dns_servers=$(awk '/^nameserver/ { print $2 }' /etc/resolv.conf | tr '\n' ',' | sed 's/,$//')
+if [ -z "$existing_dns_servers" ]; then
+  echo "No existing DNS servers found in /etc/resolv.conf"
+else
+  echo "Using existing DNS servers: $existing_dns_servers"
+  echo "server=$existing_dns_servers" >> "$DNSMASQ_CONF"
+fi
+
 
 # Get teams
 team_count=$(yq ".competitions[] | select(.name == \"$COMPETITION_NAME\") | .teams | length" $CONFIG_FILE)

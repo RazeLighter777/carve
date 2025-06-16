@@ -16,6 +16,8 @@ services:
     environment:
       - VXLAN_ID=1001
       - CIDR=10.10.0.0/16
+    ports:
+      - "53:53/udp"
     depends_on:
       - redis
   vxlan-sidecar-team1-web:
@@ -64,6 +66,7 @@ services:
       - ./competition.yaml:/app/competition.yaml:ro
     depends_on:
       - redis
+      - carve-dnsmasq
     network_mode: service:vtep
   carve-web:
     build:
