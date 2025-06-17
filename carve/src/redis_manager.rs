@@ -304,6 +304,32 @@ impl RedisManager {
         
         Ok(result)
     }
+
+    // Store an oauth2 pkce_verifier.
+    // key should expire in 5 minutes.
+    pub fn store_pkce_verifier(&self, verifier: &str) -> Result<()> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        let _: () = redis::cmd("SADD")
+            .arg("pkce_verifiers")
+            .arg(verifier)
+            .query(&mut conn)
+            .context("Failed to store PKCE challenge")?;
+        Ok(())
+    }
+
+    pub fn get_pkce_verifier(&self, verifier: &str) -> Result<Option<String>> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Get the verifier for the given challenge. If it doesn't exist, return None.
+        let verifier: Option<String> = redis::cmd("SISMEMBER")
+            .arg("pkce_verifiers")
+            .arg(verifier)
+            .query(&mut conn)
+            .context("Failed to check PKCE verifier existence")?;
+        
+        Ok(verifier)
+    }
     
     // Get all users in the competition
     pub fn get_all_users(&self, competition_name: &str) -> Result<Vec<User>> {

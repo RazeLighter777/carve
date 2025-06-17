@@ -90,3 +90,26 @@ services:
     cap_add:
       - NET_ADMIN
     network_mode: service:vtep
+  carve-api:
+    build:
+      context: .
+      dockerfile: carve-api/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - COMPETITION_NAME=defcon
+      # for testing purposes, use a fixed secret key
+      # in production, you should generate a secure key
+      # and store it securely, e.g., in an environment variable or a secret management system
+      - SECRET_KEY=82eb0275e23e5f043e85762e798fd9d61b1040ecdba15d001eb52f416e08ef3e
+      - OAUTH2_CLIENT_ID=MerToF4xtp7PwRrumFd4kdOf5ldu1OcmNFaqyZ9p
+      - OAUTH2_CLIENT_SECRET=CBIqtzJu4jLelR92PU1W7eao0i83Wldaz5BDfWVJljcesUHaThp5MM1xzVQKUFizTxgjmxuc81YkXZawKsb2tCLltlUuRzaGUkhtdaeIbp5eT7ct5M53Abix7paxQJtK
+      - OAUTH2_REDIRECT_URL=http://localhost:5000/api/v1/oauth2/callback 
+      - OAUTH2_TOKEN_URL=https://authentik.prizrak.me/application/o/token/
+      - OAUTH2_AUTH_URL=https://authentik.prizrak.me/application/o/authorize/
+    volumes:
+      - ./competition.yaml:/config/competition.yaml:ro
+    depends_on:
+      - redis
+      - carve-dnsmasq
+      - canary
