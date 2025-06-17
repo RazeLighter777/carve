@@ -8,7 +8,6 @@ pub struct User {
     pub username: String,
     pub email: String,
     pub team_name: Option<String>,
-    pub user_id: Option<u64>,
 }
 
 impl User {
@@ -17,7 +16,6 @@ impl User {
             username,
             email,
             team_name: None,
-            user_id: None,
         }
     }
     
@@ -26,16 +24,6 @@ impl User {
             username,
             email,
             team_name: Some(team_name),
-            user_id: None,
-        }
-    }
-    
-    pub fn with_id(username: String, email: String, user_id: u64) -> Self {
-        Self {
-            username,
-            email,
-            team_name: None,
-            user_id: Some(user_id),
         }
     }
     
@@ -43,8 +31,7 @@ impl User {
         Self {
             username,
             email,
-            team_name: Some(team_name),
-            user_id: Some(user_id),
+            team_name: Some(team_name)
         }
     }
     

@@ -3,14 +3,15 @@ use actix_web::cookie::Key;
 use actix_web::{
     get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result as ActixResult,
 };
+use carve::redis_manager::User;
 use carve::{
     config::{AppConfig, Competition},
     redis_manager::RedisManager,
 };
 use chrono::{DateTime, Utc};
 use env_logger::Env;
-use oauth2::http::request;
-use oauth2::{basic::*, reqwest, PkceCodeVerifier};
+use reqwest;
+use oauth2::{basic::*, PkceCodeVerifier, TokenResponse};
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
     Scope, TokenUrl,
@@ -22,7 +23,6 @@ use tokio::process::Command;
 // API Response structures
 #[derive(Serialize)]
 struct UserResponse {
-    id: u64,
     name: String,
     email: String,
     #[serde(rename = "teamId")]
@@ -31,7 +31,6 @@ struct UserResponse {
 
 #[derive(Serialize)]
 struct TeamMember {
-    id: u64,
     name: String,
 }
 
@@ -131,8 +130,7 @@ struct TeamsResponse {
 // Query parameters
 #[derive(Deserialize)]
 struct UserQuery {
-    username: Option<String>,
-    id: Option<u64>,
+    username: String,
 }
 
 #[derive(Deserialize)]
@@ -227,78 +225,34 @@ async fn get_user(
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
-    // Handle both username and id queries
-    if let Some(username) = &query.username {
-        // Query by username using Redis
-        match redis.get_user(&competition.name, username) {
-            Ok(Some(user)) => {
-                // Find team_id from team name
-                let team_id = if let Some(ref team_name) = user.team_name {
-                    competition
-                        .teams
-                        .iter()
-                        .position(|t| t.name == *team_name)
-                        .map(|pos| pos as u64 + 1)
-                        .unwrap_or(0)
-                } else {
-                    0
-                };
+    let username = query.username.clone();
+    // Get user from Redis
+    match redis.get_user(&competition.name, &username) {
+        Ok(Some(user)) => {
+            let team_id = if let Some(ref team_name) = user.team_name {
+                competition
+                    .teams
+                    .iter()
+                    .position(|t| t.name == *team_name)
+                    .map(|idx| idx as u64 + 1)
+                    .unwrap_or(0)
+            } else {
+                0
+            };
 
-                let user_response = UserResponse {
-                    id: user.user_id.unwrap_or(0),
-                    name: user.username,
-                    email: user.email,
-                    team_id,
-                };
-
-                Ok(HttpResponse::Ok().json(user_response))
-            }
-            Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
-                "error": "User not found"
-            }))),
-            Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": "Failed to retrieve user"
-            }))),
+            let response = UserResponse {
+                name: user.username,
+                email: user.email,
+                team_id,
+            };
+            Ok(HttpResponse::Ok().json(response))
         }
-    } else if let Some(user_id) = query.id {
-        // Query by ID - search through all users to find matching ID
-        match redis.get_all_users(&competition.name) {
-            Ok(users) => {
-                if let Some(user) = users.into_iter().find(|u| u.user_id == Some(user_id)) {
-                    // Find team_id from team name
-                    let team_id = if let Some(ref team_name) = user.team_name {
-                        competition
-                            .teams
-                            .iter()
-                            .position(|t| t.name == *team_name)
-                            .map(|pos| pos as u64 + 1)
-                            .unwrap_or(0)
-                    } else {
-                        0
-                    };
-
-                    let user_response = UserResponse {
-                        id: user_id,
-                        name: user.username,
-                        email: user.email,
-                        team_id,
-                    };
-
-                    Ok(HttpResponse::Ok().json(user_response))
-                } else {
-                    Ok(HttpResponse::NotFound().json(serde_json::json!({
-                        "error": "User not found"
-                    })))
-                }
-            }
-            Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": "Failed to retrieve users"
-            }))),
-        }
-    } else {
-        Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Either username or id parameter is required"
-        })))
+        Ok(None) => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "User not found"
+        }))),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "Failed to retrieve user"
+        }))),
     }
 }
 
@@ -322,7 +276,6 @@ async fn get_team(
         Ok(users) => users
             .into_iter()
             .map(|user| TeamMember {
-                id: user.user_id.unwrap_or(0),
                 name: user.username,
             })
             .collect(),
@@ -647,7 +600,7 @@ async fn get_oauth2_redirect_url(
     // Build the authorization URL
     let (authorize_url, _csrf_state) = client
         .authorize_url(
-            CsrfToken::new_random
+            || csrf_token
         )
         .add_scope(Scope::new("openid".to_string()))
         .add_scope(Scope::new("profile".to_string()))
@@ -656,8 +609,6 @@ async fn get_oauth2_redirect_url(
         .url();
     // store verifier in session
     session.insert("pkce_verifier", pkce_verifier.secret())?;
-    // Store CSRF token in session
-    session.insert("csrf_token", csrf_token.secret())?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "redirectUrl": authorize_url.to_string(),
     })))
@@ -670,6 +621,7 @@ async fn oauth2_callback(
     session: Session,
     client: web::Data<OauthClient>,
     redis: web::Data<RedisManager>,
+    competition : web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
     // get code and state from query parameters
     let code = query.code.clone();
@@ -683,6 +635,21 @@ async fn oauth2_callback(
             })));
         }
     };
+    //verify state matches csrf_token
+    let csrf_token: String = match session.get("csrf_token") {
+        Ok(Some(token)) => token,
+        _ => {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "CSRF token not found in session"
+            })));
+        }
+    };
+    println!("State: {}, CSRF Token: {}", state, csrf_token);
+    if state != csrf_token {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Invalid CSRF token"
+        })));
+    }
     //verify pkce_verifier
     let pkce_verifier = PkceCodeVerifier::new(pkce_verifier);
     let token_request = client.exchange_code(AuthorizationCode::new(code));
@@ -690,6 +657,83 @@ async fn oauth2_callback(
     match token_request.set_pkce_verifier(pkce_verifier).request_async(&oauth2::reqwest::ClientBuilder::new().redirect(reqwest::redirect::Policy::none()).use_native_tls().build().expect("Should build")).await {
         Ok(token) => {
             // Extract user information from token
+            let oidc_userinfo_url = std::env::var("OAUTH2_USERINFO_URL")
+                .expect("OAUTH2_USERINFO_URL not set");
+            let userinfo_reqwest = reqwest::ClientBuilder::new()
+                .use_native_tls()
+                .build()
+                .expect("Failed to build userinfo request");
+            let userinfo_response = userinfo_reqwest
+                .get(&oidc_userinfo_url)
+                .bearer_auth(token.access_token().secret())
+                .send()
+                .await;
+            // parse the userinfo response to json, then iterate through the groups field to find the team name
+            match userinfo_response {
+                Ok(response) => {
+                    match response.json::<serde_json::Value>().await {
+                        Ok(user_info) => {
+                            let username = user_info["preferred_username"]
+                                .as_str()
+                                .unwrap_or("unknown")
+                                .to_string();
+                            let email = user_info["email"]
+                                .as_str()
+                                .unwrap_or("unknown")
+                                .to_string();
+                            
+                            // get list of teams and find the team name in the groups field
+                            let mut team_name: Option<String> = None;
+                            if let Some(groups) = user_info["groups"].as_array() {
+                                for group in groups {
+                                    if let Some(group_name) = group.as_str() {
+                                        // Check if the group name matches any team name
+                                        if competition.teams.iter().any(|t| t.name == group_name) {
+                                            team_name = Some(group_name.to_string());
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            // return an error response if no team is found
+                            if team_name.is_none() {
+                                return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                                    "error": "No team found for user"
+                                })));
+                            }
+                            // call register_user in redis_manager
+                            let team_name = team_name.unwrap();
+                            match redis.register_user(
+                                &competition.name,
+                                &User {
+                                    username: username.clone(),
+                                    email,
+                                    team_name: Some(team_name.clone()),
+                                },
+                                &team_name,
+                            ) {
+                                Ok(_) => {
+                                    println!("User {} registered successfully", username);
+                                }
+                                Err(e) => {
+                                    println!("Error registering user: {:?}", e);
+                                    return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                                        "error": "Failed to register user"
+                                    })));
+                                }
+                            }
+
+                        }
+                        Err(e) => {
+                            println!("Error parsing user info: {:?}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("Error fetching user info: {:?}", e);
+                }
+            }
+            
             session.insert("token", token)?;
 
             return Ok(HttpResponse::Ok().json(serde_json::json!({

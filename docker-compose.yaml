@@ -107,6 +107,7 @@ services:
       - OAUTH2_REDIRECT_URL=http://localhost:5000/api/v1/oauth2/callback 
       - OAUTH2_TOKEN_URL=https://authentik.prizrak.me/application/o/token/
       - OAUTH2_AUTH_URL=https://authentik.prizrak.me/application/o/authorize/
+      - OAUTH2_USERINFO_URL=https://authentik.prizrak.me/application/o/userinfo/
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
     depends_on:
