@@ -20,6 +20,8 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::process::Stdio;
 use tokio::process::Command;
+
+mod auth;
 // API Response structures
 #[derive(Serialize)]
 struct UserResponse {
@@ -219,7 +221,7 @@ fn is_valid_ipv4(ip: &str) -> bool {
 }
 
 // API Handlers
-#[get("/api/v1/user")]
+#[get("/user")]
 async fn get_user(
     query: web::Query<UserQuery>,
     competition: web::Data<Competition>,
@@ -256,7 +258,7 @@ async fn get_user(
     }
 }
 
-#[get("/api/v1/team")]
+#[get("/team")]
 async fn get_team(
     query: web::Query<TeamQuery>,
     competition: web::Data<Competition>,
@@ -294,7 +296,7 @@ async fn get_team(
     Ok(HttpResponse::Ok().json(team_response))
 }
 
-#[get("/api/v1/teams")]
+#[get("/teams")]
 async fn get_teams(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
     let teams: Vec<TeamListEntry> = competition
         .teams
@@ -310,7 +312,7 @@ async fn get_teams(competition: web::Data<Competition>) -> ActixResult<impl Resp
     Ok(HttpResponse::Ok().json(response))
 }
 
-#[get("/api/v1/competition")]
+#[get("/competition")]
 async fn get_competition(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
     let response = CompetitionResponse {
         status: "active".to_string(),
@@ -322,7 +324,7 @@ async fn get_competition(competition: web::Data<Competition>) -> ActixResult<imp
     Ok(HttpResponse::Ok().json(response))
 }
 
-#[get("/api/v1/score")]
+#[get("/score")]
 async fn get_score(
     query: web::Query<ScoreQuery>,
     competition: web::Data<Competition>,
@@ -408,7 +410,7 @@ async fn get_score(
     Ok(HttpResponse::Ok().json(scores))
 }
 
-#[get("/api/v1/score/leaderboard")]
+#[get("/leaderboard")]
 async fn get_leaderboard(
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
@@ -454,7 +456,7 @@ async fn get_leaderboard(
     Ok(HttpResponse::Ok().json(response))
 }
 
-#[get("/api/v1/boxes")]
+#[get("/boxes")]
 async fn get_boxes(
     query: web::Query<BoxesQuery>,
     competition: web::Data<Competition>,
@@ -485,7 +487,7 @@ async fn get_boxes(
     Ok(HttpResponse::Ok().json(boxes))
 }
 
-#[get("/api/v1/box")]
+#[get("/box")]
 async fn get_box(
     query: web::Query<BoxQuery>,
     competition: web::Data<Competition>,
@@ -534,7 +536,7 @@ async fn get_box(
     Ok(HttpResponse::Ok().json(response))
 }
 
-#[get("/api/v1/box/defaultCreds")]
+#[get("box/defaultCreds")]
 async fn get_box_default_creds(
     query: web::Query<BoxQuery>,
     competition: web::Data<Competition>,
@@ -570,7 +572,7 @@ async fn get_box_default_creds(
     }
 }
 
-#[get("/api/v1/checks")]
+#[get("checks")]
 async fn get_checks(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
     let checks: Vec<CheckResponse> = competition
         .checks
@@ -584,7 +586,7 @@ async fn get_checks(competition: web::Data<Competition>) -> ActixResult<impl Res
     Ok(HttpResponse::Ok().json(checks))
 }
 
-#[get("/api/v1/oauth2/get_oauth2_redirect_url")]
+#[get("/get_oauth2_redirect_url")]
 async fn get_oauth2_redirect_url(
     session: Session,
     client: web::Data<OauthClient>,
@@ -615,7 +617,7 @@ async fn get_oauth2_redirect_url(
 }
 
 // callback endpoint for OAuth2
-#[get("/api/v1/oauth2/callback")]
+#[get("/callback")]
 async fn oauth2_callback(
     query : web::Query<OauthCallBackQuery>,
     session: Session,
@@ -794,18 +796,23 @@ async fn main() -> std::io::Result<()> {
                 CookieSessionStore::default(),
                 secret_key.clone(),
             ))
-            .service(get_user)
-            .service(get_team)
-            .service(get_teams)
-            .service(get_competition)
-            .service(get_score)
-            .service(get_leaderboard)
-            .service(get_boxes)
-            .service(get_box)
-            .service(get_box_default_creds)
-            .service(get_checks)
-            .service(get_oauth2_redirect_url)
-            .service(oauth2_callback)
+            .service(web::scope("/api/v1")
+                .guard(auth::validate_session)
+                .service(get_user)
+                .service(get_team)
+                .service(get_teams)
+                .service(get_competition)
+                .service(get_score)
+                .service(get_leaderboard)
+                .service(get_boxes)
+                .service(get_box)
+                .service(get_box_default_creds)
+                .service(get_checks)
+            )
+            .service(web::scope("/api/v1/oauth2")
+                .service(get_oauth2_redirect_url)
+                .service(oauth2_callback)
+            )
     })
     .bind(("0.0.0.0", 8080))?
     .run()
