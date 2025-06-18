@@ -10,6 +10,8 @@ competitions:
       port: 6379       # Redis port
       db: 0            # Redis database number
     vtep_host: vtep  # VTEP hostname for VXLAN
+    admin_group: "carver-admins"  # Admin group for the competition
+    duration: 3600  # Competition duration in seconds (1 hour)
     boxes:
       # Define service boxes that will be checked
       - name: web

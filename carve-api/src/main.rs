@@ -684,6 +684,7 @@ async fn oauth2_callback(
                             
                             // get list of teams and find the team name in the groups field
                             let mut team_name: Option<String> = None;
+                            let mut is_admin = false;
                             if let Some(groups) = user_info["groups"].as_array() {
                                 for group in groups {
                                     if let Some(group_name) = group.as_str() {
@@ -692,9 +693,17 @@ async fn oauth2_callback(
                                             team_name = Some(group_name.to_string());
                                             break;
                                         }
+                                        // Check if the group name matches the admin group
+                                        if let Some(admin_group) = &competition.admin_group {
+                                            if group_name == admin_group {
+                                                is_admin = true;
+                                            }
+                                        }
                                     }
                                 }
                             }
+
+                            
                             // return an error response if no team is found
                             if team_name.is_none() {
                                 return Ok(HttpResponse::BadRequest().json(serde_json::json!({
@@ -707,7 +716,7 @@ async fn oauth2_callback(
                                 &competition.name,
                                 &User {
                                     username: username.clone(),
-                                    email,
+                                    email: email.clone(),
                                     team_name: Some(team_name.clone()),
                                 },
                                 &team_name,
@@ -722,6 +731,11 @@ async fn oauth2_callback(
                                     })));
                                 }
                             }
+                            // create session with user info
+                            session.insert("username", username)?;
+                            session.insert("email", email)?;
+                            session.insert("team_name", team_name)?;
+                            session.insert("is_admin", is_admin)?;
 
                         }
                         Err(e) => {

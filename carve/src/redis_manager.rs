@@ -10,6 +10,17 @@ pub struct User {
     pub team_name: Option<String>,
 }
 
+pub enum CompetitionState {
+    Active {
+        start_time: u64, // Unix timestamp in seconds
+        end_time: Option<u64>, // Unix timestamp in seconds, None if ongoing
+    },
+    Unstarted,
+    Finished {
+        end_time: u64, // Unix timestamp in seconds
+    },
+}
+
 impl User {
     pub fn new(username: String, email: String) -> Self {
         Self {
@@ -292,31 +303,6 @@ impl RedisManager {
         Ok(result)
     }
 
-    // Store an oauth2 pkce_verifier.
-    // key should expire in 5 minutes.
-    pub fn store_pkce_verifier(&self, verifier: &str) -> Result<()> {
-        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
-        
-        let _: () = redis::cmd("SADD")
-            .arg("pkce_verifiers")
-            .arg(verifier)
-            .query(&mut conn)
-            .context("Failed to store PKCE challenge")?;
-        Ok(())
-    }
-
-    pub fn get_pkce_verifier(&self, verifier: &str) -> Result<Option<String>> {
-        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
-        
-        // Get the verifier for the given challenge. If it doesn't exist, return None.
-        let verifier: Option<String> = redis::cmd("SISMEMBER")
-            .arg("pkce_verifiers")
-            .arg(verifier)
-            .query(&mut conn)
-            .context("Failed to check PKCE verifier existence")?;
-        
-        Ok(verifier)
-    }
     
     // Get all users in the competition
     pub fn get_all_users(&self, competition_name: &str) -> Result<Vec<User>> {
@@ -334,6 +320,110 @@ impl RedisManager {
         
         Ok(result)
     }
+
+    // get the global competition state atomically. If the state is not set, will insert a default state (Unstarted).
+    pub fn get_competition_state(&self, competition_name: &str) -> Result<CompetitionState> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Key for competition state
+        let key = format!("{}:state", competition_name);
+        
+        // Try to get the state
+        let state: Option<String> = redis::cmd("HGET")
+            .arg(&key)
+            .arg("state")
+            .query(&mut conn)
+            .context("Failed to get competition state")?;
+        
+        if let Some(state_str) = state {
+            // Parse the state string
+            match state_str.as_str() {
+                "active" => {
+                    let start_time: u64 = redis::cmd("HGET")
+                        .arg(&key)
+                        .arg("start_time")
+                        .query(&mut conn)
+                        .context("Failed to get start time")?;
+                    let end_time: Option<u64> = redis::cmd("HGET")
+                        .arg(&key)
+                        .arg("end_time")
+                        .query(&mut conn)
+                        .context("Failed to get end time")?;
+                    Ok(CompetitionState::Active { start_time, end_time })
+                },
+                "unstarted" => Ok(CompetitionState::Unstarted),
+                "finished" => {
+                    let end_time: u64 = redis::cmd("HGET")
+                        .arg(&key)
+                        .arg("end_time")
+                        .query(&mut conn)
+                        .context("Failed to get end time")?;
+                    Ok(CompetitionState::Finished { end_time })
+                },
+                _ => Err(anyhow::anyhow!("Unknown competition state: {}", state_str)),
+            }
+        } else {
+            // Default to Unstarted if no state is set
+            //insert default state
+            let _: () = redis::cmd("HSET")
+                .arg(&key)
+                .arg("state")
+                .arg("unstarted")
+                .query(&mut conn)
+                .context("Failed to set default competition state")?;
+            Ok(CompetitionState::Unstarted)
+        }
+    }
+
+    //starts the copmetition. Returns an error if the competition is already started or finished.
+    pub fn start_competition(&self, competition_name: &str, duration: Option<u64>) -> Result<()> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Key for competition state
+        let key = format!("{}:state", competition_name);
+
+        
+        // Check current state
+        let current_state: Option<String> = redis::cmd("HGET")
+            .arg(&key)
+            .arg("state")
+            .query(&mut conn)
+            .context("Failed to get current competition state")?;
+        
+        match current_state.as_deref() {
+            Some("active") => Err(anyhow::anyhow!("Competition is already active")),
+            Some("finished") => Err(anyhow::anyhow!("Competition has already finished")),
+            Some("unstarted") | None => {
+                // Set new state to active with current timestamp
+                let start_time = chrono::Utc::now().timestamp() as u64;
+                let end_time = if let Some(duration) = duration {
+                    Some(start_time + duration)
+                } else {
+                    None
+                };
+                let _: () = redis::cmd("HSET")
+                    .arg(&key)
+                    .arg("state")
+                    .arg("active")
+                    .arg("start_time")
+                    .arg(start_time)
+                    .query(&mut conn)
+                    .context("Failed to start competition")?;
+                if let Some(end_time) = end_time {
+                    let _: () = redis::cmd("HSET")
+                        .arg(&key)
+                        .arg("end_time")
+                        .arg(end_time)
+                        .query(&mut conn)
+                        .context("Failed to set competition end time")?;
+                }
+                Ok(())
+            },
+            _ => Err(anyhow::anyhow!("Unknown competition state")),
+        }
+    }
+
+    
 
     // Get a specific user by username and find their team
     pub fn get_user(&self, competition_name: &str, username: &str) -> Result<Option<User>> {

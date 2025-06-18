@@ -76,6 +76,9 @@ pub struct Competition {
     pub boxes: Vec<Box>,
     pub teams: Vec<Team>,
     pub checks: Vec<Check>,
+    pub admin_group: Option<String>, // Optional admin group for oidc
+    pub description: Option<String>, // Optional description
+    pub duration: Option<u64>, // duration in seconds
 }
 
 #[derive(Debug, Deserialize, Clone)]

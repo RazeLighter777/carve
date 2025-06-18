@@ -1,5 +1,5 @@
 # Use official Node.js image for build
-FROM node:20-alpine AS build
+FROM node:24-alpine3.21 AS build
 
 WORKDIR /app
 
