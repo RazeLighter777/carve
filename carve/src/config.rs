@@ -71,6 +71,7 @@ pub struct Check {
 pub struct Competition {
     pub name: String,
     pub redis: RedisConfig,
+    pub oidc_provider_name: String, // OIDC provider name
     pub cidr: Option<String>, // Add this field for VTEP
     pub vtep_host: Option<String>, // <-- Add this line for VTEP host
     pub boxes: Vec<Box>,

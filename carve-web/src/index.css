@@ -1,0 +1,101 @@
+/* ./src/index.css */
+@import "tailwindcss";
+@import "tailwindcss/utilities";
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 font-sans;
+  }
+}
+
+@layer components {
+    .card {
+        @apply bg-white rounded-xl shadow-xl border border-gray-200/60;
+    }
+
+    .sub-card {
+        @apply bg-gray-50 rounded-lg shadow-md border border-gray-200/60;
+    }
+    
+    .card-hover {
+        @apply bg-white rounded-xl shadow-xl border border-gray-200/60 hover:shadow-md transition-all duration-200 hover:border-gray-300/80;
+    }
+    
+    .btn-primary {
+        @apply bg-white hover:bg-white focus:bg-white text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none py-2 px-4 focus:ring-2 focus:ring-black focus:ring-offset-2;
+    }
+    
+    .btn-secondary {
+        @apply bg-white hover:bg-gray-50 focus:bg-gray-50 text-gray-700 font-medium border border-gray-300 rounded-lg transition-colors py-2 px-4 duration-200 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2;
+    }
+    
+    .input-field {
+        @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-gray-200 transition-colors duration-200;
+    }
+    
+    .nav-link {
+        @apply flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:text-black hover:bg-white transition-all duration-200;
+    }
+    
+    .nav-link-active {
+        @apply text-black bg-white border-l-2 border-gray-300;
+    }
+    
+    .stats-card {
+        @apply bg-gradient-to-br from-white to-gray-50 rounded-xl p-6 border border-gray-200/60 shadow-xl;
+    }
+    
+    .table-header {
+        @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50;
+    }
+    
+    .table-cell {
+        @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
+    }
+    
+    .badge {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    }
+    
+    .badge-success {
+        @apply bg-green-100 text-green-800;
+    }
+    
+    .badge-warning {
+        @apply bg-yellow-100 text-yellow-800;
+    }
+    
+    .badge-error {
+        @apply bg-red-100 text-red-800;
+    }
+    
+    .badge-info {
+        @apply bg-blue-100 text-blue-800;
+    }
+
+    .text-heading {
+        @apply text-2xl font-bold text-gray-900 mb-4;
+    }
+    .text-subheading {
+        @apply text-xl font-semibold text-gray-700 mb-2;
+    }
+    .text-body {
+        @apply text-base text-gray-600;
+    }
+    
+    .text-muted {
+        @apply text-sm text-gray-500;
+    }
+    
+    .text-link {
+        @apply text-blue-600 hover:text-blue-800 transition-colors duration-200;
+    }
+    
+    .text-error {
+        @apply text-red-600;
+    }
+    
+    .text-success {
+        @apply text-green-600;
+    }
+}

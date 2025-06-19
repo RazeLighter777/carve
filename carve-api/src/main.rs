@@ -1,9 +1,10 @@
+use actix_cors::Cors;
 use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
-use actix_web::cookie::Key;
+use actix_web::cookie::{Cookie, Key};
 use actix_web::{
     get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result as ActixResult,
 };
-use carve::redis_manager::User;
+use carve::redis_manager::{User};
 use carve::{
     config::{AppConfig, Competition},
     redis_manager::RedisManager,
@@ -16,158 +17,13 @@ use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
     Scope, TokenUrl,
 };
-use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::process::Stdio;
 use tokio::process::Command;
 
 mod auth;
-// API Response structures
-#[derive(Serialize)]
-struct UserResponse {
-    name: String,
-    email: String,
-    #[serde(rename = "teamId")]
-    team_id: u64,
-}
+mod types;
 
-#[derive(Serialize)]
-struct TeamMember {
-    name: String,
-}
-
-#[derive(Serialize)]
-struct TeamResponse {
-    id: u64,
-    name: String,
-    members: Vec<TeamMember>,
-}
-
-type OauthClient = oauth2::Client<
-    oauth2::StandardErrorResponse<BasicErrorResponseType>,
-    oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, BasicTokenType>,
-    oauth2::StandardTokenIntrospectionResponse<oauth2::EmptyExtraTokenFields, BasicTokenType>,
-    oauth2::StandardRevocableToken,
-    oauth2::StandardErrorResponse<oauth2::RevocationErrorResponseType>,
-    oauth2::EndpointSet,
-    oauth2::EndpointNotSet,
-    oauth2::EndpointNotSet,
-    oauth2::EndpointNotSet,
-    oauth2::EndpointSet,
->;
-
-#[derive(Serialize)]
-struct CompetitionResponse {
-    status: String,
-    name: String,
-    #[serde(rename = "startDate")]
-    start_date: DateTime<Utc>,
-    #[serde(rename = "endDate")]
-    end_date: DateTime<Utc>,
-}
-
-#[derive(Serialize)]
-struct ScoreEvent {
-    id: u64,
-    #[serde(rename = "teamId")]
-    team_id: u64,
-    #[serde(rename = "scoringCheck")]
-    scoring_check: String,
-    timestamp: DateTime<Utc>,
-    message: String,
-}
-
-#[derive(Serialize)]
-struct LeaderboardEntry {
-    #[serde(rename = "teamId")]
-    team_id: u64,
-    #[serde(rename = "teamName")]
-    team_name: String,
-    score: i64,
-    rank: u64,
-}
-
-#[derive(Serialize)]
-struct LeaderboardResponse {
-    teams: Vec<LeaderboardEntry>,
-}
-
-#[derive(Serialize)]
-struct BoxInfo {
-    name: String,
-}
-
-#[derive(Serialize)]
-struct BoxDetailResponse {
-    name: String,
-    #[serde(rename = "ipAddress")]
-    ip_address: String,
-    status: String,
-}
-
-#[derive(Serialize)]
-struct BoxCredentialsResponse {
-    name: String,
-    username: String,
-    password: String,
-}
-
-#[derive(Serialize)]
-struct CheckResponse {
-    name: String,
-    points: u32,
-}
-
-#[derive(Serialize)]
-struct TeamListEntry {
-    id: u64,
-    name: String,
-}
-
-#[derive(Serialize)]
-struct TeamsResponse {
-    teams: Vec<TeamListEntry>,
-}
-
-// Query parameters
-#[derive(Deserialize)]
-struct UserQuery {
-    username: String,
-}
-
-#[derive(Deserialize)]
-struct TeamQuery {
-    id: u64,
-}
-
-#[derive(Deserialize)]
-struct BoxesQuery {
-    #[serde(rename = "teamId")]
-    team_id: u64,
-}
-
-#[derive(Deserialize)]
-struct BoxQuery {
-    name: String,
-}
-
-#[derive(Deserialize)]
-struct ScoreQuery {
-    #[serde(rename = "teamId")]
-    team_id: Option<u64>,
-    #[serde(rename = "scoringCheck")]
-    scoring_check: Option<String>,
-    #[serde(rename = "startDate")]
-    start_date: Option<DateTime<Utc>>,
-    #[serde(rename = "endDate")]
-    end_date: Option<DateTime<Utc>>,
-}
-
-#[derive(Deserialize)]
-struct OauthCallBackQuery {
-    code: String,
-    state: String,
-}
 // Helper function to resolve IP address using dig
 async fn resolve_box_ip(box_name: &str, vtep_host: &str) -> Option<String> {
     let output = Command::new("dig")
@@ -178,6 +34,7 @@ async fn resolve_box_ip(box_name: &str, vtep_host: &str) -> Option<String> {
         .stderr(Stdio::piped())
         .output()
         .await;
+    let output = output;
 
     match output {
         Ok(output) => {
@@ -223,7 +80,7 @@ fn is_valid_ipv4(ip: &str) -> bool {
 // API Handlers
 #[get("/user")]
 async fn get_user(
-    query: web::Query<UserQuery>,
+    query: web::Query<types::UserQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
@@ -242,7 +99,7 @@ async fn get_user(
                 0
             };
 
-            let response = UserResponse {
+            let response = types::UserResponse {
                 name: user.username,
                 email: user.email,
                 team_id,
@@ -260,7 +117,7 @@ async fn get_user(
 
 #[get("/team")]
 async fn get_team(
-    query: web::Query<TeamQuery>,
+    query: web::Query<types::TeamQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
@@ -277,7 +134,7 @@ async fn get_team(
     let members = match redis.get_team_users(&competition.name, &team.name) {
         Ok(users) => users
             .into_iter()
-            .map(|user| TeamMember {
+            .map(|user| types::TeamMember {
                 name: user.username,
             })
             .collect(),
@@ -287,7 +144,7 @@ async fn get_team(
         }
     };
 
-    let team_response = TeamResponse {
+    let team_response = types::TeamResponse {
         id: team_id as u64,
         name: team.name.clone(),
         members,
@@ -298,35 +155,40 @@ async fn get_team(
 
 #[get("/teams")]
 async fn get_teams(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
-    let teams: Vec<TeamListEntry> = competition
+    let teams: Vec<types::TeamListEntry> = competition
         .teams
         .iter()
         .enumerate()
-        .map(|(idx, team)| TeamListEntry {
+        .map(|(idx, team)| types::TeamListEntry {
             id: idx as u64 + 1,
             name: team.name.clone(),
         })
         .collect();
 
-    let response = TeamsResponse { teams };
+    let response = types::TeamsResponse { teams };
     Ok(HttpResponse::Ok().json(response))
 }
 
 #[get("/competition")]
-async fn get_competition(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
-    let response = CompetitionResponse {
-        status: "active".to_string(),
-        name: competition.name.clone(),
-        start_date: Utc::now(),                             // Mock start date
-        end_date: Utc::now() + chrono::Duration::hours(24), // Mock end date
-    };
-
-    Ok(HttpResponse::Ok().json(response))
+async fn get_competition(competition: web::Data<Competition>, redis: web::Data<RedisManager>) -> ActixResult<impl Responder> {
+    match redis.get_competition_state(&competition.name) {
+        Ok(state) => {
+            return Ok(HttpResponse::Ok().json(types::CompetitionResponse {
+                status: state,
+                name: competition.name.clone(),
+            }));
+        }
+        Err(_) => {
+            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to retrieve competition state"
+            })));
+        }
+    }
 }
 
 #[get("/score")]
 async fn get_score(
-    query: web::Query<ScoreQuery>,
+    query: web::Query<types::ScoreQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
@@ -389,7 +251,7 @@ async fn get_score(
                     for (unix_timestamp, _message) in events {
                         // Parse unix_timestamp from String to i64
                         let ts = unix_timestamp.parse::<i64>().unwrap_or(0);
-                        scores.push(ScoreEvent {
+                        scores.push(types::ScoreEvent {
                             id: score_id,
                             team_id,
                             scoring_check: check.name.clone(),
@@ -435,7 +297,7 @@ async fn get_leaderboard(
             }
         }
 
-        leaderboard_entries.push(LeaderboardEntry {
+        leaderboard_entries.push(types::LeaderboardEntry {
             team_id: team_idx as u64 + 1,
             team_name: team.name.clone(),
             score: total_score,
@@ -449,7 +311,7 @@ async fn get_leaderboard(
         entry.rank = idx as u64 + 1;
     }
 
-    let response = LeaderboardResponse {
+    let response = types::LeaderboardResponse {
         teams: leaderboard_entries,
     };
 
@@ -458,7 +320,7 @@ async fn get_leaderboard(
 
 #[get("/boxes")]
 async fn get_boxes(
-    query: web::Query<BoxesQuery>,
+    query: web::Query<types::BoxesQuery>,
     competition: web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
     let team_id = query.team_id as usize;
@@ -471,10 +333,10 @@ async fn get_boxes(
     let team_name = &competition.teams[team_id - 1].name;
 
     // Generate box names based on team name and available boxes
-    let boxes: Vec<BoxInfo> = competition
+    let boxes: Vec<types::BoxInfo> = competition
         .boxes
         .iter()
-        .map(|box_config| BoxInfo {
+        .map(|box_config| types::BoxInfo {
             name: format!(
                 "{}.{}.{}.local",
                 box_config.name,
@@ -489,7 +351,7 @@ async fn get_boxes(
 
 #[get("/box")]
 async fn get_box(
-    query: web::Query<BoxQuery>,
+    query: web::Query<types::BoxQuery>,
     competition: web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
     // Parse box name to extract box type and team
@@ -527,7 +389,7 @@ async fn get_box(
         "192.168.1.100".to_string() // Fallback if no vtep_host configured
     };
 
-    let response = BoxDetailResponse {
+    let response = types::BoxDetailResponse {
         name: query.name.clone(),
         ip_address,
         status: "active".to_string(),
@@ -538,7 +400,7 @@ async fn get_box(
 
 #[get("box/defaultCreds")]
 async fn get_box_default_creds(
-    query: web::Query<BoxQuery>,
+    query: web::Query<types::BoxQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
@@ -556,7 +418,7 @@ async fn get_box_default_creds(
     // Try to get credentials from Redis
     match redis.read_box_credentials(&competition.name, team_name, box_type) {
         Ok(Some((username, password))) => {
-            let response = BoxCredentialsResponse {
+            let response = types::BoxCredentialsResponse {
                 name: query.name.clone(),
                 username,
                 password,
@@ -574,10 +436,10 @@ async fn get_box_default_creds(
 
 #[get("checks")]
 async fn get_checks(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
-    let checks: Vec<CheckResponse> = competition
+    let checks: Vec<types::CheckResponse> = competition
         .checks
         .iter()
-        .map(|check| CheckResponse {
+        .map(|check| types::CheckResponse {
             name: check.name.clone(),
             points: check.points,
         })
@@ -589,8 +451,7 @@ async fn get_checks(competition: web::Data<Competition>) -> ActixResult<impl Res
 #[get("/get_oauth2_redirect_url")]
 async fn get_oauth2_redirect_url(
     session: Session,
-    client: web::Data<OauthClient>,
-    redis: web::Data<RedisManager>,
+    client: web::Data<types::OauthClient>,
 ) -> ActixResult<impl Responder> {
     // Generate CSRF token
     let csrf_token = CsrfToken::new_random();
@@ -617,11 +478,12 @@ async fn get_oauth2_redirect_url(
 }
 
 // callback endpoint for OAuth2
+// ...existing code...
 #[get("/callback")]
 async fn oauth2_callback(
-    query : web::Query<OauthCallBackQuery>,
+    query : web::Query<types::OauthCallBackQuery>,
     session: Session,
-    client: web::Data<OauthClient>,
+    client: web::Data<types::OauthClient>,
     redis: web::Data<RedisManager>,
     competition : web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
@@ -632,25 +494,25 @@ async fn oauth2_callback(
     let pkce_verifier: String = match session.get("pkce_verifier") {
         Ok(Some(verifier)) => verifier,
         _ => {
-            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": "PKCE verifier not found in session"
-            })));
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/login?error=pkce"))
+                .finish());
         }
     };
     //verify state matches csrf_token
     let csrf_token: String = match session.get("csrf_token") {
         Ok(Some(token)) => token,
         _ => {
-            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": "CSRF token not found in session"
-            })));
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/login?error=csrf"))
+                .finish());
         }
     };
     println!("State: {}, CSRF Token: {}", state, csrf_token);
     if state != csrf_token {
-        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Invalid CSRF token"
-        })));
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", "/login?error=csrf"))
+            .finish());
     }
     //verify pkce_verifier
     let pkce_verifier = PkceCodeVerifier::new(pkce_verifier);
@@ -708,19 +570,20 @@ async fn oauth2_callback(
                             
                             // return an error response if no team is found
                             if team_name.is_none() {
-                                return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-                                    "error": "No team found for user"
-                                })));
+                                return Ok(HttpResponse::Found()
+                                    .append_header(("Location", "/login?error=team"))
+                                    .finish());
                             }
+                            let user = User {
+                                    username: username.clone(),
+                                    email: email.clone(),
+                                    team_name: team_name.clone(),
+                                };
                             // call register_user in redis_manager
                             let team_name = team_name.unwrap();
                             match redis.register_user(
                                 &competition.name,
-                                &User {
-                                    username: username.clone(),
-                                    email: email.clone(),
-                                    team_name: Some(team_name.clone()),
-                                },
+                                &user,
                                 &team_name,
                             ) {
                                 Ok(_) => {
@@ -728,9 +591,9 @@ async fn oauth2_callback(
                                 }
                                 Err(e) => {
                                     println!("Error registering user: {:?}", e);
-                                    return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                                        "error": "Failed to register user"
-                                    })));
+                                    return Ok(HttpResponse::Found()
+                                        .append_header(("Location", "/login?error=register"))
+                                        .finish());
                                 }
                             }
                             // create session with user info
@@ -739,32 +602,54 @@ async fn oauth2_callback(
                             session.insert("team_name", team_name)?;
                             session.insert("is_admin", is_admin)?;
 
+                            // create cookies
+                            let cookie = Cookie::build("userinfo", serde_json::to_string(&user).unwrap())
+                                .path("/")
+                                .http_only(false)
+                                .finish();
+                            return Ok(HttpResponse::Found()
+                                .append_header(("Location", "/"))
+                                .cookie(cookie)
+                                .finish());
                         }
                         Err(e) => {
                             println!("Error parsing user info: {:?}", e);
+                            return Ok(HttpResponse::Found()
+                                .append_header(("Location", "/login?error=userinfo"))
+                                .finish());
                         }
                     }
                 }
                 Err(e) => {
                     println!("Error fetching user info: {:?}", e);
+                    return Ok(HttpResponse::Found()
+                        .append_header(("Location", "/login?error=userinfo"))
+                        .finish());
                 }
             }
-            
-            session.insert("token", token)?;
-
-            return Ok(HttpResponse::Ok().json(serde_json::json!({
-                "message": "Authorization successful"
-            })));
         },
         Err(e) => {
             println!("Error {:?}", e.source());
-            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": "Failed to exchange authorization code for token"
-            })));
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/login?error=token"))
+                .finish());
         }
     };
 }
 
+#[get("/logout")]
+async fn logout(session: Session) -> impl Responder {
+    session.purge();
+    // Optionally, you can also clear the userinfo cookie
+    let mut userinfo_cookie = Cookie::build("userinfo", "")
+        .path("/")
+        .http_only(false)
+        .finish();
+    userinfo_cookie.make_removal();
+    HttpResponse::Found().append_header(("Location", "/login")).cookie(userinfo_cookie).finish()
+}
+
+// ...existing code...
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or("info"));
@@ -792,7 +677,7 @@ async fn main() -> std::io::Result<()> {
     let token_url = std::env::var("OAUTH2_TOKEN_URL").expect("OAUTH2_TOKEN_URL not set");
     let redirect_url = std::env::var("OAUTH2_REDIRECT_URL").expect("OAUTH2_REDIRECT_URL not set");
 
-    let client: OauthClient = BasicClient::new(ClientId::new(client_id))
+    let client: types::OauthClient = BasicClient::new(ClientId::new(client_id))
         .set_client_secret(ClientSecret::new(client_secret))
         .set_auth_uri(AuthUrl::new(auth_url).expect("Invalid auth URL"))
         .set_token_uri(TokenUrl::new(token_url).expect("Invalid token URL"))
@@ -824,8 +709,10 @@ async fn main() -> std::io::Result<()> {
                 .service(get_checks)
             )
             .service(web::scope("/api/v1/oauth2")
+                .wrap(Cors::permissive())
                 .service(get_oauth2_redirect_url)
                 .service(oauth2_callback)
+                .service(logout)
             )
     })
     .bind(("0.0.0.0", 8080))?

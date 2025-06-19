@@ -10,6 +10,7 @@ pub struct User {
     pub team_name: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum CompetitionState {
     Active {
         start_time: u64, // Unix timestamp in seconds
@@ -35,14 +36,6 @@ impl User {
             username,
             email,
             team_name: Some(team_name),
-        }
-    }
-    
-    pub fn with_team_and_id(username: String, email: String, team_name: String, user_id: u64) -> Self {
-        Self {
-            username,
-            email,
-            team_name: Some(team_name)
         }
     }
     
@@ -419,6 +412,40 @@ impl RedisManager {
                 }
                 Ok(())
             },
+            _ => Err(anyhow::anyhow!("Unknown competition state")),
+        }
+    }
+
+    // Ends the competition. Returns an error if the competition is not active.
+    pub fn end_competition(&self, competition_name: &str) -> Result<()> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Key for competition state
+        let key = format!("{}:state", competition_name);
+        
+        // Check current state
+        let current_state: Option<String> = redis::cmd("HGET")
+            .arg(&key)
+            .arg("state")
+            .query(&mut conn)
+            .context("Failed to get current competition state")?;
+        
+        match current_state.as_deref() {
+            Some("active") => {
+                // Set new state to finished with current timestamp
+                let end_time = chrono::Utc::now().timestamp() as u64;
+                let _: () = redis::cmd("HSET")
+                    .arg(&key)
+                    .arg("state")
+                    .arg("finished")
+                    .arg("end_time")
+                    .arg(end_time)
+                    .query(&mut conn)
+                    .context("Failed to end competition")?;
+                Ok(())
+            },
+            Some("unstarted") => Err(anyhow::anyhow!("Competition has not started yet")),
+            Some("finished") => Err(anyhow::anyhow!("Competition has already finished")),
             _ => Err(anyhow::anyhow!("Unknown competition state")),
         }
     }

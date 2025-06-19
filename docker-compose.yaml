@@ -27,7 +27,7 @@ services:
       dockerfile: vxlan-sidecar/Dockerfile
     environment:
       - TEAM_NAME=team1
-      - COMPETITION_NAME=defcon
+      - COMPETITION_NAME=CarveCTF
     volumes:
       - ./competition.yaml:/app/competition.yaml:ro
     depends_on:
@@ -43,7 +43,7 @@ services:
     environment:
       - TEAM_NAME=team1
       - BOX_NAME=web
-      - COMPETITION_NAME=defcon
+      - COMPETITION_NAME=CarveCTF
       - RUST_LOG=debug
     depends_on:
       - vxlan-sidecar-team1-web
@@ -82,7 +82,7 @@ services:
       context: .
       dockerfile: carve-dnsmasq/Dockerfile
     environment:
-      - COMPETITION_NAME=defcon
+      - COMPETITION_NAME=CarveCTF
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
     depends_on:
@@ -97,14 +97,14 @@ services:
     ports:
       - "5000:8080"
     environment:
-      - COMPETITION_NAME=defcon
+      - COMPETITION_NAME=CarveCTF
       # for testing purposes, use a fixed secret key
       # in production, you should generate a secure key
       # and store it securely, e.g., in an environment variable or a secret management system
       - SECRET_KEY=82eb0275e23e5f043e85762e798fd9d61b1040ecdba15d001eb52f416e08ef3e
       - OAUTH2_CLIENT_ID=MerToF4xtp7PwRrumFd4kdOf5ldu1OcmNFaqyZ9p
       - OAUTH2_CLIENT_SECRET=CBIqtzJu4jLelR92PU1W7eao0i83Wldaz5BDfWVJljcesUHaThp5MM1xzVQKUFizTxgjmxuc81YkXZawKsb2tCLltlUuRzaGUkhtdaeIbp5eT7ct5M53Abix7paxQJtK
-      - OAUTH2_REDIRECT_URL=http://localhost:5000/api/v1/oauth2/callback 
+      - OAUTH2_REDIRECT_URL=http://localhost:5173/api/v1/oauth2/callback
       - OAUTH2_TOKEN_URL=https://authentik.prizrak.me/application/o/token/
       - OAUTH2_AUTH_URL=https://authentik.prizrak.me/application/o/authorize/
       - OAUTH2_USERINFO_URL=https://authentik.prizrak.me/application/o/userinfo/

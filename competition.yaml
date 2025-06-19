@@ -3,15 +3,16 @@
 competitions:
   # Example configuration for the canary service
 # This file defines competitions, teams, boxes, and checks for scoring
-  - name: defcon
+  - name: CarveCTF
     cidr: 10.13.0.0/16  # CIDR for the competition networkss
     redis:
       host: redis
       port: 6379       # Redis port
       db: 0            # Redis database number
     vtep_host: vtep  # VTEP hostname for VXLAN
-    admin_group: "carver-admins"  # Admin group for the competition
+    admin_group: "carve-admins"  # Admin group for the competition
     duration: 3600  # Competition duration in seconds (1 hour)
+    oidc_provider_name: Authentik  # OIDC provider name for authentication
     boxes:
       # Define service boxes that will be checked
       - name: web
