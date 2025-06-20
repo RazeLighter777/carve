@@ -14,9 +14,16 @@ import {
 
 const userInfo = ref<any>(null)
 const isMenuOpen = ref(false)
+const isAdmin = ref(false)
 
-onMounted(() => {
+onMounted(async () => {
   userInfo.value = cookieUtils.getUserInfo()
+  try {
+    isAdmin.value = userInfo.value?.is_admin || false
+    console.log('User is admin:', isAdmin.value)
+  } catch (e) {
+    isAdmin.value = false
+  }
 })
 
 const toggleMenu = () => {
@@ -74,6 +81,23 @@ const closeMenu = () => {
             >
               <InformationCircleIcon class="w-4 h-4 mr-2" />
               About
+            </RouterLink>
+            <RouterLink 
+              to="/boxes" 
+              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
+              active-class="text-black bg-white"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4M8 3v4"/></svg>
+              Boxes
+            </RouterLink>
+            <RouterLink 
+              v-if="isAdmin" 
+              to="/admin" 
+              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
+              active-class="text-black bg-white"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+              Admin
             </RouterLink>
           </div>
         </div>
@@ -137,6 +161,16 @@ const closeMenu = () => {
           Scoreboard
         </RouterLink>
         <RouterLink 
+          to="/boxes" 
+          @click="closeMenu"
+          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
+          active-class="text-black bg-white"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4M8 3v4"/></svg>
+          Boxes
+        </RouterLink>
+
+                <RouterLink 
           to="/about" 
           @click="closeMenu"
           class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
@@ -145,7 +179,19 @@ const closeMenu = () => {
           <InformationCircleIcon class="w-5 h-5 mr-3" />
           About
         </RouterLink>
+
         
+        <RouterLink 
+          v-if="isAdmin" 
+          to="/admin"
+          @click="closeMenu"
+          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
+          active-class="text-black bg-white"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+          Admin
+        </RouterLink>
+
         <div class="border-t pt-4" v-if="userInfo">
           <div class="px-3 py-2 text-sm text-gray-700">
             Welcome, <span class="font-medium">{{ userInfo.username }}</span>

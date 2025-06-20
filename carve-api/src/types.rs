@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use oauth2::basic::{BasicErrorResponseType, BasicTokenType};
-use carve::redis_manager::CompetitionState;
+use carve::redis_manager::CompetitionStatus;
 
 // API Response structures
 #[derive(Serialize)]
@@ -9,12 +9,18 @@ pub(crate) struct UserResponse {
     pub(crate) name: String,
     pub(crate) email: String,
     #[serde(rename = "teamId")]
-    pub(crate) team_id: u64,
+    pub(crate) team_id: Option<u64>, //users may not have a team
 }
 
 #[derive(Serialize)]
 pub(crate) struct TeamMember {
     pub(crate) name: String,
+}
+
+#[derive(Serialize)]
+pub struct CompetitionResponse {
+    pub status: String,
+
 }
 
 #[derive(Serialize)]
@@ -36,12 +42,6 @@ pub(crate) type OauthClient = oauth2::Client<
     oauth2::EndpointNotSet,
     oauth2::EndpointSet,
 >;
-
-#[derive(Serialize)]
-pub(crate) struct CompetitionResponse {
-    pub(crate) status: carve::redis_manager::CompetitionState,
-    pub(crate) name: String,
-}
 
 #[derive(Serialize)]
 pub(crate) struct ScoreEvent {
@@ -146,3 +146,8 @@ pub struct OauthCallBackQuery {
     pub state: String,
 }
 
+#[derive(Deserialize)]
+pub(crate) struct SwitchTeamQuery {
+    #[serde(rename = "code")]
+    pub(crate) team_join_code: u64,
+}

@@ -3,6 +3,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
     dnsmasq \
     yq \
+    bash \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

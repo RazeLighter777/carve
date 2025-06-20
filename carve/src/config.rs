@@ -45,6 +45,13 @@ pub struct SshCheckSpec {
     pub key_path: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+pub enum RegistrationType {
+    OidcOnly,
+    Join,
+    TeamWithLeastMembers,
+}
+
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum CheckSpec {
@@ -80,6 +87,7 @@ pub struct Competition {
     pub admin_group: Option<String>, // Optional admin group for oidc
     pub description: Option<String>, // Optional description
     pub duration: Option<u64>, // duration in seconds
+    pub registration_type: RegistrationType, // Registration type
 }
 
 #[derive(Debug, Deserialize, Clone)]

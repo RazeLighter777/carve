@@ -22,6 +22,10 @@ export const cookieUtils = {
     } catch {
       return null;
     }
+  },
+
+  setUserInfo(user: any): void {
+    Cookies.set('userinfo', JSON.stringify(user), { path: '/' });
   }
 };
 

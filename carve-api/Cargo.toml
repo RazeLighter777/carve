@@ -19,6 +19,7 @@ chrono = { version = "0.4", features = ["serde"] }
 actix-session = { version = "0.10.1", features = ["cookie-session"] }
 reqwest = { version = "0.12.20", features = ["native-tls", "json"] }
 actix-cors = "0.7.1"
+log = "0.4.27"
 
 [[bin]]
 name = "carve-api"

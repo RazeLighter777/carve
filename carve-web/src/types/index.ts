@@ -1,7 +1,8 @@
 export interface User {
   name: string;
   email: string;
-  teamId: number;
+  teamId?: number;
+  is_admin: boolean;
 }
 
 export interface TeamMember {
@@ -14,19 +15,32 @@ export interface Team {
   members: TeamMember[];
 }
 
-export interface Competition {
-  name: string;
-  status: {
-    Active? : {
-      start_time : number;
-      end_time? : number;
-    },
-    Unstarted? : {},
-    Finished? : {
-      end_time : number;
-    }
-  }
+export enum CompetitionStatus {
+  Active = 'active',
+  Unstarted = 'unstarted',
+  Finished = 'finished',
+}
 
+export interface GenerateTeamCodeResponse {
+  code : string;
+}
+
+
+export interface CompetitionState {
+  name: string;
+  status: CompetitionStatus;
+  start_time: number | null;
+  end_time: number | null;
+}
+
+export interface Box {
+  name: string;
+  ipAddress: string;
+  status: string;
+}
+
+export interface TeamJoinResponse {
+  team_name: string;
 }
 
 export interface LeaderboardEntry {

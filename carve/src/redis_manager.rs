@@ -8,19 +8,25 @@ pub struct User {
     pub username: String,
     pub email: String,
     pub team_name: Option<String>,
+    pub is_admin: bool, // Optional field to indicate if the user is an admin]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum CompetitionState {
-    Active {
-        start_time: u64, // Unix timestamp in seconds
-        end_time: Option<u64>, // Unix timestamp in seconds, None if ongoing
-    },
+pub enum CompetitionStatus {
+    Active,
     Unstarted,
-    Finished {
-        end_time: u64, // Unix timestamp in seconds
-    },
+    Finished,
 }
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CompetitionState {
+    pub name: String,
+    pub status: CompetitionStatus,
+    pub start_time: Option<u64>, // Unix timestamp in seconds
+    pub end_time: Option<u64>,   // Unix timestamp in seconds
+}
+
 
 impl User {
     pub fn new(username: String, email: String) -> Self {
@@ -28,6 +34,7 @@ impl User {
             username,
             email,
             team_name: None,
+            is_admin: false, // Default to false, can be set later
         }
     }
     
@@ -36,6 +43,7 @@ impl User {
             username,
             email,
             team_name: Some(team_name),
+            is_admin: false, // Default to false, can be set later
         }
     }
     
@@ -64,11 +72,49 @@ impl RedisManager {
     pub fn new(config: &RedisConfig) -> Result<Self> {
         let redis_url = format!("redis://{}:{}/{}", config.host, config.port, config.db);
         let client = Client::open(redis_url).context("Failed to create Redis client")?;
-        
         Ok(Self { client })
     }
     
-    
+    pub fn generate_team_join_code(&self, competition_name: &str, team_name: &str) -> Result<u64> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Generate a unique join code (u64) 
+        let join_code: u64 = rand::random::<u64>() % 1_000_000_000; // 9-digit code
+        // Store the team name with the join code
+        let key = format!("{}:team_join_codes", competition_name);
+        let _: () = redis::cmd("HSET")
+            .arg(&key)
+            .arg(join_code)
+            .arg(team_name)
+            .query(&mut conn)
+            .context("Failed to store team join code")?;
+        // set an expiration time for the join code (optional, e.g., 24 hours)
+        let _: () = redis::cmd("HEXPIRE")
+            .arg(&key)
+            .arg(86400) // 24 hours in seconds
+            .arg("FIELDS")
+            .arg(1)
+            .arg(join_code)
+            .query(&mut conn)
+            .context("Failed to set expiration for team join code")?;
+        Ok(join_code)
+    }
+
+    pub fn check_team_join_code(&self, competition_name: &str, join_code: u64) -> Result<Option<String>> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Check if the join code exists
+        let key = format!("{}:team_join_codes", competition_name);
+        let team_name: Option<String> = redis::cmd("HGET")
+            .arg(&key)
+            .arg(join_code)
+            .query(&mut conn)
+            .context("Failed to check team join code")?;
+        
+        Ok(team_name)
+    }
+
+
     pub fn health_check(&self) -> Result<()> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
         redis::cmd("PING").query::<String>(&mut conn).context("Failed to ping Redis")?;
@@ -213,14 +259,13 @@ impl RedisManager {
         &self,
         competition_name: &str,
         user: &User,
-        team_name: &str,
+        team_name: Option<&str>
     ) -> Result<()> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
         
         // Keys for Redis operations
         let users_key = format!("{}:users", competition_name);
         let user_data = user.to_redis_format();
-        let new_team_users_key = format!("{}:{}:users", competition_name, team_name);
         
         // Check if user already exists in the competition
         let user_exists: bool = redis::cmd("SISMEMBER")
@@ -230,30 +275,28 @@ impl RedisManager {
             .context("Failed to check if user exists")?;
         
         if user_exists {
-            // User exists, need to find their current team and move them
-            // Get all teams for this competition to check which one the user is in
-            let pattern = format!("{}:*:users", competition_name);
-            let team_keys: Vec<String> = redis::cmd("KEYS")
-                .arg(&pattern)
-                .query(&mut conn)
-                .context("Failed to get team keys")?;
-            
-            // Find the team the user is currently in
-            for team_key in team_keys {
-                let is_member: bool = redis::cmd("SISMEMBER")
-                    .arg(&team_key)
-                    .arg(&user_data)
+            // User exists, need to find their current team and move them if a new team is provided
+            if let Some(_) = team_name {
+                let pattern = format!("{}:*:users", competition_name);
+                let team_keys: Vec<String> = redis::cmd("KEYS")
+                    .arg(&pattern)
                     .query(&mut conn)
-                    .context("Failed to check team membership")?;
-                
-                if is_member {
-                    // Remove user from old team
-                    let _: () = redis::cmd("SREM")
+                    .context("Failed to get team keys")?;
+                for team_key in team_keys {
+                    let is_member: bool = redis::cmd("SISMEMBER")
                         .arg(&team_key)
                         .arg(&user_data)
                         .query(&mut conn)
-                        .context("Failed to remove user from old team")?;
-                    break;
+                        .context("Failed to check team membership")?;
+                    if is_member {
+                        // Remove user from old team
+                        let _: () = redis::cmd("SREM")
+                            .arg(&team_key)
+                            .arg(&user_data)
+                            .query(&mut conn)
+                            .context("Failed to remove user from old team")?;
+                        break;
+                    }
                 }
             }
         } else {
@@ -265,12 +308,15 @@ impl RedisManager {
                 .context("Failed to add user to global users set")?;
         }
         
-        // Add user to the new team
-        let _: () = redis::cmd("SADD")
-            .arg(&new_team_users_key)
-            .arg(&user_data)
-            .query(&mut conn)
-            .context("Failed to add user to new team")?;
+        // Add user to the new team if provided
+        if let Some(team_name) = team_name {
+            let new_team_users_key = format!("{}:{}:users", competition_name, team_name);
+            let _: () = redis::cmd("SADD")
+                .arg(&new_team_users_key)
+                .arg(&user_data)
+                .query(&mut conn)
+                .context("Failed to add user to new team")?;
+        }
         
         Ok(())
     }
@@ -342,16 +388,16 @@ impl RedisManager {
                         .arg("end_time")
                         .query(&mut conn)
                         .context("Failed to get end time")?;
-                    Ok(CompetitionState::Active { start_time, end_time })
+                    Ok(CompetitionState { name: competition_name.to_owned(), status: CompetitionStatus::Active, start_time: Some(start_time), end_time: end_time })
                 },
-                "unstarted" => Ok(CompetitionState::Unstarted),
+                "unstarted" => Ok(CompetitionState { name: competition_name.to_owned(), status: CompetitionStatus::Unstarted, start_time: None, end_time: None }),
                 "finished" => {
                     let end_time: u64 = redis::cmd("HGET")
                         .arg(&key)
                         .arg("end_time")
                         .query(&mut conn)
                         .context("Failed to get end time")?;
-                    Ok(CompetitionState::Finished { end_time })
+                    Ok(CompetitionState { name: competition_name.to_owned(), status: CompetitionStatus::Finished, start_time: None, end_time: Some(end_time) })
                 },
                 _ => Err(anyhow::anyhow!("Unknown competition state: {}", state_str)),
             }
@@ -364,7 +410,12 @@ impl RedisManager {
                 .arg("unstarted")
                 .query(&mut conn)
                 .context("Failed to set default competition state")?;
-            Ok(CompetitionState::Unstarted)
+            Ok(CompetitionState {
+                name: competition_name.to_owned(),
+                status: CompetitionStatus::Unstarted,
+                start_time: None,
+                end_time: None,
+            })
         }
     }
 

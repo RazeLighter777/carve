@@ -6,6 +6,8 @@ import { cookieUtils } from '@/utils/cookies'
 
 const route = useRoute()
 const showNavigation = computed(() => route.path !== '/login' && cookieUtils.hasUserInfo())
+const userInfo = computed(() => cookieUtils.getUserInfo())
+
 </script>
 
 <template>

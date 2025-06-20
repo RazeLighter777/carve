@@ -2,11 +2,12 @@
 import { ref, onMounted } from 'vue'
 import { apiService } from '@/services/api'
 import { cookieUtils } from '@/utils/cookies'
-import type { Competition, User, Team } from '@/types'
+import type { CompetitionState, User, Team } from '@/types'
 import { UserGroupIcon, TrophyIcon, ChartBarIcon } from '@heroicons/vue/24/outline'
+import CompetitionStatus from '@/components/CompetitionStatus.vue'
 
 const loading = ref(true)
-const competition = ref<Competition>()
+const competition = ref<any>(null)
 const user = ref<User>()
 const team = ref<Team>()
 const userInfo = ref<any>()
@@ -17,15 +18,9 @@ onMounted(async () => {
     userInfo.value = cookieUtils.getUserInfo()
     
     // Load competition data
-    const [competitionData, userData, teamData] = await Promise.all([
-      apiService.getCompetition(),
-      apiService.getCurrentUser(),
-      apiService.getUserTeam()
-    ])
-    
-    competition.value = competitionData
-    user.value = userData
-    team.value = teamData
+    competition.value = await apiService.getCompetition()
+    user.value = await apiService.getCurrentUser()
+    team.value = await apiService.getUserTeam()
   } catch (err) {
     console.error('Failed to load home data:', err)
     error.value = 'Failed to load competition data'
@@ -42,6 +37,42 @@ const formatDate = (dateString: string) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+const joinCode = ref<string | null>(null)
+const joinCodeError = ref('')
+const joinCodeLoading = ref(false)
+const joinCodeSuccess = ref(false)
+const switchCode = ref('')
+const switchCodeError = ref('')
+const switchCodeLoading = ref(false)
+
+const generateJoinCode = async () => {
+  joinCodeError.value = ''
+  joinCodeSuccess.value = false
+  joinCodeLoading.value = true
+  try {
+    const result = await apiService.generateJoinCode()
+    joinCode.value = result.code
+    joinCodeSuccess.value = true
+  } catch (err: any) {
+    joinCodeError.value = err?.response?.data?.error || 'Failed to generate join code.'
+  } finally {
+    joinCodeLoading.value = false
+  }
+}
+
+const switchTeam = async () => {
+  switchCodeError.value = ''
+  switchCodeLoading.value = true
+  try {
+    await apiService.switchTeam(switchCode.value.trim())
+    window.location.reload()
+  } catch (err: any) {
+    switchCodeError.value = err?.response?.data?.error || 'Failed to join team. Please check your code.'
+  } finally {
+    switchCodeLoading.value = false
+  }
 }
 </script>
 
@@ -69,23 +100,7 @@ const formatDate = (dateString: string) => {
             Welcome to the cybersecurity competition platform
           </p>
           
-          <div v-if="competition" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div>
-              <span class="font-medium text-gray-700">Status:</span>
-              <span class="ml-2 px-2 py-1 rounded-full text-xs font-medium"
-                    :class="competition.status.Active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
-                {{ competition.status.Active ? 'Active' : 'Inactive' }}
-              </span>
-            </div>
-            <div>
-              <span class="font-medium text-gray-700">Start:</span>
-              <span class="ml-2 text-gray-600">{{ competition.status.Active ? new Date(competition.status.Active.start_time) : "N/A" }}</span>
-            </div>
-            <div>
-              <span class="font-medium text-gray-700">End:</span>
-              <span class="ml-2 text-gray-600">{{ competition.status.Active ? competition.status.Active.end_time ? new Date(competition.status.Active.end_time) : "N/A" : "N/A" }}</span>
-            </div>
-          </div>
+          <CompetitionStatus :competition="competition"/>
         </div>
       </div>
 
@@ -125,13 +140,11 @@ const formatDate = (dateString: string) => {
             <TrophyIcon class="h-6 w-6 text-black mr-2" />
             <h2 class="text-xl font-semibold text-gray-900">Your Team</h2>
           </div>
-          
           <div v-if="team" class="space-y-4">
             <div>
               <span class="font-medium text-gray-700">Team Name:</span>
               <span class="ml-2 text-gray-900 font-medium">{{ team.name }}</span>
             </div>
-            
             <div>
               <span class="font-medium text-gray-700 block mb-2">Team Members:</span>
               <div class="space-y-2">
@@ -145,6 +158,26 @@ const formatDate = (dateString: string) => {
                   <span class="text-gray-900">{{ member.name }}</span>
                 </div>
               </div>
+            </div>
+            <div class="mt-6 space-y-4">
+              <button @click="generateJoinCode" class="btn-primary w-full" :disabled="joinCodeLoading">
+                {{ joinCodeLoading ? 'Generating...' : 'Generate Team Join Code' }}
+              </button>
+              <div v-if="joinCode" class="mt-2 text-center">
+                <span class="font-mono text-lg bg-gray-100 px-3 py-1 rounded">{{ joinCode }}</span>
+                <span v-if="joinCodeSuccess" class="ml-2 text-green-600">Copied!</span>
+              </div>
+              <div v-if="joinCodeError" class="text-red-600 text-center mt-2">{{ joinCodeError }}</div>
+              <form @submit.prevent="switchTeam" class="mt-6">
+                <label class="block font-medium text-gray-700 mb-1">Switch Teams</label>
+                <div class="flex space-x-2">
+                  <input v-model="switchCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="9" class="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Enter team code" :disabled="switchCodeLoading" />
+                  <button type="submit" class="btn-secondary" :disabled="switchCodeLoading">
+                    {{ switchCodeLoading ? 'Joining...' : 'Join' }}
+                  </button>
+                </div>
+                <div v-if="switchCodeError" class="text-red-600 mt-2">{{ switchCodeError }}</div>
+              </form>
             </div>
           </div>
         </div>

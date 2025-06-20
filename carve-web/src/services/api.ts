@@ -1,15 +1,19 @@
 import axios from 'axios';
 import type { 
-  Competition, 
+  CompetitionState, 
   User, 
   Team, 
   LeaderboardEntry, 
   ScoreboardEntry, 
-  OAuthRedirectResponse 
+  OAuthRedirectResponse, 
+  Box,
+  GenerateTeamCodeResponse,
+  TeamJoinResponse
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
+
   withCredentials: true,
 });
 
@@ -38,8 +42,8 @@ export const apiService = {
   },
 
   // Competition info
-  async getCompetition(): Promise<Competition> {
-    const response = await api.get<Competition>('/competition');
+  async getCompetition(): Promise<CompetitionState> {
+    const response = await api.get<CompetitionState>('competition/competition');
     return response.data;
   },
 
@@ -49,21 +53,21 @@ export const apiService = {
     if (!userInfo?.username) {
       throw new Error('No user info available');
     }
-    const response = await api.get<User>(`/user?username=${userInfo.username}`);
+    const response = await api.get<User>(`competition/user?username=${userInfo.username}`);
     return response.data;
   },
-  async getUserTeam(): Promise<Team> {
+  async getUserTeam(): Promise<Team | undefined> {
     const userInfo = cookieUtils.getUserInfo();
     if (!userInfo?.username) {
       throw new Error('No user info available');
     }
     const user = await this.getCurrentUser();
-    const response = await api.get<Team>(`/team?id=${user.teamId}`);
+    const response = await api.get<Team>(`competition/team?id=${user.teamId}`);
     return response.data;
   },
   // Leaderboard
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
-    const response = await api.get('/leaderboard');
+    const response = await api.get('competition/leaderboard');
     return response.data.teams || [];
   },
 
@@ -72,25 +76,72 @@ export const apiService = {
     const params = new URLSearchParams();
     if (teamId) params.append('teamId', teamId);
     if (boxId) params.append('scoringCheck', boxId);
-    
-    const response = await api.get(`/score?${params.toString()}`);
+
+    const response = await api.get(`competition/score?${params.toString()}`);
     return response.data || [];
   },
 
   // Get available teams and boxes for filters
   async getTeams(): Promise<Team[]> {
-    const response = await api.get('/teams');
+    const response = await api.get('competition/teams');
     return response.data.teams || [];
   },
 
+  async isUserRegisteredForAnyTeam(): Promise<boolean> {
+    const userInfo = cookieUtils.getUserInfo();
+    if (!userInfo?.username) {
+      throw new Error('No user info available');
+    }
+    return userInfo.team_name !== undefined;
+  },
+
   async getBoxes(teamId: string): Promise<Array<{name: string}>> {
-    const response = await api.get(`/boxes?teamId=${teamId}`);
+    const response = await api.get(`competition/boxes?teamId=${teamId}`);
     return response.data || [];
+  },
+  async getBox(boxId: string): Promise<Box> {
+    const response = await api.get<Box>(`competition/box?name=${boxId}`);
+    return response.data || {};
+  },
+  async switchTeam(code : string): Promise<void> {
+    const userInfo = cookieUtils.getUserInfo();
+    if (!userInfo?.username) {
+      throw new Error('No user info available');
+    }
+    const result = await api.get<TeamJoinResponse>(`competition/switch_team?code=${code}`);
+    // get the team_name from the response, and update the user info cookie
+    if (result.data.team_name) {
+      cookieUtils.setUserInfo({
+        ...userInfo,
+        teamId: result.data.team_name
+      });
+    }
+  },
+  async generateJoinCode(): Promise<GenerateTeamCodeResponse> {
+    const userInfo = cookieUtils.getUserInfo();
+    if (!userInfo?.username) {
+      throw new Error('No user info available');
+    }
+    const response = await api.get<GenerateTeamCodeResponse>(`competition/generate_join_code`);
+    return response.data;
   },
 
   async getChecks(): Promise<Array<{name: string, points: number}>> {
-    const response = await api.get('/checks');
+    const response = await api.get('competition/checks');
     return response.data || [];
+  },
+
+  // Admin endpoints
+  async startCompetition(): Promise<void> {
+    await api.get('/admin/start_competition');
+  },
+  async endCompetition(): Promise<void> {
+    await api.get('/admin/end_competition');
+  },
+
+  async getTeam(teamId: number): Promise<Team> {
+    const response = await api.get<Team>(`competition/team?id=${teamId}`);
+    return response.data;
   }
 };
 

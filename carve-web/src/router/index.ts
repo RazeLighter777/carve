@@ -6,6 +6,8 @@ import Leaderboard from '@/views/Leaderboard.vue'
 import Scoreboard from '@/views/Scoreboard.vue'
 import About from '@/views/About.vue'
 import Logout from '@/views/Logout.vue'
+import JoinTeam from '@/views/JoinTeam.vue'
+import apiService from '@/services/api'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -45,18 +47,53 @@ const router = createRouter({
       name: 'About',
       component: About,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/boxes',
+      name: 'Boxes',
+      component: () => import('@/views/Boxes.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/admin',
+      name: 'Admin',
+      component: () => import('@/views/Admin.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/join_team',
+      name: 'JoinTeam',
+      component: JoinTeam,
+      meta: { requiresAuth: true, hideNavbar: true }
     }
   ],
 })
 
 // Navigation guard to check authentication
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const isLoggedIn = cookieUtils.hasUserInfo()
-  
+
   if (to.meta.requiresAuth && !isLoggedIn) {
     next('/login')
   } else if (to.path === '/login' && isLoggedIn) {
     next('/')
+  } else if (
+    isLoggedIn &&
+    to.path !== '/join_team' &&
+    to.path !== '/logout' &&
+    to.path !== '/login'
+  ) {
+    // Check if user is registered for a team
+    try {
+      const registered = await apiService.isUserRegisteredForAnyTeam()
+      if (!registered) {
+        return next('/join_team')
+      }
+    } catch {
+      // If check fails, force logout
+      return next('/logout')
+    }
+    next()
   } else {
     next()
   }

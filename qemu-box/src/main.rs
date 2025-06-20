@@ -195,7 +195,7 @@ users:
             "-drive", &format!("file={},index=1,media=cdrom", cloud_init_iso),
             "-net", &format!("nic,model=virtio,macaddr={}", mac_address),
             "-net", "bridge,br=br0",
-            "-display", "vnc=0.0.0.0:0",
+            "-display", "vnc=0.0.0.0:0,websocket=5700",
             "-daemonize", "-pidfile", "/tmp/qemu.pid"
         ])
         .status()?;

@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { apiService } from '@/services/api'
-import type { LeaderboardEntry } from '@/types'
+import type { LeaderboardEntry, Team } from '@/types'
 import { TrophyIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
 
 const loading = ref(true)
 const leaderboard = ref<LeaderboardEntry[]>([])
 const error = ref('')
 const lastUpdated = ref<Date>()
+const expandedTeamId = ref<string | null>(null)
+const expandedTeamMembers = ref<Record<string, Team['members']>>({})
+const expandedTeamLoading = ref<Record<string, boolean>>({})
+const expandedTeamError = ref<Record<string, string>>({})
 
 const loadLeaderboard = async () => {
   try {
@@ -27,6 +31,26 @@ const loadLeaderboard = async () => {
 
 const refresh = () => {
   loadLeaderboard()
+}
+
+const toggleExpand = async (teamId: string) => {
+  if (expandedTeamId.value === teamId) {
+    expandedTeamId.value = null
+    return
+  }
+  expandedTeamId.value = teamId
+  if (!expandedTeamMembers.value[teamId]) {
+    expandedTeamLoading.value[teamId] = true
+    expandedTeamError.value[teamId] = ''
+    try {
+      const team = await apiService.getTeam(Number(teamId))
+      expandedTeamMembers.value[teamId] = team.members
+    } catch (err: any) {
+      expandedTeamError.value[teamId] = 'Failed to load team members'
+    } finally {
+      expandedTeamLoading.value[teamId] = false
+    }
+  }
 }
 
 const getRankColor = (rank: number) => {
@@ -111,30 +135,59 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="entry in leaderboard" :key="entry.teamId" 
-                class="hover:bg-gray-50 transition-colors">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                        :class="getRankColor(entry.rank)">
-                    {{ getRankIcon(entry.rank) }}
-                  </span>
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">
-                  {{ entry.teamName }}
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900 font-mono">
-                  {{ entry.score.toLocaleString() }}
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ entry.teamId }}
-              </td>
-            </tr>
+            <template v-for="entry in leaderboard" :key="entry.teamId">
+              <tr
+                class="hover:bg-gray-50 transition-colors cursor-pointer"
+                @click="toggleExpand(entry.teamId.toString())"
+                :class="{ 'bg-gray-100': expandedTeamId === entry.teamId.toString() }"
+              >
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="flex items-center">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                          :class="getRankColor(entry.rank)">
+                      {{ getRankIcon(entry.rank) }}
+                    </span>
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">
+                    {{ entry.teamName }}
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900 font-mono">
+                    {{ entry.score.toLocaleString() }}
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {{ entry.teamId }}
+                </td>
+              </tr>
+              <tr v-if="expandedTeamId === entry.teamId.toString()">
+                <td colspan="4" class="bg-gray-50 px-8 py-4">
+                  <div>
+                    <h4 class="font-semibold text-gray-700 mb-2">Team Members</h4>
+                    <div v-if="expandedTeamLoading[entry.teamId.toString()]" class="text-gray-500">Loading...</div>
+                    <div v-else-if="expandedTeamError[entry.teamId.toString()]" class="text-red-600">{{ expandedTeamError[entry.teamId.toString()] }}</div>
+                    <table v-else class="min-w-full text-sm">
+                      <thead>
+                        <tr class="bg-gray-100">
+                          <th class="px-4 py-2 text-left">Name</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="member in expandedTeamMembers[entry.teamId.toString()] || []" :key="member.name">
+                          <td class="px-4 py-2">{{ member.name || 'Unknown' }}</td>
+                        </tr>
+                        <tr v-if="!expandedTeamMembers[entry.teamId.toString()] || !expandedTeamMembers[entry.teamId.toString()].length">
+                          <td class="px-4 py-2 text-gray-400">No members found.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>

@@ -10,9 +10,10 @@ competitions:
       port: 6379       # Redis port
       db: 0            # Redis database number
     vtep_host: vtep  # VTEP hostname for VXLAN
-    admin_group: "carve-admins"  # Admin group for the competition
+    admin_group: "booktok-users"  # Admin group for the competition
     duration: 3600  # Competition duration in seconds (1 hour)
     oidc_provider_name: Authentik  # OIDC provider name for authentication
+    registration_type: OidcOnly  # Registration type OidcOnly means it just pulls the groups from the OIDC provider
     boxes:
       # Define service boxes that will be checked
       - name: web
