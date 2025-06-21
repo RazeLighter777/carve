@@ -8,7 +8,8 @@ import type {
   OAuthRedirectResponse, 
   Box,
   GenerateTeamCodeResponse,
-  TeamJoinResponse
+  TeamJoinResponse,
+  TeamConsoleCodeResponse
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 const api = axios.create({
@@ -85,6 +86,15 @@ export const apiService = {
   async getTeams(): Promise<Team[]> {
     const response = await api.get('competition/teams');
     return response.data.teams || [];
+  },
+  //get the team console code. no parameters needed
+  async getTeamConsoleCode(): Promise<string> {
+    const userInfo = cookieUtils.getUserInfo();
+    if (!userInfo?.username) {
+      throw new Error('No user info available');
+    }
+    const response = await api.get<TeamConsoleCodeResponse>(`competition/team/console_code`);
+    return response.data.code;
   },
 
   async isUserRegisteredForAnyTeam(): Promise<boolean> {

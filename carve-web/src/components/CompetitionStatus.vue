@@ -40,7 +40,7 @@ const competition = computed(() => props.competition)
                 Start Time: {{ new Date(competition.start_time * 1000).toLocaleString() }}
             </span>
             <span v-if="competition.end_time" class="ml-4">
-                End Time: {{ new Date(competition.end_time * 1000).toLocaleString() }} 
+                End Time: {{ new Date(competition.end_time * 1000).toLocaleString() }}
             </span>
 
         </div>

@@ -11,6 +11,10 @@ export default defineConfig({
     proxy : {
       '/api/v1': {
         target: 'http://localhost:5000',
+      },
+      '/novnc': {
+        target: 'http://localhost:6080',
+        ws: true,
       }
     }
   },

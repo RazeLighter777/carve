@@ -251,6 +251,7 @@ async fn main() -> std::io::Result<()> {
                             .service(get_checks)
                             .service(teams::get_team)
                             .service(teams::get_teams)
+                            .service(teams::get_team_console_code)
                             .service(users::get_user)
                             .service(users::switch_team)
                             .service(users::generate_join_code)

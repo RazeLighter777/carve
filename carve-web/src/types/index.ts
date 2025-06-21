@@ -25,6 +25,9 @@ export interface GenerateTeamCodeResponse {
   code : string;
 }
 
+export interface TeamConsoleCodeResponse {
+  code: string;
+}
 
 export interface CompetitionState {
   name: string;

@@ -595,6 +595,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "carve-novnc-nginx"
+version = "0.1.0"
+dependencies = [
+ "carve",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"

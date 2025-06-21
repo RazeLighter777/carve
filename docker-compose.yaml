@@ -22,6 +22,7 @@ services:
       - NET_ADMIN
     ports:
       - "5901:5900"
+      - "5700:5700"
     build:
       context: .
       dockerfile: vxlan-sidecar/Dockerfile
@@ -114,3 +115,16 @@ services:
       - redis
       - carve-dnsmasq
       - canary
+  carve-novnc-nginx:
+    build:
+      context: .
+      dockerfile: carve-novnc-nginx/Dockerfile
+    ports:
+      - "6080:80"
+    depends_on:
+      - carve-web
+      - carve-api
+      - redis
+      - team1-web
+    volumes:
+      - ./competition.yaml:/config/competition.yaml:ro

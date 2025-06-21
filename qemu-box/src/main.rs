@@ -98,40 +98,13 @@ ethernets:
     // print ssh keypair
     println!("SSH Private Key:\n{}", private_ssh_key);
     println!("SSH Public Key:\n{}", public_ssh_key);
-    // Username/password
-    let (username, password) = match redis_mgr.read_box_credentials(&competition, &team_name, &box_name)? {
-        Some((u, p)) => (u, p),
-        None => {
-            let username = team_name.clone();
-            let password: String = rand::rng()
-                .sample_iter(&rand::distr::Alphabetic)
-                .take(8)
-                .map(char::from)
-                .collect();
-            let _ = redis_mgr.write_box_credentials(&competition, &team_name, &box_name, &username, &password)?;
-            (username, password)
-        }
-    };
-    //print username/password
-    println!("Username: {}, Password: {}", username, password);
-    // use mkpasswd to hash the password
-    let password_hash_stdout = Command::new("mkpasswd")
-        .arg("--method=SHA-512")
-        .arg("--rounds=4096")
-        .arg(&password)
-        .output()?
-        .stdout;
-    let password_hash = String::from_utf8_lossy(&password_hash_stdout);    
     let user_data_str = format!(r#"#cloud-config
 users:
   - default
-  - name: {username}
     shell: /bin/ash
-    lock_passwd: false
-    hashed_passwd: {password_hash}
     ssh_authorized_keys:
       - {pubkey}
-"#, username=username, password_hash=password_hash, pubkey=public_ssh_key.trim().lines().last().unwrap_or(""));
+"#, pubkey=public_ssh_key.trim().lines().last().unwrap_or(""));
     
     let cloud_init = CloudInit {
         meta_data : meta_data_str,
@@ -183,36 +156,55 @@ users:
     if !status.success() {
         return Err(anyhow!("Failed to create cloud-init ISO"));
     }
-    // Start QEMU VM
-    println!("Starting QEMU VM...");
-    let qemu_child = Command::new("qemu-system-x86_64")
-        .args([
-            "-enable-kvm",
-            "-m", &ram_mb.to_string(),
-            "-cpu", "host",
-            "-smp", &cores.to_string(),
-            "-drive", &format!("file={},format=qcow2", tmp_disk),
-            "-drive", &format!("file={},index=1,media=cdrom", cloud_init_iso),
-            "-net", &format!("nic,model=virtio,macaddr={}", mac_address),
-            "-net", "bridge,br=br0",
-            "-display", "vnc=0.0.0.0:0,websocket=5700",
-            "-daemonize", "-pidfile", "/tmp/qemu.pid"
-        ])
-        .status()?;
-    if !qemu_child.success() {
-        return Err(anyhow!("Failed to start QEMU VM"));
-    }
-    let qemu_pid_val = fs::read_to_string("/tmp/qemu.pid")?.trim().parse::<i32>()?;
-    println!("QEMU started with PID: {}", qemu_pid_val);
+    if let Ok(code) = redis_mgr.get_box_console_code(&competition, &team_name) {
+        // Start QEMU VM
+        println!("Starting QEMU VM...");
+        let set_password_command_going_to_stdin = format!("set_password vnc {}\n", code);
+        use std::process::{Stdio};
+        use std::io::Write;
+        let mut qemu_child = Command::new("qemu-system-x86_64")
+            .args([
+                "-enable-kvm",
+                "-m", &ram_mb.to_string(),
+                "-cpu", "host",
+                "-smp", &cores.to_string(),
+                "-drive", &format!("file={},format=qcow2", tmp_disk),
+                "-drive", &format!("file={},index=1,media=cdrom", cloud_init_iso),
+                "-net", &format!("nic,model=virtio,macaddr={}", mac_address),
+                "-net", "bridge,br=br0",
+                "-display", &format!("vnc=0.0.0.0:0,websocket=5700"),
+                "-daemonize", "-pidfile", "/tmp/qemu.pid"
+            ])
+            .stdin(Stdio::piped())
+            // stdout/stderr will go to parent (inherited)
+            .spawn()?;
+        if let Some(mut stdin) = qemu_child.stdin.take() {
+            stdin.write_all(set_password_command_going_to_stdin.as_bytes())?;
+        }
+        // print stdout and stderr
+        if let Some(stdout) = qemu_child.stdout.take() {
+            use std::io::{BufRead, BufReader};
+            let reader = BufReader::new(stdout);
+            for line in reader.lines() {
+                println!("QEMU stdout: {}", line?);
+            }
+        }
+        let status = qemu_child.wait()?;
+        if !status.success() {
+            return Err(anyhow!("Failed to start QEMU VM"));
+        }
+        let qemu_pid_val = fs::read_to_string("/tmp/qemu.pid")?.trim().parse::<i32>()?;
+        println!("QEMU started with PID: {}", qemu_pid_val);
 
-    // Start actix-web server for cloud-init
-    HttpServer::new(move || {
-        App::new()
-            .wrap(Logger::default())
-            .app_data(actix_web::web::Data::new(cloud_init.clone()))
-            .service(health_check)
-    }).bind(("0.0.0.0", 8001))?
-    .run()
-    .await?;
+        // Start actix-web server for cloud-init
+        HttpServer::new(move || {
+            App::new()
+                .wrap(Logger::default())
+                .app_data(actix_web::web::Data::new(cloud_init.clone()))
+                .service(health_check)
+        }).bind(("0.0.0.0", 8001))?
+        .run()
+        .await?;
+    }
     Ok(())
 }

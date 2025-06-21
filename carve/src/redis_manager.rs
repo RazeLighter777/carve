@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use rand::distr::Distribution;
 use redis::Client;
 use crate::config::RedisConfig;
 use serde::{Deserialize, Serialize};
@@ -98,6 +99,37 @@ impl RedisManager {
             .query(&mut conn)
             .context("Failed to set expiration for team join code")?;
         Ok(join_code)
+    }
+    // Generates a box console code for a team. This is a unique code that can be used to access the team's boxes,
+    // and is passed to novnc in the frontend and qemu -vnc 0.0.0.0:,websocket,password=box_console_code
+    // This is a 32 character alphanumeric code.
+    // if the code already exists, it will return the existing code.
+    pub fn get_box_console_code(&self, competition_name: &str, team_name: &str) -> Result<String> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        // Check if the console code already exists
+        let key = format!("{}:box_console_codes", competition_name);
+        if let Some(console_code) = redis::cmd("HGET")
+            .arg(&key)
+            .arg(team_name)
+            .query(&mut conn)
+            .context("Failed to get box console code")?
+        {
+            return Ok(console_code);
+        }
+        // Generate a new console code
+        let console_code: String = rand::distr::Alphanumeric
+            .sample_iter(&mut rand::rng())
+            .take(32)
+            .map(char::from)
+            .collect();
+        let _: () = redis::cmd("HSET")
+            .arg(&key)
+            .arg(team_name)
+            .arg(&console_code)
+            .query(&mut conn)
+            .context("Failed to store box console code")?;
+        
+        Ok(console_code)
     }
 
     pub fn check_team_join_code(&self, competition_name: &str, join_code: u64) -> Result<Option<String>> {
@@ -341,7 +373,6 @@ impl RedisManager {
         
         Ok(result)
     }
-
     
     // Get all users in the competition
     pub fn get_all_users(&self, competition_name: &str) -> Result<Vec<User>> {

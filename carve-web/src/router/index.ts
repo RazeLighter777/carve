@@ -65,6 +65,12 @@ const router = createRouter({
       name: 'JoinTeam',
       component: JoinTeam,
       meta: { requiresAuth: true, hideNavbar: true }
+    },
+    {
+      path: '/console/:team/:box',
+      name: 'Console',
+      component: () => import('@/views/Console.vue'),
+      meta: { requiresAuth: true }
     }
   ],
 })

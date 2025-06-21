@@ -95,7 +95,16 @@ const onTeamChange = async () => {
                   </span>
                 </td>
                 <td class="px-6 py-4 text-right min-w-[160px]">
-                  <router-link :to="`/boxes/${encodeURIComponent(box.name)}`" class="btn-secondary w-full block text-center">Console (placeholder)</router-link>
+                  <template v-if="userInfo && userInfo.team_id && selectedTeamId && userInfo.team_id.toString() === selectedTeamId.toString()">
+                    <router-link :to="`/console/${encodeURIComponent((teams.find(t => t.name.toString() === selectedTeamId.toString())?.name || ''))}/${encodeURIComponent(box.name)}`" class="btn-secondary w-full block text-center">
+                      Console
+                    </router-link>
+                  </template>
+                  <template v-else>
+                    <button class="btn-secondary w-full block text-center opacity-50 cursor-not-allowed" disabled>
+                      Console
+                    </button>
+                  </template>
                 </td>
               </tr>
             </tbody>
