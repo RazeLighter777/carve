@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 
 const teams = ref<Array<{id: number, name: string}>>([])
 const boxes = ref<Array<{name: string, ipAddress?: string, status?: string, loading?: boolean}>>([])
+const selectedTeamName = ref<string>('')
 const selectedTeamId = ref<string>('')
 const userInfo = ref<any>(null)
 const loading = ref(true)
@@ -29,18 +30,23 @@ const fetchTeamsAndBoxes = async () => {
   loading.value = true
   teams.value = await apiService.getTeams()
   // Set default team only if not already set
-  if (!selectedTeamId.value) {
+  if (!selectedTeamName.value) {
     // Try to use userInfo.team_id if available and matches a team
-    const userTeamId = userInfo.value?.team_id?.toString()
-    if (userTeamId && teams.value.some(t => t.id.toString() === userTeamId)) {
-      selectedTeamId.value = userTeamId
+    const userTeamName = userInfo.value?.team_name?.toString()
+    if (userTeamName && teams.value.some(t => t.name.toString() === userTeamName)) {
+      selectedTeamName.value = userTeamName
+      selectedTeamId.value = teams.value.find(t => t.name.toString() === userTeamName)?.id.toString() || ''
     } else if (teams.value.length > 0) {
-      selectedTeamId.value = teams.value[0].id.toString()
+      selectedTeamName.value = teams.value[0].id.toString()
     }
   }
-  if (selectedTeamId.value) {
+  if (selectedTeamName.value) {
     await fetchBoxesWithDetails(selectedTeamId.value)
   }
+  console.log('Teams:', teams.value)
+  console.log('Boxes:', boxes.value)
+  console.log('Selected Team:', selectedTeamName.value)
+
   loading.value = false
 }
 
@@ -59,8 +65,8 @@ const onTeamChange = async () => {
     <h1 class="text-3xl font-bold mb-6 text-subheading">Boxes</h1>
     <div class="mb-6 flex items-center space-x-4">
       <label for="team-select" class="text-body font-medium">Team:</label>
-      <select id="team-select" v-model="selectedTeamId" @change="onTeamChange" class="input-field w-64">
-        <option v-for="team in teams" :key="team.id" :value="team.id">{{ team.name }}</option>
+      <select id="team-select" v-model="selectedTeamName" @change="onTeamChange" class="input-field w-64">
+        <option v-for="team in teams" :key="team.id" :value="team.name">{{ team.name }}</option>
       </select>
     </div>
     <div v-if="loading" class="text-muted">Loading...</div>
@@ -95,8 +101,8 @@ const onTeamChange = async () => {
                   </span>
                 </td>
                 <td class="px-6 py-4 text-right min-w-[160px]">
-                  <template v-if="userInfo && userInfo.team_id && selectedTeamId && userInfo.team_id.toString() === selectedTeamId.toString()">
-                    <router-link :to="`/console/${encodeURIComponent((teams.find(t => t.name.toString() === selectedTeamId.toString())?.name || ''))}/${encodeURIComponent(box.name)}`" class="btn-secondary w-full block text-center">
+                  <template v-if="userInfo && userInfo.team_name && selectedTeamName && userInfo.team_name.toString() === selectedTeamName.toString()">
+                    <router-link :to="`/console/${encodeURIComponent((teams.find(t => t.name.toString() === selectedTeamName.toString())?.name || ''))}/${encodeURIComponent(box.name.split('.')[0])}`" class="btn-secondary w-full block text-center">
                       Console
                     </router-link>
                   </template>
