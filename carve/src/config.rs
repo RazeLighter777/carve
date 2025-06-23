@@ -107,3 +107,21 @@ impl AppConfig {
         Ok(app_config)
     }
 }
+
+impl Competition {
+    pub fn get_team_by_name(&self, team_name: &str) -> Option<&Team> {
+        self.teams.iter().find(|team| team.name.eq_ignore_ascii_case(team_name))
+    }
+
+    pub fn get_team_id_from_name(&self, team_name: &str) -> Option<u64> {
+        self.teams.iter().position(|team| team.name.eq_ignore_ascii_case(team_name)).map(|id| id as u64 + 1)
+    }
+
+    pub fn get_team_name_from_id(&self, team_id: u64) -> Option<String> {
+        if team_id < self.teams.len() as u64 {
+            Some(self.teams[team_id as usize - 1].name.clone())
+        } else {
+            None
+        }
+    }
+}

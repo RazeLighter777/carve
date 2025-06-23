@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use chrono::DateTime;
 use rand::distr::Distribution;
 use redis::Client;
 use crate::config::RedisConfig;
@@ -19,6 +20,22 @@ pub enum CompetitionStatus {
     Finished,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Commands for managing QEMU instances
+pub enum QemuCommands {
+    Start,
+    Stop,
+    Restart,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ScoreEvent {
+    pub message: String,
+    pub timestamp: DateTime<chrono::Utc>,
+    pub team_id: u64,
+    pub score_event_type: String, // e.g., "icmp_check_1"
+    pub box_name: String, // Name of the box where the event occurred
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CompetitionState {
@@ -101,7 +118,7 @@ impl RedisManager {
         Ok(join_code)
     }
     // Generates a box console code for a team. This is a unique code that can be used to access the team's boxes,
-    // and is passed to novnc in the frontend and qemu -vnc 0.0.0.0:,websocket,password=box_console_code
+    // and is passed to novnc proxy in the url path.
     // This is a 32 character alphanumeric code.
     // if the code already exists, it will return the existing code.
     pub fn get_box_console_code(&self, competition_name: &str, team_name: &str) -> Result<String> {
@@ -152,44 +169,93 @@ impl RedisManager {
         redis::cmd("PING").query::<String>(&mut conn).context("Failed to ping Redis")?;
         Ok(())
     }
-    
+
+    // wait for events for qemu boxes.
+    // this blocking call takes an iterator of events, and waits one event to happen.
+    pub fn wait_for_qemu_event(&self, competition_name: &str, team_name: &str, box_name: &str, events : impl Iterator<Item = QemuCommands>) -> Result<QemuCommands> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // the key name
+        let key = format!("{}:{}:{}:events", competition_name, team_name, box_name);
+        
+        // Subscribe to the key for events
+        let mut pubsub = conn.as_pubsub();
+        pubsub.subscribe(&key).context("Failed to subscribe to Redis channel")?;
+        let mut result =         Err(anyhow::anyhow!("No valid QEMU command received"));
+
+        // Wait for an event
+        let msg = pubsub.get_message().context("Failed to get message from Redis")?;
+        let payload: String = msg.get_payload().context("Failed to get payload from message")?;
+        if let Ok(command) = serde_yaml::from_str::<QemuCommands>(&payload) {
+            result =  Ok(command);
+        }
+        //unsubscribe from the channel
+        pubsub.unsubscribe(&key).context("Failed to unsubscribe from Redis channel")?;
+        return result;
+    }
+
+    pub fn send_qemu_event(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        box_name: &str,
+        command: QemuCommands,
+    ) -> Result<()> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // the key name
+        let key = format!("{}:{}:{}:events", competition_name, team_name, box_name);
+        
+        // Publish the command as a YAML string
+        let payload = serde_yaml::to_string(&command).context("Failed to serialize QEMU command")?;
+        let _: () = redis::cmd("PUBLISH")
+            .arg(&key)
+            .arg(payload)
+            .query(&mut conn)
+            .context("Failed to publish QEMU command")?;
+        
+        Ok(())
+    }
+
     pub fn record_sucessful_check_result(
         &self,
         competition_name: &str,
         check_name: &str,
-        timestamp_ms: i64,
-        team_name: &str,
+        timestamp: DateTime<chrono::Utc>,
+        team_id: u64,
         box_name: &str,
         message: &str,
     ) -> Result<String> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
-        
         // the key name
-        let key = format!("{}:{}:{}", competition_name, team_name, check_name);
-        // insert the score to the sorted set if it does not exist, with the timestamp as the score
+        let key = format!("{}:{}:{}", competition_name, team_id, check_name);
+        let event = ScoreEvent {
+            message: message.to_string(),
+            timestamp,
+            team_id: team_id, // This can be set to a specific team ID if needed
+            score_event_type: check_name.to_string(), // e.g., "icmp_check_1"
+            box_name: box_name.to_string(), // Name of the box where the event occurred
+        };
+        let value = serde_yaml::to_string(&event).context("Failed to serialize score event to YAML")?;
+        let timestamp_seconds = timestamp.timestamp();
         let _: () = redis::cmd("ZADD")
             .arg(&key)
-            .arg(timestamp_ms)
-            .arg(format!("{}:{}", box_name, message))
+            .arg(timestamp_seconds)
+            .arg(&value)
             .query(&mut conn)
             .context("Failed to record successful check result")?;
-        // Return the key name for confirmation
         Ok(key)
-
-
-
-        
     }
     
     
     
     // Get detailed teams scores by check
-    pub fn get_team_score_by_check(&self, competition_name: &str, team_name: &str, check_name: &str, check_points : i64) -> Result<i64> {
+    pub fn get_team_score_by_check(&self, competition_name: &str, team_id: &str, check_name: &str, check_points : i64) -> Result<i64> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
         
         // the key name
-        let key = format!("{}:{}:{}", competition_name, team_name, check_name);
-        
+        let key = format!("{}:{}:{}", competition_name, team_id, check_name);
+
         // Get the total score for this team in this competition
         let score: i64 = redis::cmd("ZCARD")
             .arg(&key)
@@ -202,12 +268,10 @@ impl RedisManager {
         Ok(score)
     }
     //returns an array of team score events for a given check for a given time range
-    pub fn get_team_score_check_events(&self, competition_name: &str, team_name: &str, check_name: &str, time_start : i64, time_end: i64) -> Result<Vec<(String, String)>> {
+    pub fn get_team_score_check_events(&self, competition_name: &str, team_id: u64, check_name: &str, time_start : i64, time_end: i64) -> Result<Vec<(ScoreEvent, chrono::DateTime<chrono::Utc>)>> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
-        
         // the key name
-        let key = format!("{}:{}:{}", competition_name, team_name, check_name);
-        
+        let key = format!("{}:{}:{}", competition_name, team_id, check_name);
         // Get the events for this team in this competition
         let events: Vec<String> = redis::cmd("ZRANGEBYSCORE")
             .arg(&key)
@@ -216,12 +280,16 @@ impl RedisManager {
             .arg("WITHSCORES")
             .query(&mut conn)
             .context("Failed to get team score check events")?;
-        
-        // Convert to Vec<(String, String)>. Note that WITHSCORES returns a Vec of alternating values, so we need to pair them up
         let mut result = Vec::new();
         for chunk in events.chunks(2) {
             if chunk.len() == 2 {
-                result.push((chunk[0].clone(), chunk[1].clone()));
+                let event: ScoreEvent = match serde_yaml::from_str(&chunk[0]) {
+                    Ok(ev) => ev,
+                    Err(e) => return Err(anyhow::anyhow!("Failed to deserialize ScoreEvent: {} (raw: {})", e, chunk[0])),
+                };
+                let timestamp = chunk[1].parse::<i64>().expect("Failed to parse timestamp");
+                let dt = chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp, 0).expect("Failed to convert timestamp to DateTime");
+                result.push((event, dt));
             }
         }
         Ok(result)

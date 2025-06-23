@@ -22,24 +22,26 @@ impl Scheduler {
     }
     
     pub async fn run(self) {
-        for check in &self.competition.checks {
+        let competition = self.competition.clone();
+        let redis_manager = self.redis_manager.clone();
+        for check in competition.clone().checks {
             let check = check.clone();
-            let competition_name = self.competition.name.clone();
-            let boxes = self.competition.boxes.clone();
-            let teams = self.competition.teams.clone();
-            let redis_manager = Arc::clone(&self.redis_manager);
+            let competition = competition.clone();
+            let redis_manager = redis_manager.clone();
             
             tokio::spawn(async move {
+                let competition_name = competition.clone().name;
+                let teams = competition.clone().teams;
+                let boxes = competition.clone().boxes;
+
                 loop {
                     let now = Utc::now().timestamp();
                     let interval = check.interval as i64;
                     
                     // Calculate time to next check
                     let time_to_next_check = interval - (now % interval);
+                    let check_timestamp = now + time_to_next_check;
                     sleep(Duration::from_secs(time_to_next_check as u64)).await;
-                    
-                    // Timestamp for this check round (aligned to interval)
-                    let check_timestamp = (Utc::now().timestamp() / interval) * interval;
                     
                     // Process the check for all applicable boxes and teams
                     for team in &teams {
@@ -102,14 +104,11 @@ impl Scheduler {
                                 // Perform the check
                                 match perform_check(&ip.to_string(), &check.spec).await {
                                     Ok(message) => {
-                                        info!("Check successful: {}", message);
-                                        let timestamp_ms = check_timestamp * 1000;
-                                        
                                         if let Err(e) = redis_manager.record_sucessful_check_result(
                                             &competition_name,
                                             &check.name,
-                                            timestamp_ms,
-                                            &team.name,
+                                            chrono::DateTime::<Utc>::from_timestamp(check_timestamp, 0).expect("Invalid timestamp"),
+                                            competition.clone().get_team_id_from_name(&team.name).expect("Team not found"),
                                             &box_config.name,
                                             &message,
                                         ) {

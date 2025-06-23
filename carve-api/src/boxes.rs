@@ -151,6 +151,7 @@ pub async fn get_box_default_creds(
     query: web::Query<types::BoxQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
+    session : Session,
 ) -> ActixResult<impl Responder> {
     // ...existing code from main.rs...
     let parts: Vec<&str> = query.name.split('.').collect();
@@ -162,6 +163,19 @@ pub async fn get_box_default_creds(
 
     let box_type = parts[0];
     let team_name = parts[1];
+
+    //verify the user belongs to the team
+    if let Some(session_team_name) = session.get::<String>("team_name")? {
+        if session_team_name != team_name {
+            return Ok(HttpResponse::Forbidden().json(serde_json::json!({
+                "error": "You do not have permission to access this box"
+            })));
+        }
+    } else {
+        return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
+            "error": "You must be logged in to access this box"
+        })));
+    }
 
     // Try to get credentials from Redis
     match redis.read_box_credentials(&competition.name, team_name, box_type) {
@@ -178,6 +192,47 @@ pub async fn get_box_default_creds(
         }))),
         Err(_) => Ok(HttpResponse::NotFound().json(serde_json::json!({
             "error": "Creds not set"
+        }))),
+    }
+}
+
+#[get("/box/send_command")]
+pub async fn send_box_command(
+    query: web::Query<types::BoxCommandQuery>,
+    competition: web::Data<Competition>,
+    redis: web::Data<RedisManager>,
+    session : Session,
+) -> ActixResult<impl Responder> {
+    let parts: Vec<&str> = query.box_name.split('.').collect();
+    if parts.len() < 3 {
+        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Box not found"
+        })));
+    }
+
+    let box_type = parts[0];
+    let team_name = parts[1];
+    let command = query.command.clone();
+
+    // Verify the user belongs to the team
+    if let Some(session_team_name) = session.get::<String>("team_name")? {
+        if session_team_name != team_name {
+            return Ok(HttpResponse::Forbidden().json(serde_json::json!({
+                "error": "You do not have permission to access this box"
+            })));
+        }
+    } else {
+        return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
+            "error": "You must be logged in to access this box"
+        })));
+    }
+    // Send command to Redis
+    match redis.send_qemu_event(&competition.name, &team_name, box_type, command) {
+        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "status": "Command sent successfully"
+        }))),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "Failed to send command"
         }))),
     }
 }

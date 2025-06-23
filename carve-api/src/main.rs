@@ -5,7 +5,7 @@ use actix_web::middleware::{self, TrailingSlash};
 use actix_web::{
     get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result as ActixResult,
 };
-use carve::redis_manager::{User};
+use carve::redis_manager::{self, User};
 use carve::{
     config::{AppConfig, Competition},
     redis_manager::RedisManager,
@@ -51,15 +51,36 @@ async fn get_score(
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
-    let start_time = query
-        .start_date
-        .unwrap_or_else(|| Utc::now() - chrono::Duration::days(1))
-        .timestamp_millis();
     let end_time = query
         .end_date
-        .unwrap_or_else(|| Utc::now())
-        .timestamp_millis();
-
+        .unwrap_or_else(|| {
+            match redis.get_competition_state(&competition.name) {
+                Ok(state) => {
+                    match state.end_time {
+                        Some(end) => chrono::DateTime::<Utc>::from_timestamp(end as i64, 0)
+                            .unwrap_or_else(|| Utc::now()),
+                        None => Utc::now(),
+                    }
+                }
+                Err(_) => Utc::now(),
+            }
+        })
+        .timestamp();
+    let start_time = query
+        .start_date
+        .unwrap_or_else(|| {
+            match redis.get_competition_state(&competition.name) {
+                Ok(state) => {
+                    match state.start_time {
+                        Some(start) => chrono::DateTime::<Utc>::from_timestamp(start as i64, 0)
+                            .unwrap_or_else(|| Utc::now() - chrono::Duration::days(1)),
+                        None => Utc::now() - chrono::Duration::days(1),
+                    }
+                }
+                Err(_) => Utc::now() - chrono::Duration::days(1),
+            }
+        })
+        .timestamp();
     let mut scores = Vec::new();
     let mut score_id = 1u64;
 
@@ -97,26 +118,25 @@ async fn get_score(
     };
 
     // Get score events from Redis
+    println!("Fetching score events for teams: {:?} and checks: {:?} at time range: {} to {}", 
+        teams_to_check, checks_to_check, start_time, end_time);
     for (team_id, team_name) in teams_to_check {
         for check in &checks_to_check {
             match redis.get_team_score_check_events(
-                &competition.name,
-                &team_name,
+                &&competition.name,
+                competition.get_team_id_from_name(&team_name).unwrap_or(0),
                 &check.name,
                 start_time,
                 end_time,
             ) {
                 Ok(events) => {
-                    for (unix_timestamp, _message) in events {
-                        // Parse unix_timestamp from String to i64
-                        let ts = unix_timestamp.parse::<i64>().unwrap_or(0);
-                        scores.push(types::ScoreEvent {
-                            id: score_id,
+                    for (event, timestamp) in events {
+                        scores.push(carve::redis_manager::ScoreEvent {
                             team_id,
-                            scoring_check: check.name.clone(),
-                            timestamp: DateTime::<Utc>::from_timestamp_millis(ts)
-                                .unwrap_or_else(|| Utc::now()),
-                            message: _message,
+                            score_event_type : check.name.clone(),
+                            box_name: event.box_name.clone(),
+                            timestamp: timestamp,
+                            message: event.message,
                         });
                         score_id += 1;
                     }

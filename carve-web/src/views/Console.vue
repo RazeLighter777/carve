@@ -4,6 +4,7 @@ import { computed, ref, onMounted, nextTick } from 'vue'
 // @ts-ignore
 import RFB from '@novnc/novnc/lib/rfb.js'
 import { apiService } from '@/services/api'
+import Dialog from '@/components/Dialog.vue'
 
 const route = useRoute()
 const boxName = computed(() => route.params.box as string || '')
@@ -13,14 +14,73 @@ const statusText = ref('Loading')
 const screenEl = ref<HTMLElement | null>(null)
 const rfb = ref<any>(null)
 const desktopName = ref('')
+const showDialog = ref(false)
+const dialogTitle = ref('')
+const dialogMessage = ref('')
+const dialogAction = ref<null | (() => void)>(null)
 
 function status(text: string) {
   statusText.value = text
 }
 
+function openDialog(title: string, message: string, action: () => void) {
+  dialogTitle.value = title
+  dialogMessage.value = message
+  dialogAction.value = action
+  showDialog.value = true
+}
+function onDialogConfirm() {
+  if (dialogAction.value) dialogAction.value()
+  showDialog.value = false
+}
+function onDialogCancel() {
+  showDialog.value = false
+}
+
 function sendCtrlAltDel() {
-  if (rfb.value) {
-    rfb.value.sendCtrlAltDel()
+  openDialog('Send Ctrl+Alt+Del', 'Are you sure you want to send Ctrl+Alt+Del to the remote machine?', () => {
+    if (rfb.value) {
+      rfb.value.sendCtrlAltDel()
+      status('Ctrl+Alt+Del sent')
+    }
+  })
+}
+
+function machineReboot() {
+  openDialog('Reboot Machine', 'Are you sure you want to request a reboot of the remote machine?', () => {
+    if (rfb.value && typeof rfb.value.machineReboot === 'function') {
+      rfb.value.machineReboot();
+      status('Reboot requested');
+    }
+  })
+}
+
+function machineReset() {
+  openDialog('Reset Machine', 'Are you sure you want to request a reset of the remote machine?', () => {
+    if (rfb.value && typeof rfb.value.machineReset === 'function') {
+      rfb.value.machineReset();
+      status('Reset requested');
+    }
+  })
+}
+
+function machineShutdown() {
+  openDialog('Shutdown Machine', 'Are you sure you want to request a shutdown of the remote machine?', () => {
+    if (rfb.value && typeof rfb.value.machineShutdown === 'function') {
+      rfb.value.machineShutdown();
+      status('Shutdown requested');
+    }
+  })
+}
+
+function fullscreen() {
+  const el = screenEl.value as HTMLElement | null
+  if (el && el.requestFullscreen) {
+    el.requestFullscreen()
+  } else if (el && (el as any).webkitRequestFullscreen) {
+    (el as any).webkitRequestFullscreen()
+  } else if (el && (el as any).msRequestFullscreen) {
+    (el as any).msRequestFullscreen()
   }
 }
 
@@ -89,6 +149,8 @@ onMounted(async () => {
     })
     rfb.value.viewOnly = false
     rfb.value.scaleViewport = true
+    //log novnc capabilities
+    console.log('noVNC capabilities:', rfb.value.capabilities);
   } else {
     status('Screen element not found')
   }
@@ -102,10 +164,17 @@ onMounted(async () => {
     <div v-else class="flex flex-col items-center" style="min-height: 600px; width: 100%;">
       <div id="top_bar" class="w-full flex items-center justify-between bg-blue-900 text-white px-4 py-2 rounded-t">
         <div id="status">{{ statusText }}</div>
-        <button id="sendCtrlAltDelButton" @click="sendCtrlAltDel" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Send CtrlAltDel</button>
+        <div class="flex items-center">
+          <button id="sendCtrlAltDelButton" @click="sendCtrlAltDel" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Send CtrlAltDel</button>
+          <button @click="machineReboot" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Reboot</button>
+          <button @click="machineReset" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Reset</button>
+          <button @click="machineShutdown" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Shutdown</button>
+          <button @click="fullscreen" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Fullscreen</button>
+        </div>
       </div>
       <div id="screen" ref="screenEl" style="width: 100%; height: 600px; background: #222; border-radius: 0 0 8px 8px; overflow: hidden; display: block;"></div>
     </div>
+    <Dialog :visible="showDialog" :title="dialogTitle" :message="dialogMessage" @confirm="onDialogConfirm" @cancel="onDialogCancel" />
   </div>
 </template>
 

@@ -1,14 +1,14 @@
+use actix_web::middleware::Logger;
+use actix_web::{get, App, HttpResponse, HttpServer, Responder};
+use anyhow::{anyhow, Context, Result};
+use carve::config::AppConfig;
+use carve::redis_manager::RedisManager;
+use rand::Rng;
+use ssh_key::{rand_core::OsRng, Algorithm, PrivateKey};
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::process::{Command};
-use anyhow::{anyhow, Context, Result};
-use actix_web::{App, HttpServer, get, Responder, HttpResponse};
-use carve::config::AppConfig;
-use carve::redis_manager::RedisManager;
-use ssh_key::{Algorithm, PrivateKey, rand_core::OsRng};
-use rand::{Rng};
-use actix_web::middleware::Logger;
+use std::process::Command;
 
 // Cloud-init file contents will be stored in these variables
 #[derive(Clone)]
@@ -18,7 +18,6 @@ struct CloudInit {
     vendor_data: String,
     network_config: String,
 }
-
 
 #[get("/api/health")]
 async fn health_check() -> impl Responder {
@@ -42,7 +41,10 @@ async fn main() -> Result<()> {
     let competition = env::var("COMPETITION_NAME").context("COMPETITION_NAME not set")?;
     let box_name = env::var("BOX_NAME").context("BOX_NAME not set")?;
     let team_name = env::var("TEAM_NAME").context("TEAM_NAME not set")?;
-    println!("Starting qemu-box for competition: {}, box: {}, team: {}", competition, box_name, team_name);
+    println!(
+        "Starting qemu-box for competition: {}, box: {}, team: {}",
+        competition, box_name, team_name
+    );
 
     // Check config file
     let config_file = "/config/competition.yaml";
@@ -51,7 +53,10 @@ async fn main() -> Result<()> {
     }
     // Load competition config
     let app_config = AppConfig::new()?;
-    let competition_cfg = app_config.competitions.iter().find(|c| c.name == competition)
+    let competition_cfg = app_config
+        .competitions
+        .iter()
+        .find(|c| c.name == competition)
         .ok_or_else(|| anyhow!("Competition '{}' not found in config", competition))?;
 
     // Find first qcow2 image in /disk
@@ -65,56 +70,82 @@ async fn main() -> Result<()> {
     println!("Using disk image: {}", tmp_disk);
 
     // Generate cloud-init file contents as variables
-    let meta_data_str = format!(r#"instance-id: {box_name}
+    let meta_data_str = format!(
+        r#"instance-id: {box_name}
 local-hostname: {box_name}
-"#);
+"#
+    );
     let vendor_data_str = r#"#cloud-config
-"#.to_string();
+"#
+    .to_string();
     let mac_address = {
         use rand::Rng;
         let mut rng = rand::rng();
-        format!("52:54:00:{:02x}:{:02x}:{:02x}", rng.random::<u8>(), rng.random::<u8>(), rng.random::<u8>())
+        format!(
+            "52:54:00:{:02x}:{:02x}:{:02x}",
+            rng.random::<u8>(),
+            rng.random::<u8>(),
+            rng.random::<u8>()
+        )
     };
     println!("Generated MAC address: {}", mac_address);
-    let network_config_str = format!(r#"#cloud-config
+    let network_config_str = format!(
+        r#"#cloud-config
 version: 2
 ethernets:
   eth0:
     dhcp4: true
     match:
       macaddress: {mac_address}
-"#);
-        // --- RedisManager and credentials/keys logic ---
+"#
+    );
+    // --- RedisManager and credentials/keys logic ---
     let redis_mgr = RedisManager::new(&competition_cfg.redis)?;
     // SSH keypair
-    let (private_ssh_key,public_ssh_key) = match redis_mgr.read_ssh_keypair(&competition, &team_name, &box_name)? {
-        Some(key) => (key.clone(), PrivateKey::from_openssh(&key)?.public_key().to_openssh()?),
-        None => {
-            let privatekey = PrivateKey::random(&mut OsRng, Algorithm::Ed25519)?;
-            let publickey = privatekey.public_key();
-            (privatekey.to_openssh(ssh_key::LineEnding::default())?.to_string(), publickey.to_openssh()?)
-        }
-    };
+    let (private_ssh_key, public_ssh_key) =
+        match redis_mgr.read_ssh_keypair(&competition, &team_name, &box_name)? {
+            Some(key) => (
+                key.clone(),
+                PrivateKey::from_openssh(&key)?.public_key().to_openssh()?,
+            ),
+            None => {
+                let privatekey = PrivateKey::random(&mut OsRng, Algorithm::Ed25519)?;
+                let publickey = privatekey.public_key();
+                (
+                    privatekey
+                        .to_openssh(ssh_key::LineEnding::default())?
+                        .to_string(),
+                    publickey.to_openssh()?,
+                )
+            }
+        };
     // print ssh keypair
     println!("SSH Private Key:\n{}", private_ssh_key);
     println!("SSH Public Key:\n{}", public_ssh_key);
-    let user_data_str = format!(r#"#cloud-config
+    let user_data_str = format!(
+        r#"#cloud-config
 users:
   - default
     shell: /bin/ash
     ssh_authorized_keys:
       - {pubkey}
-"#, pubkey=public_ssh_key.trim().lines().last().unwrap_or(""));
-    
+"#,
+        pubkey = public_ssh_key.trim().lines().last().unwrap_or("")
+    );
+
     let cloud_init = CloudInit {
-        meta_data : meta_data_str,
-        user_data : user_data_str,
-        vendor_data : vendor_data_str,
-        network_config : network_config_str,
+        meta_data: meta_data_str,
+        user_data: user_data_str,
+        vendor_data: vendor_data_str,
+        network_config: network_config_str,
     };
     // Get container IP
     let output = Command::new("hostname").arg("-I").output()?;
-    let container_ip = String::from_utf8_lossy(&output.stdout).split_whitespace().next().unwrap_or("").to_string();
+    let container_ip = String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_string();
     println!("Container IP: {}", container_ip);
 
     // Generate /etc/qemu/bridge.conf
@@ -127,15 +158,31 @@ users:
 
     // Configure iptables
     let _ = Command::new("iptables")
-        .args(["-A", "FORWARD", "-i", "br0", "-m", "physdev", "--physdev-is-bridged", "-j", "ACCEPT"])
+        .args([
+            "-A",
+            "FORWARD",
+            "-i",
+            "br0",
+            "-m",
+            "physdev",
+            "--physdev-is-bridged",
+            "-j",
+            "ACCEPT",
+        ])
         .status();
     println!("Configured iptables to allow traffic from the bridge");
 
     // Load config and get box resources
     let app_config = AppConfig::new()?;
-    let competition_cfg = app_config.competitions.iter().find(|c| c.name == competition)
+    let competition_cfg = app_config
+        .competitions
+        .iter()
+        .find(|c| c.name == competition)
         .ok_or_else(|| anyhow!("Competition '{}' not found in config", competition))?;
-    let box_cfg = competition_cfg.boxes.iter().find(|b| b.name == box_name)
+    let box_cfg = competition_cfg
+        .boxes
+        .iter()
+        .find(|b| b.name == box_name)
         .ok_or_else(|| anyhow!("Box '{}' not found in competition config", box_name))?;
     let cores = box_cfg.cores.unwrap_or(2); // Default to 2 if not set
     let ram_mb = box_cfg.ram_mb.unwrap_or(1024); // Default to 1024MB if not set
@@ -160,20 +207,32 @@ users:
         // Start QEMU VM
         println!("Starting QEMU VM...");
         let set_password_command_going_to_stdin = format!("set_password vnc {}\n", code);
-        use std::process::{Stdio};
         use std::io::Write;
+        use std::process::Stdio;
         let mut qemu_child = Command::new("qemu-system-x86_64")
             .args([
                 "-enable-kvm",
-                "-m", &ram_mb.to_string(),
-                "-cpu", "host",
-                "-smp", &cores.to_string(),
-                "-drive", &format!("file={},format=qcow2", tmp_disk),
-                "-drive", &format!("file={},index=1,media=cdrom", cloud_init_iso),
-                "-net", &format!("nic,model=virtio,macaddr={}", mac_address),
-                "-net", "bridge,br=br0",
-                "-display", &format!("vnc=0.0.0.0:0,websocket=5700"),
-                "-daemonize", "-pidfile", "/tmp/qemu.pid"
+                "-m",
+                &ram_mb.to_string(),
+                "-cpu",
+                "host",
+                "-smp",
+                &cores.to_string(),
+                "-drive",
+                &format!("file={},format=qcow2", tmp_disk),
+                "-drive",
+                &format!("file={},index=1,media=cdrom", cloud_init_iso),
+                "-net",
+                &format!("nic,model=virtio,macaddr={}", mac_address),
+                "-net",
+                "bridge,br=br0",
+                "-display",
+                &format!("vnc=0.0.0.0:0,websocket=5700,power-control=on"),
+                "-daemonize",
+                "-pidfile",
+                "/tmp/qemu.pid",
+                "-monitor",
+                "unix:/run/qemu-monitor.sock,server,nowait",
             ])
             .stdin(Stdio::piped())
             // stdout/stderr will go to parent (inherited)
@@ -195,14 +254,60 @@ users:
         }
         let qemu_pid_val = fs::read_to_string("/tmp/qemu.pid")?.trim().parse::<i32>()?;
         println!("QEMU started with PID: {}", qemu_pid_val);
-
+        // start new thread to wait for redis subscription for qemu events
+        let _ = std::thread::spawn(move || {
+            loop {
+                match redis_mgr.wait_for_qemu_event(
+                    &competition,
+                    &team_name,
+                    &box_name,
+                    vec![carve::redis_manager::QemuCommands::Restart].into_iter(),
+                ) {
+                    Ok(event) => {
+                        match event {
+                            carve::redis_manager::QemuCommands::Restart => {
+                                println!("Received QEMU restart command");
+                                // Handle restart logic here
+                                #[cfg(unix)]
+                                {
+                                    use std::os::unix::net::UnixStream;
+                                    // Connect to the QEMU monitor socket
+                                    let monitor_socket = "/run/qemu-monitor.sock";
+                                    if let Ok(mut stream) = UnixStream::connect(monitor_socket) {
+                                        // Send the 'system_reset' command to QEMU
+                                        let command = "system_reset\n";
+                                        if let Err(e) = stream.write_all(command.as_bytes()) {
+                                            eprintln!(
+                                                "Failed to send command to QEMU monitor: {}",
+                                                e
+                                            );
+                                        } else {
+                                            println!("Sent 'system_reset' command to QEMU monitor");
+                                        }
+                                    } else {
+                                        eprintln!(
+                                            "Failed to connect to QEMU monitor socket at {}",
+                                            monitor_socket
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                        // Handle the event (e.g., shutdown, reset, etc.)
+                    }
+                    Err(e) => eprintln!("Error waiting for QEMU event: {}", e),
+                }
+            }
+        });
         // Start actix-web server for cloud-init
         HttpServer::new(move || {
             App::new()
                 .wrap(Logger::default())
                 .app_data(actix_web::web::Data::new(cloud_init.clone()))
                 .service(health_check)
-        }).bind(("0.0.0.0", 8001))?
+        })
+        .bind(("0.0.0.0", 8001))?
         .run()
         .await?;
     }

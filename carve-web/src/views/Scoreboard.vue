@@ -3,6 +3,27 @@ import { ref, onMounted, computed } from 'vue'
 import { apiService } from '@/services/api'
 import type { ScoreboardEntry, Team } from '@/types'
 import { ChartBarIcon, FunnelIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
+import { Line } from 'vue-chartjs'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+)
 
 const loading = ref(true)
 const scoreboard = ref<ScoreboardEntry[]>([])
@@ -76,6 +97,54 @@ const formatTimestamp = (timestamp: string) => {
 const getTeamName = (teamId: number) => {
   const team = teams.value.find(t => t.id === teamId)
   return team?.name || `Team ${teamId}`
+}
+
+const checkPointsMap = computed(() => {
+  const map = new Map<string, number>()
+  checks.value.forEach(check => {
+    map.set(check.name, check.points)
+  })
+  return map
+})
+
+const lineData = computed(() => {
+  // Group by team, accumulate points over time
+  const teamMap = new Map<number, { label: string, data: Array<{ x: string, y: number }> }>()
+  // Get all unique timestamps sorted
+  const allTimestamps = Array.from(new Set(scoreboard.value.map(e => e.timestamp))).sort()
+  teams.value.forEach(team => {
+    let total = 0
+    const pointsByTime: Array<{ x: string, y: number }> = []
+    allTimestamps.forEach(ts => {
+      // Sum all points for this team up to this timestamp
+      const events = scoreboard.value.filter(e => e.teamId === team.id && e.timestamp <= ts)
+      total = events.reduce((sum, e) => sum + (checkPointsMap.value.get(e.scoringCheck) || 0), 0)
+      pointsByTime.push({ x: ts, y: total })
+    })
+    teamMap.set(team.id, { label: team.name, data: pointsByTime })
+  })
+  return {
+    labels: allTimestamps.map(ts => new Date(ts).toLocaleTimeString()),
+    datasets: Array.from(teamMap.values()).map((series, idx) => ({
+      label: series.label,
+      data: series.data.map(d => d.y),
+      fill: false,
+      borderColor: `hsl(${(idx * 60) % 360}, 70%, 50%)`,
+      tension: 0.2
+    }))
+  }
+})
+
+const lineOptions = {
+  responsive: true,
+  plugins: {
+    legend: { position: 'top' as const },
+    title: { display: true, text: 'Score Progression Over Time' }
+  },
+  scales: {
+    x: { title: { display: true, text: 'Time' } },
+    y: { title: { display: true, text: 'Points' }, beginAtZero: true }
+  }
 }
 
 onMounted(() => {
@@ -159,11 +228,13 @@ onMounted(() => {
     </div>
 
     <!-- Scoreboard content -->
-    <div v-else-if="filteredScoreboard.length" class="space-y-4">
+    <div v-if="filteredScoreboard.length" class="space-y-4">
       <div class="text-sm text-gray-600 mb-4">
         Showing {{ filteredScoreboard.length }} event{{ filteredScoreboard.length !== 1 ? 's' : '' }}
       </div>
-      
+      <div class="bg-white rounded shadow p-4 mb-6">
+        <Line :data="lineData" :options="lineOptions" class="h-60" />
+      </div>
       <div class="space-y-3">
         <div v-for="entry in filteredScoreboard" :key="entry.id" 
              class="card p-4 hover:shadow-md transition-shadow">

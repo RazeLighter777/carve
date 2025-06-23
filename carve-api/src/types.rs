@@ -43,16 +43,6 @@ pub(crate) type OauthClient = oauth2::Client<
     oauth2::EndpointSet,
 >;
 
-#[derive(Serialize)]
-pub(crate) struct ScoreEvent {
-    pub(crate) id: u64,
-    #[serde(rename = "teamId")]
-    pub(crate) team_id: u64,
-    #[serde(rename = "scoringCheck")]
-    pub(crate) scoring_check: String,
-    pub(crate) timestamp: DateTime<Utc>,
-    pub(crate) message: String,
-}
 
 #[derive(Serialize)]
 pub(crate) struct LeaderboardEntry {
@@ -150,4 +140,11 @@ pub struct OauthCallBackQuery {
 pub(crate) struct SwitchTeamQuery {
     #[serde(rename = "code")]
     pub(crate) team_join_code: u64,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct BoxCommandQuery {
+    #[serde(rename = "boxName")]
+    pub(crate) box_name: String,
+    pub(crate) command: carve::redis_manager::QemuCommands,
 }
