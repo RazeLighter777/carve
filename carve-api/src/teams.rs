@@ -46,13 +46,18 @@ pub async fn get_team(
 }
 
 #[get("/teams")]
-pub async fn get_teams(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
+pub async fn get_teams(competition: web::Data<Competition>, redis: web::Data<RedisManager>) -> ActixResult<impl Responder> {
     // ...existing code from main.rs...
     let teams: Vec<types::TeamListEntry> = competition
         .teams
         .iter()
         .enumerate()
         .map(|(idx, team)| types::TeamListEntry {
+            members : redis.get_team_users(&competition.name, &team.name)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|user| types::TeamMember { name: user.username })
+                .collect(),
             id: idx as u64 + 1,
             name: team.name.clone(),
         })

@@ -40,11 +40,11 @@ const filteredScoreboard = computed(() => {
   let filtered = scoreboard.value
   
   if (selectedTeam.value) {
-    filtered = filtered.filter(entry => entry.teamId.toString() === selectedTeam.value)
+    filtered = filtered.filter(entry => entry.team_id.toString() === selectedTeam.value)
   }
   
   if (selectedCheck.value) {
-    filtered = filtered.filter(entry => entry.scoringCheck === selectedCheck.value)
+    filtered = filtered.filter(entry => entry.score_event_type === selectedCheck.value)
   }
   
   // Sort by timestamp (newest first)
@@ -95,8 +95,11 @@ const formatTimestamp = (timestamp: string) => {
 }
 
 const getTeamName = (teamId: number) => {
-  const team = teams.value.find(t => t.id === teamId)
-  return team?.name || `Team ${teamId}`
+  apiService.getTeam(teamId).then(team => {
+    return team ? team.name : 'Unknown Team'
+  }).catch(() => {
+    return 'Unknown Team'
+  })
 }
 
 const checkPointsMap = computed(() => {
@@ -117,8 +120,8 @@ const lineData = computed(() => {
     const pointsByTime: Array<{ x: string, y: number }> = []
     allTimestamps.forEach(ts => {
       // Sum all points for this team up to this timestamp
-      const events = scoreboard.value.filter(e => e.teamId === team.id && e.timestamp <= ts)
-      total = events.reduce((sum, e) => sum + (checkPointsMap.value.get(e.scoringCheck) || 0), 0)
+      const events = scoreboard.value.filter(e => e.team_id === team.id && e.timestamp <= ts)
+      total = events.reduce((sum, e) => sum + (checkPointsMap.value.get(e.score_event_type) || 0), 0)
       pointsByTime.push({ x: ts, y: total })
     })
     teamMap.set(team.id, { label: team.name, data: pointsByTime })
@@ -236,16 +239,16 @@ onMounted(() => {
         <Line :data="lineData" :options="lineOptions" class="h-60" />
       </div>
       <div class="space-y-3">
-        <div v-for="entry in filteredScoreboard" :key="entry.id" 
+        <div v-for="entry in filteredScoreboard" :key="entry.timestamp" 
              class="card p-4 hover:shadow-md transition-shadow">
           <div class="flex items-start justify-between">
             <div class="flex-1">
               <div class="flex items-center space-x-3 mb-2">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
-                  {{ getTeamName(entry.teamId) }}
+                  {{ getTeamName(entry.team_id) }}
                 </span>
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  {{ entry.scoringCheck }}
+                  {{ entry.score_event_type }}
                 </span>
                 <span class="text-xs text-gray-500">
                   {{ formatTimestamp(entry.timestamp) }}
@@ -258,8 +261,8 @@ onMounted(() => {
             </div>
             
             <div class="text-right">
-              <div class="text-xs text-gray-500">Event ID</div>
-              <div class="text-sm font-mono text-gray-700">{{ entry.id }}</div>
+              <div class="text-xs text-gray-500">Event Message</div>
+              <div class="text-sm font-mono text-gray-700">{{ entry.message }}</div>
             </div>
           </div>
         </div>

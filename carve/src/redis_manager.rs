@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use rand::distr::Distribution;
 use redis::Client;
 use crate::config::RedisConfig;
@@ -41,8 +41,8 @@ pub struct ScoreEvent {
 pub struct CompetitionState {
     pub name: String,
     pub status: CompetitionStatus,
-    pub start_time: Option<u64>, // Unix timestamp in seconds
-    pub end_time: Option<u64>,   // Unix timestamp in seconds
+    pub start_time: Option<DateTime<Utc>>, // Unix timestamp in seconds
+    pub end_time: Option<DateTime<Utc>>,   // Unix timestamp in seconds
 }
 
 
@@ -250,7 +250,7 @@ impl RedisManager {
     
     
     // Get detailed teams scores by check
-    pub fn get_team_score_by_check(&self, competition_name: &str, team_id: &str, check_name: &str, check_points : i64) -> Result<i64> {
+    pub fn get_team_score_by_check(&self, competition_name: &str, team_id: u64, check_name: &str, check_points : i64) -> Result<i64> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
         
         // the key name
@@ -472,131 +472,99 @@ impl RedisManager {
             .arg("state")
             .query(&mut conn)
             .context("Failed to get competition state")?;
-        
-        if let Some(state_str) = state {
-            // Parse the state string
-            match state_str.as_str() {
-                "active" => {
-                    let start_time: u64 = redis::cmd("HGET")
-                        .arg(&key)
-                        .arg("start_time")
-                        .query(&mut conn)
-                        .context("Failed to get start time")?;
-                    let end_time: Option<u64> = redis::cmd("HGET")
-                        .arg(&key)
-                        .arg("end_time")
-                        .query(&mut conn)
-                        .context("Failed to get end time")?;
-                    Ok(CompetitionState { name: competition_name.to_owned(), status: CompetitionStatus::Active, start_time: Some(start_time), end_time: end_time })
-                },
-                "unstarted" => Ok(CompetitionState { name: competition_name.to_owned(), status: CompetitionStatus::Unstarted, start_time: None, end_time: None }),
-                "finished" => {
-                    let end_time: u64 = redis::cmd("HGET")
-                        .arg(&key)
-                        .arg("end_time")
-                        .query(&mut conn)
-                        .context("Failed to get end time")?;
-                    Ok(CompetitionState { name: competition_name.to_owned(), status: CompetitionStatus::Finished, start_time: None, end_time: Some(end_time) })
-                },
-                _ => Err(anyhow::anyhow!("Unknown competition state: {}", state_str)),
+        match state {
+            None => {
+                let default_state = CompetitionState {
+                    name: competition_name.to_string(),
+                    status: CompetitionStatus::Unstarted,
+                    start_time: None,
+                    end_time: None,
+                };
+                // Insert default state into Redis
+                let _: () = redis::cmd("HSET")
+                    .arg(&key)
+                    .arg("state")
+                    .arg(serde_yaml::to_string(&default_state).context("Failed to serialize default state")?)
+                    .query(&mut conn)
+                    .context("Failed to set default competition state")?;
+                Ok(default_state)
             }
-        } else {
-            // Default to Unstarted if no state is set
-            //insert default state
-            let _: () = redis::cmd("HSET")
-                .arg(&key)
-                .arg("state")
-                .arg("unstarted")
-                .query(&mut conn)
-                .context("Failed to set default competition state")?;
-            Ok(CompetitionState {
-                name: competition_name.to_owned(),
-                status: CompetitionStatus::Unstarted,
-                start_time: None,
-                end_time: None,
-            })
+            Some(state_str) => {
+                match serde_yaml::from_str::<CompetitionState>(&state_str) {
+                    Ok(state) => {
+                        // If the state is found, return it
+                        Ok(state)
+                    }
+                    Err(e) => Err(anyhow::anyhow!("Failed to deserialize competition state: {}", e)),
+                }
+            }
         }
     }
 
     //starts the copmetition. Returns an error if the competition is already started or finished.
     pub fn start_competition(&self, competition_name: &str, duration: Option<u64>) -> Result<()> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
-        
-        // Key for competition state
-        let key = format!("{}:state", competition_name);
-
-        
-        // Check current state
-        let current_state: Option<String> = redis::cmd("HGET")
-            .arg(&key)
-            .arg("state")
-            .query(&mut conn)
-            .context("Failed to get current competition state")?;
-        
-        match current_state.as_deref() {
-            Some("active") => Err(anyhow::anyhow!("Competition is already active")),
-            Some("finished") => Err(anyhow::anyhow!("Competition has already finished")),
-            Some("unstarted") | None => {
+        // use get_competition_state to check current state
+        let current_state = self.get_competition_state(competition_name)?;
+        match current_state.status {
+            CompetitionStatus::Active => Err(anyhow::anyhow!("Competition is already active")),
+            CompetitionStatus::Unstarted => {
                 // Set new state to active with current timestamp
-                let start_time = chrono::Utc::now().timestamp() as u64;
-                let end_time = if let Some(duration) = duration {
-                    Some(start_time + duration)
-                } else {
-                    None
+                let start_time = chrono::Utc::now();
+                let end_time = duration.map(|d| start_time + chrono::Duration::seconds(d as i64));
+                
+                let new_state = CompetitionState {
+                    name: competition_name.to_string(),
+                    status: CompetitionStatus::Active,
+                    start_time: Some(start_time),
+                    end_time,
                 };
+                
+                // Store the new state in Redis
+                let key = format!("{}:state", competition_name);
                 let _: () = redis::cmd("HSET")
                     .arg(&key)
                     .arg("state")
-                    .arg("active")
-                    .arg("start_time")
-                    .arg(start_time)
+                    .arg(serde_yaml::to_string(&new_state).context("Failed to serialize competition state")?)
                     .query(&mut conn)
                     .context("Failed to start competition")?;
-                if let Some(end_time) = end_time {
-                    let _: () = redis::cmd("HSET")
-                        .arg(&key)
-                        .arg("end_time")
-                        .arg(end_time)
-                        .query(&mut conn)
-                        .context("Failed to set competition end time")?;
-                }
+                
                 Ok(())
             },
-            _ => Err(anyhow::anyhow!("Unknown competition state")),
+            CompetitionStatus::Finished => Err(anyhow::anyhow!("Competition has already finished")),
         }
     }
 
     // Ends the competition. Returns an error if the competition is not active.
     pub fn end_competition(&self, competition_name: &str) -> Result<()> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
-        
-        // Key for competition state
-        let key = format!("{}:state", competition_name);
-        
-        // Check current state
-        let current_state: Option<String> = redis::cmd("HGET")
-            .arg(&key)
-            .arg("state")
-            .query(&mut conn)
-            .context("Failed to get current competition state")?;
-        
-        match current_state.as_deref() {
-            Some("active") => {
+        // use get_competition_state to check current state
+        let current_state = self.get_competition_state(competition_name)?;
+        match current_state.status {
+            CompetitionStatus::Active => {
                 // Set new state to finished with current timestamp
-                let end_time = chrono::Utc::now().timestamp() as u64;
+                let end_time = chrono::Utc::now();
+                
+                let new_state = CompetitionState {
+                    name: competition_name.to_string(),
+                    status: CompetitionStatus::Finished,
+                    start_time: current_state.start_time,
+                    end_time: Some(end_time),
+                };
+                
+                // Store the new state in Redis
+                let key = format!("{}:state", competition_name);
                 let _: () = redis::cmd("HSET")
                     .arg(&key)
                     .arg("state")
-                    .arg("finished")
-                    .arg("end_time")
-                    .arg(end_time)
+                    .arg(serde_yaml::to_string(&new_state).context("Failed to serialize competition state")?)
                     .query(&mut conn)
                     .context("Failed to end competition")?;
+                
                 Ok(())
             },
-            Some("unstarted") => Err(anyhow::anyhow!("Competition has not started yet")),
-            Some("finished") => Err(anyhow::anyhow!("Competition has already finished")),
-            _ => Err(anyhow::anyhow!("Unknown competition state")),
+            CompetitionStatus::Unstarted => Err(anyhow::anyhow!("Competition has not started yet")),
+            CompetitionStatus::Finished => Err(anyhow::anyhow!("Competition has already finished")),
         }
     }
 

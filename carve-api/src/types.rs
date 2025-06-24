@@ -89,6 +89,7 @@ pub(crate) struct CheckResponse {
 pub(crate) struct TeamListEntry {
     pub(crate) id: u64,
     pub(crate) name: String,
+    pub(crate) members: Vec<TeamMember>,
 }
 
 #[derive(Serialize)]

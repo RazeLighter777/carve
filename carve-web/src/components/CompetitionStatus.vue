@@ -37,10 +37,10 @@ const competition = computed(() => props.competition)
           <span>Status: </span>
           <span :class="statusClass" class="font-semibold">{{ statusText }}</span>
             <span v-if="competition.start_time" class="ml-4">
-                Start Time: {{ new Date(competition.start_time * 1000).toLocaleString() }}
+                Start Time: {{ new Date(competition.start_time).toLocaleString() }}
             </span>
             <span v-if="competition.end_time" class="ml-4">
-                End Time: {{ new Date(competition.end_time * 1000).toLocaleString() }}
+                End Time: {{ new Date(competition.end_time).toLocaleString() }}
             </span>
 
         </div>

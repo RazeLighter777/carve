@@ -63,7 +63,6 @@ impl Scheduler {
                                 };
                             
                             if should_check {
-                                // Replace {{.TEAM}} placeholder in hostname with actual team name
                                 let hostname = format!("{}.{}.{}.local", 
                                     box_config.name, 
                                     team.name, 

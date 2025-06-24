@@ -32,8 +32,8 @@ export interface TeamConsoleCodeResponse {
 export interface CompetitionState {
   name: string;
   status: CompetitionStatus;
-  start_time: number | null;
-  end_time: number | null;
+  start_time: string | null;
+  end_time: string | null;
 }
 
 export interface Box {
@@ -54,11 +54,11 @@ export interface LeaderboardEntry {
 }
 
 export interface ScoreboardEntry {
-  id: number;
-  teamId: number;
-  scoringCheck: string;
+  team_id: number;
+  score_event_type: string;
   timestamp: string;
   message: string;
+  box_name: string;
 }
 
 export interface OAuthRedirectResponse {

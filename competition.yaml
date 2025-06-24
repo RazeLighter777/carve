@@ -13,7 +13,7 @@ competitions:
     admin_group: "booktok-users"  # Admin group for the competition
     duration: 3600  # Competition duration in seconds (1 hour)
     oidc_provider_name: Authentik  # OIDC provider name for authentication
-    registration_type: OidcOnly  # Registration type OidcOnly means it just pulls the groups from the OIDC provider
+    registration_type: Join  # Registration type OidcOnly means it just pulls the groups from the OIDC provider
     boxes:
       # Define service boxes that will be checked
       - name: web

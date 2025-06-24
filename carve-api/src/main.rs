@@ -57,8 +57,7 @@ async fn get_score(
             match redis.get_competition_state(&competition.name) {
                 Ok(state) => {
                     match state.end_time {
-                        Some(end) => chrono::DateTime::<Utc>::from_timestamp(end as i64, 0)
-                            .unwrap_or_else(|| Utc::now()),
+                        Some(end) => end,
                         None => Utc::now(),
                     }
                 }
@@ -72,8 +71,7 @@ async fn get_score(
             match redis.get_competition_state(&competition.name) {
                 Ok(state) => {
                     match state.start_time {
-                        Some(start) => chrono::DateTime::<Utc>::from_timestamp(start as i64, 0)
-                            .unwrap_or_else(|| Utc::now() - chrono::Duration::days(1)),
+                        Some(start) => start,
                         None => Utc::now() - chrono::Duration::days(1),
                     }
                 }
@@ -82,7 +80,6 @@ async fn get_score(
         })
         .timestamp();
     let mut scores = Vec::new();
-    let mut score_id = 1u64;
 
     // If team_id is specified, filter by team
     let teams_to_check: Vec<_> = if let Some(team_id) = query.team_id {
@@ -138,7 +135,6 @@ async fn get_score(
                             timestamp: timestamp,
                             message: event.message,
                         });
-                        score_id += 1;
                     }
                 }
                 Err(_) => {
@@ -165,7 +161,7 @@ async fn get_leaderboard(
         for check in &competition.checks {
             match redis.get_team_score_by_check(
                 &competition.name,
-                &team.name,
+                competition.get_team_id_from_name(&team.name).unwrap_or(0),
                 &check.name,
                 check.points as i64,
             ) {
