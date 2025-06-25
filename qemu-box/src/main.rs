@@ -3,21 +3,14 @@ use actix_web::{get, App, HttpResponse, HttpServer, Responder};
 use anyhow::{anyhow, Context, Result};
 use carve::config::AppConfig;
 use carve::redis_manager::RedisManager;
-use rand::Rng;
-use ssh_key::{rand_core::OsRng, Algorithm, PrivateKey};
 use std::env;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-// Cloud-init file contents will be stored in these variables
-#[derive(Clone)]
-struct CloudInit {
-    user_data: String,
-    meta_data: String,
-    vendor_data: String,
-    network_config: String,
-}
+mod cloud_init;
+use cloud_init::{CloudInit, create_cloud_init_files};
+
 
 #[get("/api/health")]
 async fn health_check() -> impl Responder {
@@ -66,78 +59,34 @@ async fn main() -> Result<()> {
         .map(|e| e.path())
         .ok_or_else(|| anyhow!("No .qcow2 disk image found in /disk directory"))?;
     let tmp_disk = "/tmp/disk.qcow2";
-    fs::copy(&disk_image, tmp_disk)?;
-    println!("Using disk image: {}", tmp_disk);
+    // Create a new qcow2 image in /tmp with the original as a backing file
+    let status = Command::new("qemu-img")
+        .args(["create", "-f", "qcow2", "-F", "qcow2", "-b", disk_image.to_str().unwrap(), tmp_disk])
+        .status()?;
+    if !status.success() {
+        return Err(anyhow!("Failed to create qcow2 image with backing file"));
+    }
+    println!(
+        "Created qcow2 image at {} with backing file {}",
+        tmp_disk,
+        disk_image.display()
+    );
 
-    // Generate cloud-init file contents as variables
-    let meta_data_str = format!(
-        r#"instance-id: {box_name}
-local-hostname: {box_name}
-"#
-    );
-    let vendor_data_str = r#"#cloud-config
-"#
-    .to_string();
-    let mac_address = {
-        use rand::Rng;
-        let mut rng = rand::rng();
-        format!(
-            "52:54:00:{:02x}:{:02x}:{:02x}",
-            rng.random::<u8>(),
-            rng.random::<u8>(),
-            rng.random::<u8>()
-        )
-    };
-    println!("Generated MAC address: {}", mac_address);
-    let network_config_str = format!(
-        r#"#cloud-config
-version: 2
-ethernets:
-  eth0:
-    dhcp4: true
-    match:
-      macaddress: {mac_address}
-"#
-    );
     // --- RedisManager and credentials/keys logic ---
     let redis_mgr = RedisManager::new(&competition_cfg.redis)?;
-    // SSH keypair
-    let (private_ssh_key, public_ssh_key) =
-        match redis_mgr.read_ssh_keypair(&competition, &team_name, &box_name)? {
-            Some(key) => (
-                key.clone(),
-                PrivateKey::from_openssh(&key)?.public_key().to_openssh()?,
-            ),
-            None => {
-                let privatekey = PrivateKey::random(&mut OsRng, Algorithm::Ed25519)?;
-                let publickey = privatekey.public_key();
-                (
-                    privatekey
-                        .to_openssh(ssh_key::LineEnding::default())?
-                        .to_string(),
-                    publickey.to_openssh()?,
-                )
-            }
-        };
+    // Generate cloud-init, mac address, and SSH keys using the module
+    let (cloud_init, mac_address, private_ssh_key, public_ssh_key) =
+        CloudInit::generate_default(&box_name, &competition, &team_name, &redis_mgr)?;
     // print ssh keypair
     println!("SSH Private Key:\n{}", private_ssh_key);
     println!("SSH Public Key:\n{}", public_ssh_key);
-    let user_data_str = format!(
-        r#"#cloud-config
-users:
-  - default
-    shell: /bin/ash
-    ssh_authorized_keys:
-      - {pubkey}
-"#,
-        pubkey = public_ssh_key.trim().lines().last().unwrap_or("")
-    );
-
+    println!("Generated MAC address: {}", mac_address);
+    // Remove user_data_str and direct assignment to cloud_init.user_data
     let cloud_init = CloudInit {
-        meta_data: meta_data_str,
-        user_data: user_data_str,
-        vendor_data: vendor_data_str,
-        network_config: network_config_str,
+        meta_data: cloud_init.meta_data,
+        user_data: cloud_init.user_data,
+        vendor_data: cloud_init.vendor_data,
+        network_config: cloud_init.network_config,
     };
     // Get container IP
     let output = Command::new("hostname").arg("-I").output()?;
@@ -188,21 +137,7 @@ users:
     let ram_mb = box_cfg.ram_mb.unwrap_or(1024); // Default to 1024MB if not set
     println!("Box resources: {} cores, {} MB RAM", cores, ram_mb);
     // use cloud-localds to create cloud-init ISO
-    let cloud_init_iso = "/tmp/cloud-init.iso";
-    let user_data_file = "/tmp/user-data";
-    let meta_data_file = "/tmp/meta-data";
-    let vendor_data_file = "/tmp/vendor-data";
-    let network_config_file = "/tmp/network-config";
-    fs::write(user_data_file, &cloud_init.user_data)?;
-    fs::write(meta_data_file, &cloud_init.meta_data)?;
-    fs::write(vendor_data_file, &cloud_init.vendor_data)?;
-    fs::write(network_config_file, &cloud_init.network_config)?;
-    let status = Command::new("cloud-localds")
-        .args([cloud_init_iso, user_data_file, meta_data_file])
-        .status()?;
-    if !status.success() {
-        return Err(anyhow!("Failed to create cloud-init ISO"));
-    }
+    let cloud_init_iso = create_cloud_init_files(&cloud_init)?;
     if let Ok(code) = redis_mgr.get_box_console_code(&competition, &team_name) {
         // Start QEMU VM
         println!("Starting QEMU VM...");

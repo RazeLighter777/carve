@@ -9,7 +9,8 @@ import type {
   Box,
   GenerateTeamCodeResponse,
   TeamJoinResponse,
-  TeamConsoleCodeResponse
+  TeamConsoleCodeResponse,
+  AdminGenerateTeamCodeRequest as AdminGenerateJoinCodeRequest
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 const api = axios.create({
@@ -102,7 +103,7 @@ export const apiService = {
     if (!userInfo?.username) {
       throw new Error('No user info available');
     }
-    return userInfo.team_name !== undefined;
+    return userInfo.team_name !== null;
   },
 
   async getBoxes(teamId: string): Promise<Array<{name: string}>> {
@@ -112,6 +113,10 @@ export const apiService = {
   async getBox(boxId: string): Promise<Box> {
     const response = await api.get<Box>(`competition/box?name=${boxId}`);
     return response.data || {};
+  },
+  async getBoxCreds(boxId: string): Promise<{username: string, password: string}> {
+    const response = await api.get<{username: string, password: string}>(`competition/box/creds?name=${boxId}`);
+    return response.data || { username: '', password: '' };
   },
   async switchTeam(code : string): Promise<void> {
     const userInfo = cookieUtils.getUserInfo();
@@ -147,6 +152,12 @@ export const apiService = {
   },
   async endCompetition(): Promise<void> {
     await api.get('/admin/end_competition');
+  },
+  async adminGenerateJoinCode(request : AdminGenerateJoinCodeRequest): Promise<GenerateTeamCodeResponse> {
+    const response = await api.get<GenerateTeamCodeResponse>('admin/generate_join_code',
+      { params: { team_name: request.team_name } }
+    );
+    return response.data;
   },
 
   async getTeam(teamId: number): Promise<Team> {

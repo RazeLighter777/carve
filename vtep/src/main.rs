@@ -1,9 +1,9 @@
-use carve::config::{AppConfig};
+use actix_web::{App, HttpServer, Responder, get};
+use carve::{config::AppConfig, redis_manager};
 use iptables;
 use redis::Commands;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
-use actix_web::{App, HttpServer, Responder, get};
 
 #[get("/health")]
 async fn health() -> impl Responder {
@@ -39,11 +39,17 @@ fn main() {
         let mut subnets = allocate_subnets(base, prefix, num_teams + 1); // +1 for MGMT
         let mgmt_subnet = subnets.remove(0);
         // Connect to redis
-        let redis_url = format!("redis://{}:{}/{}", competition.redis.host, competition.redis.port, competition.redis.db);
+        let redis_url = format!(
+            "redis://{}:{}/{}",
+            competition.redis.host, competition.redis.port, competition.redis.db
+        );
         let client = redis::Client::open(redis_url).expect("redis client");
         let mut con = client.get_connection().expect("redis conn");
         // Clean subnets hash
-        let _: () = redis::cmd("DEL").arg(format!("{}:subnets", competition.name)).query(&mut con).unwrap();
+        let _: () = redis::cmd("DEL")
+            .arg(format!("{}:subnets", competition.name))
+            .query(&mut con)
+            .unwrap();
         // Allocate subnets and VXLAN IDs
         let mut vxlan_id = 1338u32;
         let mut subnet_map = HashMap::new();
@@ -51,24 +57,46 @@ fn main() {
         for (team, subnet) in competition.teams.iter().zip(subnets.iter()) {
             subnet_map.insert(
                 team.name.clone(),
-                format!("{}/24,{},{}", subnet, team.name, vxlan_id)
+                format!("{}/24,{},{}", subnet, team.name, vxlan_id),
             );
             vxlan_id += 1;
         }
         // Store in redis
-        let _: () = con.hset_multiple(
-            format!("{}:subnets", competition.name),
-            &subnet_map.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect::<Vec<_>>()
-        ).unwrap();
+        let _: () = con
+            .hset_multiple(
+                format!("{}:subnets", competition.name),
+                &subnet_map
+                    .iter()
+                    .map(|(k, v)| (k.as_str(), v.as_str()))
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
         // Set up iptables
-        let ipt = iptables::new(false).expect("Failed to create iptables instance");        
+        let ipt = iptables::new(false).expect("Failed to create iptables instance");
         // Create MGMT VXLAN interface
         // Use a short index for interface names to avoid long names
-        let comp_idx = config.competitions.iter().position(|c| c.name == competition.name).unwrap_or(0);
+        let comp_idx = config
+            .competitions
+            .iter()
+            .position(|c| c.name == competition.name)
+            .unwrap_or(0);
         let vxlan_mgmt_name = format!("vxlan_mgmt_{}", comp_idx);
         let vxlan_mgmt_id = 1337; // MGMT VXLAN ID is 1337
         let status = std::process::Command::new("ip")
-            .args(["link", "add", &vxlan_mgmt_name, "type", "vxlan", "id", &vxlan_mgmt_id.to_string(), "dev", "eth0", "learning", "dstport", "4789"])
+            .args([
+                "link",
+                "add",
+                &vxlan_mgmt_name,
+                "type",
+                "vxlan",
+                "id",
+                &vxlan_mgmt_id.to_string(),
+                "dev",
+                "eth0",
+                "learning",
+                "dstport",
+                "4789",
+            ])
             .status()
             .expect("Failed to create vxlan interface");
         if !status.success() {
@@ -82,7 +110,13 @@ fn main() {
         // Assign MGMT subnet IP to interface (first IP in subnet)
         let mgmt_gateway_ip = Ipv4Addr::from(u32::from(mgmt_subnet) + 1);
         std::process::Command::new("ip")
-            .args(["addr", "add", &format!("{}/24", mgmt_gateway_ip), "dev", &vxlan_mgmt_name])
+            .args([
+                "addr",
+                "add",
+                &format!("{}/24", mgmt_gateway_ip),
+                "dev",
+                &vxlan_mgmt_name,
+            ])
             .status()
             .expect("Failed to assign IP to vxlan interface");
 
@@ -91,14 +125,30 @@ fn main() {
             let vxlan_name = format!("vxlan_{}_{}", comp_idx, i);
             let vxlan_id = 1338 + i as u32; // Start VXLAN IDs from 1338
             let team_subnet = subnets.get(i).expect("subnet");
-            println!("Creating vxlan interface for {} named {}", team.name, vxlan_name);
+            println!(
+                "Creating vxlan interface for {} named {}",
+                team.name, vxlan_name
+            );
             // Remove interface if it exists
             let _ = std::process::Command::new("ip")
                 .args(["link", "del", &vxlan_name])
                 .status();
             // Create VXLAN interface
             let status = std::process::Command::new("ip")
-                .args(["link", "add", &vxlan_name, "type", "vxlan", "id", &vxlan_id.to_string(), "dev", "eth0", "learning", "dstport", "4789"])
+                .args([
+                    "link",
+                    "add",
+                    &vxlan_name,
+                    "type",
+                    "vxlan",
+                    "id",
+                    &vxlan_id.to_string(),
+                    "dev",
+                    "eth0",
+                    "learning",
+                    "dstport",
+                    "4789",
+                ])
                 .status()
                 .expect("Failed to create vxlan interface");
             if !status.success() {
@@ -112,39 +162,98 @@ fn main() {
             // Assign subnet IP to interface (first IP in subnet)
             let team_gateway_ip = Ipv4Addr::from(u32::from(*team_subnet) + 1);
             std::process::Command::new("ip")
-                .args(["addr", "add", &format!("{}/24", team_gateway_ip), "dev", &vxlan_name])
+                .args([
+                    "addr",
+                    "add",
+                    &format!("{}/24", team_gateway_ip),
+                    "dev",
+                    &vxlan_name,
+                ])
                 .status()
                 .expect("Failed to assign IP to vxlan interface");
             // SNAT only traffic from this team's VXLAN interface, using MGMT /24 as --to-source
             let team_snat_rule = format!("-o {} -j MASQUERADE", vxlan_name);
             ipt.append("nat", "POSTROUTING", &team_snat_rule)
                 .expect("Failed to add SNAT rule for team");
-            // drop traffic on the vxlan interface not going to the competition cidr
-            println!("cidr is {}", cidr);
-            let team_accept_rule = format!("-i {} ! -d {} -j DROP", vxlan_name, cidr.trim());
-            print!("rule {}", team_accept_rule);
-            ipt.append("filter", "FORWARD", &team_accept_rule)
-                .expect("Failed to add drop rule for team");
-
         }
         // print iptables command for debugging
-
     }
     // Execute the firewall rules
-    
+
     // Start Actix-web server for health check
     std::thread::spawn(|| {
         let sys = actix_rt::System::new();
         sys.block_on(async {
-            HttpServer::new(|| {
-                App::new().service(health)
-            })
-            .bind(("0.0.0.0", 8000)).expect("Failed to bind Actix server")
-            .run()
-            .await
-            .ok();
+            HttpServer::new(|| App::new().service(health))
+                .bind(("0.0.0.0", 8000))
+                .expect("Failed to bind Actix server")
+                .run()
+                .await
+                .ok();
         });
     });
-    // Keep the main thread alive to continue running the competition setup
-    std::thread::park();
+    // subscribe to <competition_name>:events
+    // NAT outgoing traffic to the internet ONLY if the competition is NOT running
+    let redis_manager =
+        redis_manager::RedisManager::new(&config.competitions[0].redis).expect("Failed to create Redis manager");
+    let ipt = iptables::new(false).expect("Failed to create iptables instance");
+    let mut rule_added = false;
+    let current_competition_state = redis_manager
+        .get_competition_state(config.competitions[0].name.as_str())
+        .expect("Failed to get competition state");
+    match current_competition_state.status {
+        redis_manager::CompetitionStatus::Unstarted => {
+            // NAT outgoing traffic to the internet
+            println!("Competition is not running, enabling NAT for outgoing traffic");
+            // Add NAT rule for outgoing traffic
+            let nat_rule = "-o eth0 -j MASQUERADE";
+            ipt.append("nat", "POSTROUTING", nat_rule)
+                .expect("Failed to add NAT rule for outgoing traffic");
+            rule_added = true;
+        }
+        redis_manager::CompetitionStatus::Active => {
+            // do nothing, rule doesn't need to be added
+            println!("Competition is running, NAT disabled for outgoing traffic");
+        }
+        redis_manager::CompetitionStatus::Finished => {
+            // Do nothing, competition is finished
+        }
+    }
+    loop {
+        match redis_manager.wait_for_competition_event(config.competitions[0].name.as_str()) {
+            Ok(event) => {
+                match event.status {
+                    redis_manager::CompetitionStatus::Unstarted => {
+                        // NAT outgoing traffic to the internet
+                        println!("Competition is not running, enabling NAT for outgoing traffic");
+                        // Add NAT rule for outgoing traffic
+                        let nat_rule = "-o eth0 -j MASQUERADE";
+                        if !rule_added {
+                            // Only add the rule if it wasn't added before
+                            ipt.append("nat", "POSTROUTING", nat_rule)
+                                .expect("Failed to add NAT rule for outgoing traffic");
+                            rule_added = true;
+                            
+                        }
+                    }
+                    redis_manager::CompetitionStatus::Active => {
+                        // Disable NAT for outgoing traffic
+                        println!("Competition is running, disabling NAT for outgoing traffic");
+                        // Remove NAT rule for outgoing traffic
+                        let nat_rule = "-o eth0 -j MASQUERADE";
+                        if rule_added {
+                            ipt.delete("nat", "POSTROUTING", nat_rule)
+                                .expect("Failed to remove NAT rule for outgoing traffic");
+                        }
+                    }
+                    redis_manager::CompetitionStatus::Finished => {
+                        // Do nothing, competition is finished
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error waiting for competition event: {}", e);
+            }
+        }
+    }
 }

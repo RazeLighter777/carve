@@ -47,7 +47,7 @@ for ((i=0;i<$team_count;i++)); do
   team_net="$o1.$o2.$subnet_index.0"
   dhcp_start="$o1.$o2.$subnet_index.16"
   dhcp_end="$o1.$o2.$subnet_index.253"
-  router_ip="$o1.$o2.$subnet_index.254"
+  router_ip="$o1.$o2.$subnet_index.1"
   dns_ip="$o1.$o2.$subnet_index.1"
 
   cat >> "$DNSMASQ_CONF" <<TEAMCONF

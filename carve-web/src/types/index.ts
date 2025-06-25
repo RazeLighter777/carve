@@ -15,6 +15,10 @@ export interface Team {
   members: TeamMember[];
 }
 
+export interface AdminGenerateTeamCodeRequest {
+  team_name: string;
+}
+
 export enum CompetitionStatus {
   Active = 'active',
   Unstarted = 'unstarted',

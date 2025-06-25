@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use oauth2::basic::{BasicErrorResponseType, BasicTokenType};
-use carve::redis_manager::CompetitionStatus;
 
 // API Response structures
 #[derive(Serialize)]
@@ -21,6 +20,11 @@ pub(crate) struct TeamMember {
 pub struct CompetitionResponse {
     pub status: String,
 
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct AdminGenerateCodeQuery {
+    pub(crate) team_name: String,
 }
 
 #[derive(Serialize)]

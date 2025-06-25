@@ -87,11 +87,13 @@ router.beforeEach(async (to, from, next) => {
     isLoggedIn &&
     to.path !== '/join_team' &&
     to.path !== '/logout' &&
-    to.path !== '/login'
+    to.path !== '/login' &&
+    to.path !== '/admin'
   ) {
     // Check if user is registered for a team
     try {
       const registered = await apiService.isUserRegisteredForAnyTeam()
+      console.log('User registration check:', registered)
       if (!registered) {
         return next('/join_team')
       }

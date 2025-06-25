@@ -1,24 +1,20 @@
 use actix_cors::Cors;
-use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
-use actix_web::cookie::{Cookie, Key};
-use actix_web::middleware::{self, TrailingSlash};
+use actix_session::{storage::CookieSessionStore, SessionMiddleware};
+use actix_web::cookie::Key;
+use actix_web::middleware::{self};
 use actix_web::{
     get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result as ActixResult,
 };
-use carve::redis_manager::{self, User};
 use carve::{
     config::{AppConfig, Competition},
     redis_manager::RedisManager,
 };
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use env_logger::Env;
-use reqwest;
-use oauth2::{basic::*, PkceCodeVerifier, TokenResponse};
+use oauth2::basic::*;
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
-    Scope, TokenUrl,
+    AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl,
 };
-use std::error::Error;
 mod auth;
 mod types;
 mod teams;
@@ -284,6 +280,7 @@ async fn main() -> std::io::Result<()> {
                             .guard(auth::validate_admin_session)
                             .service(admin::start_competition)
                             .service(admin::end_competition)
+                            .service(admin::generate_join_code)
                     )
             )
     })

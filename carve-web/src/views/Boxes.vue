@@ -33,14 +33,18 @@ const fetchTeamsAndBoxes = async () => {
   if (!selectedTeamName.value) {
     // Try to use userInfo.team_id if available and matches a team
     const userTeamName = userInfo.value?.team_name?.toString()
-    if (userTeamName && teams.value.some(t => t.name.toString() === userTeamName)) {
+    if (userTeamName && teams.value.some(t => t.name.toString() === selectedTeamName.value)) {
       selectedTeamName.value = userTeamName
-      selectedTeamId.value = teams.value.find(t => t.name.toString() === userTeamName)?.id.toString() || ''
+      selectedTeamId.value = teams.value.find(t => t.name.toString() === selectedTeamName.value)?.id.toString() || ''
     } else if (teams.value.length > 0) {
       selectedTeamName.value = teams.value[0].id.toString()
+
     }
   }
   if (selectedTeamName.value) {
+    console.log('teams:', teams.value)
+    console.log('selectedTeamName:', selectedTeamName.value)
+    selectedTeamId.value = teams.value.find(t => t.name.toString() === selectedTeamName.value)?.id.toString() || ''
     await fetchBoxesWithDetails(selectedTeamId.value)
   }
   console.log('Teams:', teams.value)

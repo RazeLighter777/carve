@@ -1,15 +1,11 @@
 // Boxes-related API handlers
 
 use actix_session::Session;
-use actix_web::http::header::HeaderName;
-use actix_web::web::Payload;
-use actix_web::{get, rt, web, HttpRequest, HttpResponse, Responder, Result as ActixResult};
-use oauth2::url;
+use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
 use crate::types;
 use carve::config::Competition;
 use carve::redis_manager::RedisManager;
 use std::process::Stdio;
-use std::str::FromStr;
 use tokio::process::Command;
 
 // Helper function to resolve IP address using dig
@@ -146,7 +142,7 @@ pub async fn get_box(
     Ok(HttpResponse::Ok().json(response))
 }
 
-#[get("box/defaultCreds")]
+#[get("box/creds")]
 pub async fn get_box_default_creds(
     query: web::Query<types::BoxQuery>,
     competition: web::Data<Competition>,

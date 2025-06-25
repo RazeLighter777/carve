@@ -528,7 +528,12 @@ impl RedisManager {
                     .arg(serde_yaml::to_string(&new_state).context("Failed to serialize competition state")?)
                     .query(&mut conn)
                     .context("Failed to start competition")?;
-                
+                // publish the start event to a channel
+                let _: () = redis::cmd("PUBLISH")
+                    .arg(format!("{}:events", competition_name))
+                    .arg(serde_yaml::to_string(&new_state).context("Failed to serialize competition state for publish")?)
+                    .query(&mut conn)
+                    .context("Failed to publish competition start event")?;
                 Ok(())
             },
             CompetitionStatus::Finished => Err(anyhow::anyhow!("Competition has already finished")),
@@ -560,12 +565,38 @@ impl RedisManager {
                     .arg(serde_yaml::to_string(&new_state).context("Failed to serialize competition state")?)
                     .query(&mut conn)
                     .context("Failed to end competition")?;
-                
+                // publish the end event to a channel
+                let _: () = redis::cmd("PUBLISH")
+                    .arg(format!("{}:events", competition_name))
+                    .arg(serde_yaml::to_string(&new_state).context("Failed to serialize competition state for publish")?)
+                    .query(&mut conn)
+                    .context("Failed to publish competition end event")?;
                 Ok(())
             },
             CompetitionStatus::Unstarted => Err(anyhow::anyhow!("Competition has not started yet")),
             CompetitionStatus::Finished => Err(anyhow::anyhow!("Competition has already finished")),
         }
+    }
+
+    pub fn wait_for_competition_event(&self, competition_name: &str) -> Result<CompetitionState> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Subscribe to the competition events channel
+        let mut pubsub = conn.as_pubsub();
+        pubsub.subscribe(format!("{}:events", competition_name)).context("Failed to subscribe to competition events")?;
+        
+        // Wait for a message
+        let msg = pubsub.get_message().context("Failed to get message from Redis")?;
+        println!("Received message: {:?}", msg);
+        let payload: String = msg.get_payload().context("Failed to get payload from message")?;
+        println!("Received payload: {}", payload);
+        // Deserialize the competition state
+        let state: CompetitionState = serde_yaml::from_str(&payload).context("Failed to deserialize competition state")?;
+        
+        // Unsubscribe from the channel
+        pubsub.unsubscribe(format!("{}:events", competition_name)).context("Failed to unsubscribe from competition events")?;
+        
+        Ok(state)
     }
 
     

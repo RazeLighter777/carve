@@ -18,7 +18,9 @@ const showDialog = ref(false)
 const dialogTitle = ref('')
 const dialogMessage = ref('')
 const dialogAction = ref<null | (() => void)>(null)
-
+const boxCreds = ref<{username: string, password: string} | null>(null)
+const boxCredsError = ref('')
+const competitionName = ref('')
 function status(text: string) {
   statusText.value = text
 }
@@ -81,6 +83,17 @@ function fullscreen() {
     (el as any).webkitRequestFullscreen()
   } else if (el && (el as any).msRequestFullscreen) {
     (el as any).msRequestFullscreen()
+  }
+}
+
+async function fetchBoxCreds() {
+  boxCreds.value = null
+  boxCredsError.value = ''
+  if (!boxName.value) return
+  try {
+    boxCreds.value = await apiService.getBoxCreds(`${boxName.value}.${teamName.value}.${competitionName.value}.local`)
+  } catch (e: any) {
+    boxCredsError.value = e?.response?.data?.error || 'Could not fetch box credentials.'
   }
 }
 
@@ -154,6 +167,9 @@ onMounted(async () => {
   } else {
     status('Screen element not found')
   }
+  // fetch competition name
+  competitionName.value = (await apiService.getCompetition()).name;
+  await fetchBoxCreds()
 })
 </script>
 
@@ -162,6 +178,15 @@ onMounted(async () => {
     <h1 class="text-3xl font-bold mb-6 text-subheading">Console: {{ teamName }} / {{ boxName }}</h1>
     <div v-if="!boxName || !teamName" class="text-muted">Missing team or box parameter.</div>
     <div v-else class="flex flex-col items-center" style="min-height: 600px; width: 100%;">
+      <div v-if="boxCreds || boxCredsError" class="w-full mb-4">
+        <div v-if="boxCreds" class="bg-gray-100 border border-gray-300 rounded p-3 text-center">
+          <span class="font-semibold">Box Credentials:</span>
+          <span class="ml-2 font-mono">{{ boxCreds.username }}</span>
+          <span class="mx-1">/</span>
+          <span class="font-mono">{{ boxCreds.password }}</span>
+        </div>
+        <div v-else-if="boxCredsError" class="text-red-600 text-center">{{ boxCredsError }}</div>
+      </div>
       <div id="top_bar" class="w-full flex items-center justify-between bg-blue-900 text-white px-4 py-2 rounded-t">
         <div id="status">{{ statusText }}</div>
         <div class="flex items-center">

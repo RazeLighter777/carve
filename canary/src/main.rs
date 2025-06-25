@@ -12,7 +12,6 @@ use crate::scheduler::Scheduler;
 use carve::config::AppConfig;
 use carve::redis_manager::RedisManager;
 
-use std::net::{SocketAddr, ToSocketAddrs};
 
 struct AppState {
     redis_managers: Vec<Arc<RedisManager>>,
