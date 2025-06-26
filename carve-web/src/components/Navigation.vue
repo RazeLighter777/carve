@@ -9,7 +9,9 @@ import {
   TrophyIcon, 
   ChartBarIcon, 
   InformationCircleIcon,
-  ArrowRightOnRectangleIcon
+  ArrowRightOnRectangleIcon,
+  CubeTransparentIcon,
+  FlagIcon
 } from '@heroicons/vue/24/outline'
 
 const userInfo = ref<any>(null)
@@ -59,12 +61,12 @@ const closeMenu = () => {
               Home
             </RouterLink>
             <RouterLink 
-              to="/leaderboard" 
+              to="/compete" 
               class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
               active-class="text-black bg-white"
             >
-              <TrophyIcon class="w-4 h-4 mr-2" />
-              Leaderboard
+              <FlagIcon class="w-4 h-4 mr-2" />
+              Compete
             </RouterLink>
             <RouterLink 
               to="/scoreboard" 
@@ -87,7 +89,7 @@ const closeMenu = () => {
               class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
               active-class="text-black bg-white"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4M8 3v4"/></svg>
+              <CubeTransparentIcon class="w-4 h-4 mr-2" />
               Boxes
             </RouterLink>
             <RouterLink 
@@ -143,13 +145,13 @@ const closeMenu = () => {
           Home
         </RouterLink>
         <RouterLink 
-          to="/leaderboard" 
+          to="/compete" 
           @click="closeMenu"
           class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
           active-class="text-black bg-white"
         >
-          <TrophyIcon class="w-5 h-5 mr-3" />
-          Leaderboard
+          <FlagIcon class="w-5 h-5 mr-3" />
+          Compete
         </RouterLink>
         <RouterLink 
           to="/scoreboard" 
@@ -169,8 +171,7 @@ const closeMenu = () => {
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4M8 3v4"/></svg>
           Boxes
         </RouterLink>
-
-                <RouterLink 
+        <RouterLink 
           to="/about" 
           @click="closeMenu"
           class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
@@ -179,8 +180,6 @@ const closeMenu = () => {
           <InformationCircleIcon class="w-5 h-5 mr-3" />
           About
         </RouterLink>
-
-        
         <RouterLink 
           v-if="isAdmin" 
           to="/admin"

@@ -1,3 +1,4 @@
+use carve::config::{Check, FlagCheck};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use oauth2::basic::{BasicErrorResponseType, BasicTokenType};
@@ -84,9 +85,36 @@ pub(crate) struct BoxCredentialsResponse {
 }
 
 #[derive(Serialize)]
+pub(crate) struct TeamCheckStatusResponse {
+    pub checks : Vec<CheckStatusResponse>,
+    pub flag_checks: Vec<FlagCheckStatusResponse>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct TeamCheckStatusQuery {
+    #[serde(rename = "teamId")]
+    pub(crate) team_id: u64,
+}
+
+
+#[derive(Serialize)]
 pub(crate) struct CheckResponse {
+    pub(crate) checks: Vec<Check>,
+    pub(crate) flag_checks: Vec<FlagCheck>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct CheckStatusResponse {
     pub(crate) name: String,
-    pub(crate) points: u32,
+    pub(crate) passing: bool,
+    pub(crate) failed_for: u64,
+    pub(crate) message: String,
+}
+
+#[derive(Serialize)]
+pub(crate) struct FlagCheckStatusResponse {
+    pub(crate) name: String,
+    pub(crate) passing: bool,
 }
 
 #[derive(Serialize)]
@@ -152,4 +180,17 @@ pub(crate) struct BoxCommandQuery {
     #[serde(rename = "boxName")]
     pub(crate) box_name: String,
     pub(crate) command: carve::redis_manager::QemuCommands,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct RedeemFlagQuery {
+    pub(crate) flag: String,
+    #[serde(rename = "flagCheckName")]
+    pub(crate) flag_check_name: String,
+}
+
+#[derive(Serialize)]
+pub(crate) struct RedeemFlagResponse {
+    pub(crate) success: bool,
+    pub(crate) message: String,
 }

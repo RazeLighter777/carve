@@ -28,7 +28,9 @@ competition_domain="$COMPETITION_NAME.local"
 cat > "$DNSMASQ_CONF" <<EOF
 domain=$competition_domain
 dhcp-fqdn
-no-resolv
+expand-hosts
+domain-needed
+bogus-priv
 local=/$competition_domain/
 EOF
 

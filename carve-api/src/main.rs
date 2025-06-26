@@ -5,6 +5,7 @@ use actix_web::middleware::{self};
 use actix_web::{
     get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result as ActixResult,
 };
+use carve::config::{Check, FlagCheck, CheckSpec, HttpCheckSpec};
 use carve::{
     config::{AppConfig, Competition},
     redis_manager::RedisManager,
@@ -25,6 +26,8 @@ mod admin;
 pub use boxes::get_boxes;
 pub use boxes::get_box;
 pub use boxes::get_box_default_creds;
+
+use crate::types::{CheckStatusResponse, FlagCheckStatusResponse, TeamCheckStatusResponse};
 
 // API Handlers
 #[get("/competition")]
@@ -97,17 +100,55 @@ async fn get_score(
             .collect()
     };
 
-    // If scoring_check is specified, filter by check
+    // If scoring_check is specified, filter by check or flag check
     let checks_to_check: Vec<_> = if let Some(ref check_name) = query.scoring_check {
-        if let Some(check) = competition.checks.iter().find(|c| c.name == *check_name) {
+        if let Some(check) = competition
+            .checks
+            .iter()
+            .find(|c| c.name == *check_name)
+        {
             vec![check.clone()]
+        } else if let Some(flag_check) = competition
+            .flag_checks
+            .iter()
+            .find(|c| c.name == *check_name)
+        {
+            vec![Check {
+                name: flag_check.name.clone(),
+                description: flag_check.description.clone(),
+                interval: 0, // or a sensible default
+                points: flag_check.points as u32,
+                label_selector: None,
+                label_selector_alt: None,
+                spec: CheckSpec::Http(HttpCheckSpec {
+                    url: String::new(),
+                    code: 200,
+                    regex: String::new(),
+                }), // Placeholder, since FlagCheck doesn't have a spec
+            }]
         } else {
             return Ok(HttpResponse::NotFound().json(serde_json::json!({
                 "error": "Scoring check not found"
             })));
         }
     } else {
-        competition.checks.clone()
+        let mut all = competition.checks.clone();
+        all.extend(
+            competition.flag_checks.iter().map(|flag| Check {
+                name: flag.name.clone(),
+                description: flag.description.clone(),
+                interval: 0, // or a sensible default
+                points: flag.points as u32,
+                label_selector: None,
+                label_selector_alt: None,
+                spec: CheckSpec::Http(HttpCheckSpec {
+                    url: String::new(),
+                    code: 200,
+                    regex: String::new(),
+                }), // Placeholder
+            })
+        );
+        all
     };
 
     // Get score events from Redis
@@ -190,17 +231,84 @@ async fn get_leaderboard(
 }
 
 #[get("/checks")]
-async fn get_checks(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
-    let checks: Vec<types::CheckResponse> = competition
+async fn get_checks(competition: web::Data<Competition>, redis: web::Data<RedisManager>) -> ActixResult<impl Responder> {
+    let checks: Vec<Check> = competition
         .checks
-        .iter()
-        .map(|check| types::CheckResponse {
-            name: check.name.clone(),
-            points: check.points,
-        })
-        .collect();
+        .clone();
+    let flag_checks: Vec<FlagCheck> = competition
+        .flag_checks
+        .clone();
+    // Combine checks and flags into a single response
+    let checks = types::CheckResponse {
+        checks,
+        flag_checks,
+    };
 
     Ok(HttpResponse::Ok().json(checks))
+}
+
+#[get("/submit")]
+async fn submit_flag(
+    session: actix_session::Session,
+    query: web::Query<types::RedeemFlagQuery>,
+    competition: web::Data<Competition>,
+    redis: web::Data<RedisManager>,
+) -> ActixResult<impl Responder> {
+    // Get username from session
+    let username = match session.get::<String>("username").unwrap_or(None) {
+        Some(u) => u,
+        None => {
+            return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
+                "error": "Not logged in"
+            })));
+        }
+    };
+    // Get user and team name
+    let user = match redis.get_user(&competition.name, &username) {
+        Ok(Some(u)) => u,
+        _ => {
+            return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
+                "error": "User not found"
+            })));
+        }
+    };
+    let team_name = match user.team_name {
+        Some(ref t) => t,
+        None => {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "User is not on a team"
+            })));
+        }
+    };
+    // Find the flag check
+    let flag_check = match competition.flag_checks.iter().find(|fc| fc.name == query.flag_check_name) {
+        Some(fc) => fc,
+        None => {
+            return Ok(HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Flag check not found"
+            })));
+        }
+    };
+    // Attempt to redeem the flag
+    match redis.redeem_flag(
+        &competition.name,
+        team_name,
+        competition.get_team_id_from_name(team_name).unwrap_or(0),
+        &query.flag,
+        flag_check,
+    ) {
+        Ok(true) => Ok(HttpResponse::Ok().json(types::RedeemFlagResponse {
+            success: true,
+            message: "Flag accepted!".to_string(),
+        })),
+        Ok(false) => Ok(HttpResponse::BadRequest().json(types::RedeemFlagResponse {
+            success: false,
+            message: "Incorrect or already redeemed flag.".to_string(),
+        })),
+        Err(e) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to redeem flag: {}", e)
+        })))
+    }
 }
 
 #[actix_web::main]
@@ -267,6 +375,8 @@ async fn main() -> std::io::Result<()> {
                             .service(users::get_user)
                             .service(users::switch_team)
                             .service(users::generate_join_code)
+                            .service(teams::get_team_check_status)
+                            .service(submit_flag)
                     )
                     .service(
                         web::scope("/oauth2")

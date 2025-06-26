@@ -1,7 +1,7 @@
 // Configuration logic moved from canary/src/config.rs
 use anyhow::Result;
 use config::{Config, File};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -25,19 +25,35 @@ pub struct Team {
     pub name: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HttpCheckSpec {
     pub url: String,
     pub code: u16,
     pub regex: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct IcmpCheckSpec {
     pub code: u8,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Hint {
+    pub string: String, // Hint text
+    pub penalty: u64, // Points penalty for using this hint
+}
+
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FlagCheck {
+    pub name : String, // Challenge name. Must be unique.
+    pub description: String, // Description of the challenge
+    pub points: u64, // Points awarded for solving the challenge
+    pub attempts: u64, // Number of attempts allowed
+    pub box_name: String, // Name of the box where the flag is located
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SshCheckSpec {
     pub port: u16,
     pub username: String,
@@ -52,7 +68,7 @@ pub enum RegistrationType {
     TeamWithLeastMembers,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
 pub enum CheckSpec {
     #[serde(rename = "http")]
@@ -63,9 +79,10 @@ pub enum CheckSpec {
     Ssh(SshCheckSpec),
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Check {
     pub name: String,
+    pub description: String,
     pub interval: u64,
     pub points: u32,
     pub label_selector: Option<HashMap<String, String>>,
@@ -84,6 +101,7 @@ pub struct Competition {
     pub boxes: Vec<Box>,
     pub teams: Vec<Team>,
     pub checks: Vec<Check>,
+    pub flag_checks: Vec<FlagCheck>, // Flag checks for the competition
     pub admin_group: Option<String>, // Optional admin group for oidc
     pub description: Option<String>, // Optional description
     pub duration: Option<u64>, // duration in seconds
@@ -118,7 +136,7 @@ impl Competition {
     }
 
     pub fn get_team_name_from_id(&self, team_id: u64) -> Option<String> {
-        if team_id < self.teams.len() as u64 {
+        if team_id <= self.teams.len() as u64 {
             Some(self.teams[team_id as usize - 1].name.clone())
         } else {
             None

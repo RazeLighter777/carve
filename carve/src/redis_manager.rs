@@ -1,8 +1,10 @@
+use core::num;
+
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use rand::distr::Distribution;
+use rand::{distr::{Distribution, SampleString}, rand_core::le};
 use redis::Client;
-use crate::config::RedisConfig;
+use crate::config::{FlagCheck, RedisConfig};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -30,10 +32,10 @@ pub enum QemuCommands {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ScoreEvent {
-    pub message: String,
+    pub message: String, // Message describing the event, e.g., "ICMP check passed", "Flag check successful"    
     pub timestamp: DateTime<chrono::Utc>,
     pub team_id: u64,
-    pub score_event_type: String, // e.g., "icmp_check_1"
+    pub score_event_type: String, // e.g., "icmp_check_1" "flag_check_1"
     pub box_name: String, // Name of the box where the event occurred
 }
 
@@ -599,7 +601,136 @@ impl RedisManager {
         Ok(state)
     }
 
-    
+    pub fn generate_new_flag(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        flag_check_name : &str,
+    ) -> Result<String> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Key for storing flags
+        let key = format!("{}:{}:{}:flags", competition_name, team_name, flag_check_name);
+        // Generate a new flag in the format "<competition_name>{random 8 lowercase alphabetic characters}"
+        let value: String = format!("{}{{{}}}", competition_name, rand::distr::Alphabetic.sample_string(&mut rand::rng(), 8).to_lowercase());
+        // Store the flag in Redis
+        let _: () = redis::cmd("SADD")
+            .arg(&key)
+            .arg(&value)
+            .query(&mut conn)
+            .context("Failed to register new flag")?;
+        Ok(value)
+    }
+
+    pub fn redeem_flag(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        team_id: u64,
+        flag: &str,
+        flag_check: &FlagCheck,
+    ) -> Result<bool> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Key for storing flags
+        let key = format!("{}:{}:{}:flags", competition_name, team_name, flag_check.name);
+        // Check if the flag exists
+        let exists: bool = redis::cmd("SISMEMBER")
+            .arg(&key)
+            .arg(flag)
+            .query(&mut conn)
+            .context("Failed to check if flag exists")?;
+
+        // create score event for the flag redemption
+        if exists {
+            // Record the successful flag redemption
+            let timestamp = chrono::Utc::now();
+            let event_message = format!("Flag redeemed: {}", flag);
+            self.record_sucessful_check_result(
+                competition_name,
+                &flag_check.name,
+                timestamp,
+                team_id,
+                &flag_check.box_name,
+                &event_message
+            )?;
+            // set the current state of the flag check to true
+            self.set_check_current_state(
+                competition_name,
+                team_name,
+                &flag_check.name,
+                true,
+                0, // No failures on successful flag redemption
+                &event_message
+            )?;
+        }
+        
+        if exists {
+            // Remove the flag from the set
+            let _: () = redis::cmd("SREM")
+                .arg(&key)
+                .arg(flag)
+                .query(&mut conn)
+                .context("Failed to remove flag from set")?;
+            Ok(true) // Flag redeemed successfully
+        } else {
+            Ok(false) // Flag does not exist
+        }
+    }
+
+    pub fn set_check_current_state(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        check_name_or_flag_check_name: &str,
+        success: bool,
+        number_of_failures: u64,
+        message: &str,
+    ) -> Result<()> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+
+        // Key for storing the current state of the flag check
+        let key = format!("{}:{}:current_state", competition_name, team_name);
+        let key2 = check_name_or_flag_check_name.to_string();
+        let status = format!("{}:{}:{}", success as u64, number_of_failures, message);
+        // Store the current state as a u64 (0 for false, 1 for true)
+        let _: () = redis::cmd("HSET")
+            .arg(&key)
+            .arg(key2)
+            .arg(status)
+            .query(&mut conn)
+            .context("Failed to set current state")?;
+
+        Ok(())
+    }
+
+    pub fn get_check_current_state(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        check_name_or_flag_check_name: &str,
+    ) -> Result<Option<(bool, u64, String)>> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        // Key for storing the current state of the flag check
+        let key = format!("{}:{}:current_state", competition_name, team_name);
+        // Get the current state for the specified check
+        let state: Option<String> = redis::cmd("HGET")
+            .arg(&key)
+            .arg(check_name_or_flag_check_name)
+            .query(&mut conn)
+            .context("Failed to get current state")?;
+        if let Some(state_str) = state {
+            let parts: Vec<&str> = state_str.split(':').collect();
+            if parts.len() >= 3 {
+                if let (Ok(success), Ok(failures)) = (parts[0].parse::<u64>(), parts[1].parse::<u64>()) {
+                    return Ok(Some((success != 0, failures, parts[2..].join(":"))));
+                }
+                return Err(anyhow::anyhow!("Invalid state format: {}", state_str));
+            }
+            return Err(anyhow::anyhow!("Invalid state format: {}", state_str));
+        }
+        Ok(Some((false, 0, String::from("Unsolved")))) // No state found
+    }
 
     // Get a specific user by username and find their team
     pub fn get_user(&self, competition_name: &str, username: &str) -> Result<Option<User>> {

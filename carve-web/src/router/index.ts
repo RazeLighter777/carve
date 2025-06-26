@@ -2,12 +2,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { cookieUtils } from '@/utils/cookies'
 import Login from '@/views/Login.vue'
 import Home from '@/views/Home.vue'
-import Leaderboard from '@/views/Leaderboard.vue'
 import Scoreboard from '@/views/Scoreboard.vue'
 import About from '@/views/About.vue'
 import Logout from '@/views/Logout.vue'
 import JoinTeam from '@/views/JoinTeam.vue'
 import apiService from '@/services/api'
+import Compete from '@/views/Compete.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -28,12 +28,6 @@ const router = createRouter({
       path: '/',
       name: 'Home',
       component: Home,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/leaderboard',
-      name: 'Leaderboard',
-      component: Leaderboard,
       meta: { requiresAuth: true }
     },
     {
@@ -70,6 +64,12 @@ const router = createRouter({
       path: '/console/:team/:box',
       name: 'Console',
       component: () => import('@/views/Console.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/compete',
+      name: 'Compete',
+      component: Compete,
       meta: { requiresAuth: true }
     }
   ],

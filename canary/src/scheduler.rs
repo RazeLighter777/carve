@@ -100,9 +100,30 @@ impl Scheduler {
                                     check.name, team.name, box_config.name, ip
                                 );
                                 
+                                // Get current check state from Redis
+                                let (_, mut prev_failures) = match redis_manager.get_check_current_state(
+                                    &competition_name,
+                                    &team.name,
+                                    &check.name,
+                                ) {
+                                    Ok(Some((passing, failures, _))) => (passing, failures),
+                                    _ => (true, 0), // Default: passing, 0 failures
+                                };
+
                                 // Perform the check
                                 match perform_check(&ip.to_string(), &check.spec).await {
                                     Ok(message) => {
+                                        // Set state: passing, failures=0
+                                        if let Err(e) = redis_manager.set_check_current_state(
+                                            &competition_name,
+                                            &team.name,
+                                            &check.name,
+                                            true,
+                                            0,
+                                            &message,
+                                        ) {
+                                            error!("Failed to set check state: {}", e);
+                                        }
                                         if let Err(e) = redis_manager.record_sucessful_check_result(
                                             &competition_name,
                                             &check.name,
@@ -115,6 +136,18 @@ impl Scheduler {
                                         }
                                     }
                                     Err(e) => {
+                                        // Set state: failing, failures+1
+                                        prev_failures += 1;
+                                        if let Err(err) = redis_manager.set_check_current_state(
+                                            &competition_name,
+                                            &team.name,
+                                            &check.name,
+                                            false,
+                                            prev_failures,
+                                            &format!("{}", e),
+                                        ) {
+                                            error!("Failed to set check state: {}", err);
+                                        }
                                         error!(
                                             "Check failed for {} on {}: {}",
                                             team.name, box_config.name, e

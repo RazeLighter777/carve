@@ -25,6 +25,43 @@ export enum CompetitionStatus {
   Finished = 'finished',
 }
 
+export interface FlagCheckStatusResponse {
+    name: string;
+    passing: boolean;
+}
+
+export interface CheckStatusResponse {
+    name: string;
+    passing: boolean;
+    failed_for: number;
+    message: string;
+}
+
+export interface TeamCheckStatusResponse {
+    checks: CheckStatusResponse[];
+    flag_checks: FlagCheckStatusResponse[];
+}
+
+export interface Check {
+    name: string;
+    description: string;
+    interval: number;
+    points: number;
+}
+
+export interface FlagCheck {
+    name: string;
+    description: string;
+    points: number;
+    attempts: number;
+    box_name: string;
+}
+
+export interface CheckResponse {
+    checks: Check[];
+    flag_checks: FlagCheck[];
+}
+
 export interface GenerateTeamCodeResponse {
   code : string;
 }
@@ -72,4 +109,14 @@ export interface OAuthRedirectResponse {
 export interface ApiError {
   message: string;
   status: number;
+}
+
+export interface RedeemFlagQuery {
+  flag: string;
+  flagCheckName: string;
+}
+
+export interface RedeemFlagResponse {
+  success: boolean;
+  message: string;
 }

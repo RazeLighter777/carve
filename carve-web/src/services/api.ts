@@ -10,7 +10,11 @@ import type {
   GenerateTeamCodeResponse,
   TeamJoinResponse,
   TeamConsoleCodeResponse,
-  AdminGenerateTeamCodeRequest as AdminGenerateJoinCodeRequest
+  AdminGenerateTeamCodeRequest as AdminGenerateJoinCodeRequest,
+  CheckResponse,
+  TeamCheckStatusResponse,
+  RedeemFlagQuery,
+  RedeemFlagResponse
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 const api = axios.create({
@@ -74,10 +78,12 @@ export const apiService = {
   },
 
   // Scoreboard
-  async getScoreboard(teamId?: string, boxId?: string): Promise<ScoreboardEntry[]> {
+  async getScoreboard(teamId?: string, boxId?: string, startDate?: Date, endDate?: Date): Promise<ScoreboardEntry[]> {
     const params = new URLSearchParams();
     if (teamId) params.append('teamId', teamId);
     if (boxId) params.append('scoringCheck', boxId);
+    if (startDate) params.append('startDate', startDate.toISOString());
+    if (endDate) params.append('endDate', endDate.toISOString());
 
     const response = await api.get(`competition/score?${params.toString()}`);
     return response.data || [];
@@ -141,9 +147,14 @@ export const apiService = {
     return response.data;
   },
 
-  async getChecks(): Promise<Array<{name: string, points: number}>> {
-    const response = await api.get('competition/checks');
-    return response.data || [];
+  async getChecks(): Promise<CheckResponse> {
+    const response = await api.get<CheckResponse>('competition/checks');
+    return response.data || { checks: [], flag_checks: [] };
+  },
+
+  async getCheckStatus(teamId: number): Promise<TeamCheckStatusResponse> {
+    const response = await api.get<TeamCheckStatusResponse>(`competition/team/check_status?teamId=${teamId}`);
+    return response.data || { checks: [], flag_checks: [] };
   },
 
   // Admin endpoints
@@ -163,7 +174,14 @@ export const apiService = {
   async getTeam(teamId: number): Promise<Team> {
     const response = await api.get<Team>(`competition/team?id=${teamId}`);
     return response.data;
-  }
+  },
+  async redeemFlag(query: RedeemFlagQuery): Promise<RedeemFlagResponse> {
+    const params = new URLSearchParams();
+    params.append('flag', query.flag);
+    params.append('flagCheckName', query.flagCheckName);
+    const response = await api.get<RedeemFlagResponse>(`competition/submit?${params.toString()}`);
+    return response.data;
+  },
 };
 
 export default apiService;

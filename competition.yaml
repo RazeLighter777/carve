@@ -39,6 +39,7 @@ competitions:
     checks:
       # HTTP check example
       - name: http-example
+        description: "Checks that all boxes with the 'http' label are running a web server."
         interval: 15       # Run every 15 seconds
         points: 5          # Points awarded when successful
         labelSelector:
@@ -51,6 +52,7 @@ competitions:
       
       # ICMP check example (ping)
       - name: icmp-example
+        description: "Checks that all boxes are reachable via ICMP (ping)."
         labelSelector: {}  # Empty selector means apply to all boxes
         interval: 30
         points: 1
@@ -60,6 +62,7 @@ competitions:
       
       # SSH check example
       - name: ssh-example
+        description: "Checks that box named 'db' is reachable via SSH on port 22."
         interval: 60
         points: 10
         labelSelector:     # Only run on boxes with the 'db' label
@@ -72,6 +75,8 @@ competitions:
       
       # Another HTTP check example
       - name: http-api-check
+        description: "Checks that box named 'auth' is running the API on port 80.
+                     It should return a 200 status code and the body should match 'Hello world!'."
         interval: 20
         points: 8
         labelSelector:
@@ -80,4 +85,10 @@ competitions:
           type: http
           url: /api/auth
           code: 200
-          regex: "Team [0-9]* HTTP server"
+          regex: "Hello world!"
+    flag_checks:
+      - name: test-flag-check
+        description: "Checks for a specific flag in the /tmp directory of the 'web' box."
+        points: 25
+        attempts: 3
+        box_name: web
