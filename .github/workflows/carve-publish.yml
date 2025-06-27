@@ -98,10 +98,10 @@ jobs:
       - name: Build and push
         uses: docker/bake-action@v6
         with:
-          push: true
-          set: |
-            *.tags=${{ steps.meta.outputs.tags }}
-
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker
