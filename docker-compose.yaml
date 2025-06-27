@@ -1,6 +1,7 @@
 version: '3.8'
 services:
   vtep:
+    image: vtep
     cap_add:
       - NET_ADMIN
     sysctls:
@@ -59,12 +60,12 @@ services:
       - /dev/net/tun
       - /dev/kvm
   vxlan-sidecar-team2-web:
+    image: vxlan-sidecar
     cap_add:
       - NET_ADMIN
     ports:
       - "5902:5900"
       - "5701:5700"
-    image: vxlan-sidecar
     environment:
       - TEAM_NAME=team2
       - COMPETITION_NAME=CarveCTF
@@ -94,6 +95,7 @@ services:
       - /dev/kvm
 
   canary:
+    image: canary
     build:
       context: .
       dockerfile: canary/Dockerfile
@@ -104,6 +106,7 @@ services:
       - carve-dnsmasq
     network_mode: service:vtep
   carve-web:
+    image: carve-web
     build:
       context: .
       dockerfile: carve-web/Dockerfile
@@ -116,6 +119,7 @@ services:
     ports:
       - "6379:6379"
   carve-dnsmasq:
+    image: carve-dnsmasq
     build:
       context: .
       dockerfile: carve-dnsmasq/Dockerfile
@@ -129,6 +133,7 @@ services:
       - NET_ADMIN
     network_mode: service:vtep
   carve-api:
+    image: carve-api
     build:
       context: .
       dockerfile: carve-api/Dockerfile
@@ -151,6 +156,7 @@ services:
     depends_on:
       - redis
   carve-novnc-nginx:
+    image: carve-novnc-nginx
     build:
       context: .
       dockerfile: carve-novnc-nginx/Dockerfile
@@ -164,6 +170,7 @@ services:
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
   carve-ansible:
+    image: carve-ansible
     build:
       context: .
       dockerfile: carve-ansible/Dockerfile

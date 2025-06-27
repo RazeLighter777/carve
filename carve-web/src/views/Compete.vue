@@ -1,6 +1,7 @@
 <template>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 class="text-3xl font-bold mb-6">Compete</h1>
+        <p class="mb-4 text-gray-700">Click on a service or flag in the treemap below to view details or submit a flag.</p>
         <div v-if="loading" class="flex justify-center items-center min-h-96">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-300"></div>
         </div>
