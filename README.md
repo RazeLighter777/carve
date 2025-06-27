@@ -1,9 +1,11 @@
-# CARVE (Cyberspace Assessment Range for Virtual Environments)
-[Click here if you wanna see some pretty screenshots](https://github.com/RazeLighter777/carve/wiki)
+# 🎃 CARVE (Cyberspace Assessment Range for Virtual Environments)
+![image](https://github.com/user-attachments/assets/12919fa8-9670-470e-a940-66ec9aa0d0fd)
+
+[Click here if you wanna see some more pretty screenshots](https://github.com/RazeLighter777/carve/wiki)
 
 CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag) platform designed for cybersecurity competitions. It enables teams to compete by attacking and defending virtual machines (VMs) in a realistic, isolated network environment.
 
-## Features
+## ✨ Features
 
 - **Microservice Architecture:** Modular services for scoring, networking, orchestration, and more.
 - **Attack-Defense CTF:** Teams receive VMs to defend and attack others, earning points for solving challenges and keeping services alive.
@@ -15,7 +17,7 @@ CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag
 - **OIDC Authentication:** Currently supports OIDC only; more auth methods planned.
 - **Docker Compose Deployment:** Easy to run locally; Kubernetes (Helm) support coming soon.
 
-## Architecture
+## 🧱 Architecture
 
 - **canary:** Conducts scoring checks for competitions.
 - **carve:** Core library for configuration and shared logic.
@@ -28,7 +30,7 @@ CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag
 - **carve-api:** API gateway for CARVE services.
 - **carve-ansible:** Integrates Ansible for VM provisioning and challenge deployment.
 
-## Getting Started
+## 🟢 Getting Started (good luck btw everything is very hacky rn)
 
 1. **Clone the repository:**
    ```bash
