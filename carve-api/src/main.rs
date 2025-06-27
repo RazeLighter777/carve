@@ -22,6 +22,7 @@ mod teams;
 mod users;
 mod boxes;
 mod admin;
+mod flag;
 
 pub use boxes::get_boxes;
 pub use boxes::get_box;
@@ -208,6 +209,20 @@ async fn get_leaderboard(
                 }
             }
         }
+        // Also include flag checks in the total score
+        for flag_check in &competition.flag_checks {
+            match redis.get_team_score_by_check(
+                &competition.name,
+                competition.get_team_id_from_name(&team.name).unwrap_or(0),
+                &flag_check.name,
+                flag_check.points as i64,
+            ) {
+                Ok(score) => total_score += score,
+                Err(_) => {
+                    // Continue even if Redis query fails for this flag check
+                }
+            }
+        }
 
         leaderboard_entries.push(types::LeaderboardEntry {
             team_id: team_idx as u64 + 1,
@@ -289,6 +304,20 @@ async fn submit_flag(
             })));
         }
     };
+    // Disallow flag submission if competition is not Active (fetch from Redis)
+    let state = match redis.get_competition_state(&competition.name) {
+        Ok(s) => s,
+        Err(_) => {
+            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to fetch competition state"
+            })));
+        }
+    };
+    if state.status != carve::redis_manager::CompetitionStatus::Active {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Flag submission is only allowed while the competition is active."
+        })));
+    }
     // Attempt to redeem the flag
     match redis.redeem_flag(
         &competition.name,
@@ -391,6 +420,11 @@ async fn main() -> std::io::Result<()> {
                             .service(admin::start_competition)
                             .service(admin::end_competition)
                             .service(admin::generate_join_code)
+                    )
+                    .service(
+                        web::scope("/internal")
+                            .guard(flag::validate_bearer_token_is_secret_key_env_var)
+                            .service(flag::generate_flag)
                     )
             )
     })

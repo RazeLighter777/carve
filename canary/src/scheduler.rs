@@ -3,10 +3,12 @@ use log::{error, info};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
+use anyhow::Result;
 
 use crate::check::perform_check;
 use carve::config::Competition;
 use carve::redis_manager::RedisManager;
+use minijinja::{Environment, context};
 
 pub struct Scheduler {
     competition: Competition,
@@ -63,7 +65,7 @@ impl Scheduler {
                                 };
                             
                             if should_check {
-                                let hostname = format!("{}.{}.{}.local", 
+                                let hostname = format!("{}.{}.{}.hack", 
                                     box_config.name, 
                                     team.name, 
                                     competition_name);
@@ -87,7 +89,7 @@ impl Scheduler {
                                 let ip = match ip.parse::<std::net::IpAddr>() {
                                     Ok(ip) => ip,
                                     Err(_) => {
-                                        println!("Box {}.{}.{}.local has no dns entry (yet), skipping",
+                                        println!("Box {}.{}.{}.hack has no dns entry (yet), skipping",
                                             box_config.name,
                                             team.name,
                                             competition_name);
@@ -110,8 +112,35 @@ impl Scheduler {
                                     _ => (true, 0), // Default: passing, 0 failures
                                 };
 
+                                // Get box credentials for template substitution
+                                let (username, password) = match redis_manager.read_box_credentials(
+                                    &competition_name,
+                                    &team.name,
+                                    &box_config.name,
+                                ) {
+                                    Ok(Some((u, p))) => (u, p),
+                                    _ => ("".to_string(), "".to_string()), // Default empty if not found
+                                };
+
+                                // Apply Jinja template substitution to check spec
+                                let templated_spec = match apply_template_substitution(
+                                    &check.spec,
+                                    &team.name,
+                                    &box_config.name,
+                                    &competition_name,
+                                    &ip.to_string(),
+                                    &username,
+                                    &password,
+                                ) {
+                                    Ok(spec) => spec,
+                                    Err(e) => {
+                                        error!("Failed to apply template substitution: {}", e);
+                                        continue;
+                                    }
+                                };
+
                                 // Perform the check
-                                match perform_check(&ip.to_string(), &check.spec).await {
+                                match perform_check(&ip.to_string(), &templated_spec).await {
                                     Ok(message) => {
                                         // Set state: passing, failures=0
                                         if let Err(e) = redis_manager.set_check_current_state(
@@ -161,4 +190,88 @@ impl Scheduler {
             });
         }
     }
+}
+
+/// Apply Jinja template substitution to check spec string fields
+fn apply_template_substitution(
+    spec: &carve::config::CheckSpec,
+    team_name: &str,
+    box_name: &str,
+    competition_name: &str,
+    ip_address: &str,
+    username: &str,
+    password: &str,
+) -> Result<carve::config::CheckSpec, anyhow::Error> {
+    use carve::config::CheckSpec;
+    
+    // Create context with all available variables
+    let template_context = context! {
+        team_name => team_name,
+        box_name => box_name,
+        competition_name => competition_name,
+        ip_address => ip_address,
+        username => username,
+        password => password
+    };
+    
+    match spec {
+        CheckSpec::Http(http_spec) => {
+            // Apply templating to HTTP check fields
+            let url = apply_template_to_string(&http_spec.url, &template_context)?;
+            let regex = apply_template_to_string(&http_spec.regex, &template_context)?;
+            
+            Ok(CheckSpec::Http(carve::config::HttpCheckSpec {
+                url,
+                code: http_spec.code,
+                regex,
+            }))
+        }
+        CheckSpec::Icmp(icmp_spec) => {
+            // ICMP spec has no string fields to template
+            Ok(CheckSpec::Icmp(icmp_spec.clone()))
+        }
+        CheckSpec::Ssh(ssh_spec) => {
+            // Apply templating to SSH check fields
+            let username = apply_template_to_string(&ssh_spec.username, &template_context)?;
+            let password = ssh_spec.password.as_ref().map(|p| 
+                apply_template_to_string(p, &template_context)
+            ).transpose()?;
+            let key_path = ssh_spec.key_path.as_ref().map(|p| 
+                apply_template_to_string(p, &template_context)
+            ).transpose()?;
+            
+            Ok(CheckSpec::Ssh(carve::config::SshCheckSpec {
+                port: ssh_spec.port,
+                username,
+                password,
+                key_path,
+            }))
+        }
+    }
+}
+
+/// Apply Jinja template to a single string field
+fn apply_template_to_string(
+    template_str: &str,
+    context: &minijinja::Value,
+) -> Result<String, anyhow::Error> {
+    // Create a fresh environment for each template to avoid lifetime issues
+    let mut env = Environment::new();
+    
+    // Create a unique template name based on the content hash to avoid conflicts
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    template_str.hash(&mut hasher);
+    let template_name = format!("tmpl_{}", hasher.finish());
+    
+    // Add template to environment
+    env.add_template(&template_name, template_str)?;
+    
+    // Get template and render
+    let tmpl = env.get_template(&template_name)?;
+    let rendered = tmpl.render(context)?;
+    
+    Ok(rendered)
 }

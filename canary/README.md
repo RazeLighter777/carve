@@ -45,7 +45,7 @@ competitions:
     boxes:
       - name: web-server
         labels: http
-        hostname: "{{ .TEAM }}-web.local"
+        hostname: "{{ .TEAM }}-web.hack"
     teams:
       - name: team1
       - name: team2

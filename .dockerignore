@@ -13,3 +13,10 @@
 !**.jsx
 !**.sh
 !**.conf
+!**.toml
+!**.py
+!**.python-version
+!**.lock
+!**.cfg
+!**.yaml
+!**.yml

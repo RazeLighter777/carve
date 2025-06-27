@@ -43,6 +43,7 @@ local-hostname: {box_name}
 version: 2
 ethernets:
   eth0:
+    mtu: 1400
     dhcp4: true
     match:
       macaddress: {mac_address}
@@ -101,11 +102,18 @@ ethernets:
 
         let user_data_str = format!(
             r#"#cloud-config
+ssh_pwauth: True
+package_update: true
+package_upgrade: true
+runcmd:
+    - [ systemctl, enable, --now, ssh ]
 users:
   - name: {username}
     shell: /bin/bash
     lock_passwd: false
     hashed_passwd: {password_hash}
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    groups: sudo
     ssh_authorized_keys:
       - {pubkey}
 "#,
@@ -140,7 +148,7 @@ pub fn create_cloud_init_files(cloud_init: &CloudInit) -> Result<String> {
     fs::write(vendor_data_file, &cloud_init.vendor_data)?;
     fs::write(network_config_file, &cloud_init.network_config)?;
     let status = Command::new("cloud-localds")
-        .args([cloud_init_iso, user_data_file, meta_data_file])
+        .args([cloud_init_iso, user_data_file, meta_data_file, "--network-config", network_config_file])
         .status()?;
     if !status.success() {
         return Err(anyhow!("Failed to create cloud-init ISO"));

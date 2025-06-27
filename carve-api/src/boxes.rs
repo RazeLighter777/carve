@@ -82,7 +82,7 @@ pub async fn get_boxes(
         .iter()
         .map(|box_config| types::BoxInfo {
             name: format!(
-                "{}.{}.{}.local",
+                "{}.{}.{}.hack",
                 box_config.name,
                 team_name.to_lowercase(),
                 competition.name.to_lowercase()

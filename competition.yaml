@@ -46,9 +46,9 @@ competitions:
           "": http        # Only run on boxes with the 'http' label
         spec:
           type: http
-          url: /api/ping
+          url: /index.html
           code: 200        # Expected HTTP status code
-          regex: pong      # Expected response body regex
+          regex: "{{ team_name }}"  # Expect the team name to be in the response body
       
       # ICMP check example (ping)
       - name: icmp-example
@@ -62,30 +62,16 @@ competitions:
       
       # SSH check example
       - name: ssh-example
-        description: "Checks that box named 'db' is reachable via SSH on port 22."
+        description: "Checks that box named 'web' is reachable via SSH on port 22."
         interval: 60
         points: 10
-        labelSelector:     # Only run on boxes with the 'db' label
-          "": db
+        labelSelector:
+          "": http
         spec:
           type: ssh
           port: 22
-          username: admin
-          password: password123
-      
-      # Another HTTP check example
-      - name: http-api-check
-        description: "Checks that box named 'auth' is running the API on port 80.
-                     It should return a 200 status code and the body should match 'Hello world!'."
-        interval: 20
-        points: 8
-        labelSelector:
-          "": auth
-        spec:
-          type: http
-          url: /api/auth
-          code: 200
-          regex: "Hello world!"
+          username: "{{ username }}"
+          password: "{{ password }}"
     flag_checks:
       - name: test-flag-check
         description: "Checks for a specific flag in the /tmp directory of the 'web' box."

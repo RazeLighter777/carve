@@ -27,8 +27,9 @@
                         <span class="text-green-600 font-bold">Flag already solved!</span>
                     </div>
                     <div v-else>
-                        <input v-model="flagInput" class="input-field w-full mb-2" placeholder="Enter flag..." />
-                        <button @click="redeemFlag" class="btn-primary w-full mb-2">Submit Flag</button>
+                        <input v-model="flagInput" class="input-field w-full mb-2" placeholder="Enter flag..." :disabled="!competitionRunning" />
+                        <button @click="redeemFlag" class="btn-primary w-full mb-2" :disabled="!competitionRunning" :class="{'opacity-50 cursor-not-allowed': !competitionRunning}">Submit Flag</button>
+                        <div v-if="!competitionRunning" class="text-gray-500 text-center mb-2">Competition not running yet 😢</div>
                         <div v-if="redeemMessage" :class="redeemSuccess ? 'text-green-600' : 'text-red-600'">{{
                             redeemMessage }}</div>
                     </div>
@@ -39,10 +40,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted } from 'vue';
+import { defineComponent, ref, onMounted, computed } from 'vue';
 import { Chart, Tooltip, Legend, Title, LinearScale } from 'chart.js';
 import { TreemapController, TreemapElement, type TreemapScriptableContext } from 'chartjs-chart-treemap';
-import type { Check, FlagCheck, TeamCheckStatusResponse } from '@/types';
+import { CompetitionStatus, type Check, type FlagCheck, type TeamCheckStatusResponse } from '@/types';
 import apiService from '@/services/api';
 
 // Register required Chart.js plugins and scales before treemap
@@ -61,6 +62,12 @@ export default defineComponent({
         const flagInput = ref('');
         const redeemMessage = ref('');
         const redeemSuccess = ref<boolean | null>(null);
+        const competitionStatus = ref<CompetitionStatus | null>(null);
+
+        const competitionRunning = computed(() => 
+        {
+            return competitionStatus.value && competitionStatus.value.toString() === "Active";
+        });
 
         const getCurrentTeamId = async () => {
             const user = await apiService.getCurrentUser();
@@ -71,13 +78,16 @@ export default defineComponent({
             loading.value = true;
             error.value = '';
             try {
-                const [checkResp, teamIdVal] = await Promise.all([
+                const [checkResp, teamIdVal, comp] = await Promise.all([
                     apiService.getChecks(),
-                    getCurrentTeamId()
+                    getCurrentTeamId(),
+                    apiService.getCompetition()
                 ]);
                 checks.value = checkResp.checks;
                 flagChecks.value = checkResp.flag_checks;
                 teamId.value = teamIdVal;
+                console.log('comp.status:', comp.status);
+                competitionStatus.value = comp.status;
                 if (teamId.value) {
                     checkStatus.value = await apiService.getCheckStatus(teamId.value);
                 }
@@ -138,7 +148,7 @@ export default defineComponent({
         }
 
         async function redeemFlag() {
-            if (!selectedItem.value) return;
+            if (!selectedItem.value || !competitionRunning.value) return;
             try {
                 const resp = await apiService.redeemFlag({
                     flag: flagInput.value,
@@ -256,7 +266,8 @@ export default defineComponent({
             redeemFlag,
             checkTreemap,
             flagTreemap,
-            getFlagSolved
+            getFlagSolved,
+            competitionRunning
         };
     }
 });

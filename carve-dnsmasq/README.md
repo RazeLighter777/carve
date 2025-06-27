@@ -19,7 +19,7 @@ Steps to make the dnsmasq configuration:
     ```
     except-interface=lo # Exclude the loopback interface
     except-interface=eth0 # Exclude the eth0 interface so we don't hand out IPs to the container network
-    domain=<competition_name>.local # Set the domain to the competition name
+    domain=<competition_name>.hack # Set the domain to the competition name
     no-resolv # Don't read /etc/resolv.conf
     ```
 3. For every team name:

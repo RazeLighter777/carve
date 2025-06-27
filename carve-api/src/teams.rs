@@ -77,19 +77,30 @@ pub async fn get_team_console_code(
     session: Session,
 ) -> ActixResult<impl Responder> {
     if let Some(team_name) = session.get::<String>("team_name")? {
-        // Get the console code from Redis
-        let console_code = match redis.get_box_console_code(&competition.name, &team_name) {
-            Ok(code) => code,
-            Err(_) => {
-                return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                    "error": "Failed to retrieve console code"
-                })));
-            }
-        };
+        // Check if competition is active
+        match redis.get_competition_state(&competition.name) {
+            Ok(state) if state.status == carve::redis_manager::CompetitionStatus::Active => {
+                // Get the console code from Redis
+                match redis.get_box_console_code(&competition.name, &team_name) {
+                    Ok(code) => Ok(HttpResponse::Ok().json(serde_json::json!({
+                        "code": code
+                    }))),
 
-        Ok(HttpResponse::Ok().json(serde_json::json!({
-            "code": console_code
-        })))
+                    Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to retrieve console code"
+                    }))),
+
+                }
+            }
+            Ok(_) => Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "Competition is not active"
+            }))),
+
+            Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to retrieve competition state"
+            }))),
+
+        }
     } else {
         Ok(HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Team name not found in session"

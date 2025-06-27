@@ -194,3 +194,16 @@ pub(crate) struct RedeemFlagResponse {
     pub(crate) success: bool,
     pub(crate) message: String,
 }
+
+#[derive(Deserialize)]
+pub(crate) struct GenerateFlagQuery {
+    #[serde(rename = "flagCheckName")]
+    pub(crate) flag_check_name: String,
+    #[serde(rename = "teamName")]
+    pub(crate) team_name: String,
+}
+
+#[derive(Serialize)]
+pub(crate) struct GenerateFlagResponse {
+    pub(crate) flag: String,
+}

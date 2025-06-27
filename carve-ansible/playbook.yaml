@@ -1,0 +1,102 @@
+---
+- name: Configure nginx server on web hosts
+  hosts: web
+  become: true
+  vars:
+    nginx_port: 80
+    nginx_user: www-data
+    nginx_worker_processes: auto
+    nginx_worker_connections: 1024
+    nginx_keepalive_timeout: 65
+    nginx_server_name: "_"
+    nginx_root_dir: "/var/www/html"
+    
+  tasks:
+    - name: Update package cache (Ubuntu/Debian)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+      
+    - name: Update package cache (RHEL/CentOS)
+      yum:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+    
+    - name: Install nginx (Ubuntu/Debian)
+      apt:
+        name: nginx
+        state: present
+      when: ansible_os_family == "Debian"
+      
+    - name: Install nginx (RHEL/CentOS)
+      yum:
+        name: nginx
+        state: present
+      when: ansible_os_family == "RedHat"
+    
+    - name: Ensure nginx document root exists
+      file:
+        path: "{{ nginx_root_dir }}"
+        state: directory
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: '0755'
+    
+    - name: Create a simple index.html
+      copy:
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Welcome to nginx!</title>
+              <style>
+                  body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+                  h1 { color: #333; }
+                  p { color: #666; }
+              </style>
+          </head>
+          <body>
+              <h1>Welcome to nginx on {{ inventory_hostname }}!</h1>
+              <p>If you can see this page, the nginx web server is successfully installed and working.</p>
+              <p>Server: {{ ansible_hostname }}</p>
+              <p>IP Address: {{ ansible_default_ipv4.address }}</p>
+          </body>
+          </html>
+        dest: "{{ nginx_root_dir }}/index.html"
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: '0644'
+    
+    - name: Start and enable nginx service
+      systemd:
+        name: nginx
+        state: started
+        enabled: true
+        daemon_reload: true
+    
+    - name: Check if nginx is listening on port {{ nginx_port }}
+      wait_for:
+        port: "{{ nginx_port }}"
+        host: "{{ ansible_default_ipv4.address }}"
+        delay: 5
+        timeout: 30
+        state: started
+      register: nginx_port_check
+    
+    - name: Display nginx status
+      debug:
+        msg: "Nginx is successfully running on {{ inventory_hostname }}:{{ nginx_port }}"
+      when: nginx_port_check is succeeded
+
+  handlers:
+    - name: restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+        daemon_reload: true
+    
+    - name: reload nginx
+      systemd:
+        name: nginx
+        state: reloaded

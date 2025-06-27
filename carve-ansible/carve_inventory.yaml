@@ -1,0 +1,4 @@
+---
+plugin: carve_inventory_plugin
+path_to_inventory: ./competition.yaml
+competition_name: CarveCTF

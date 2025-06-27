@@ -21,7 +21,7 @@ fi
 
 # Get the competition CIDR
 competition_cidr=$(yq ".competitions[] | select(.name == \"$COMPETITION_NAME\") | .cidr" $CONFIG_FILE)
-competition_domain="$COMPETITION_NAME.local"
+competition_domain="$COMPETITION_NAME.hack"
 
 
 # Write global dnsmasq config
@@ -56,7 +56,7 @@ for ((i=0;i<$team_count;i++)); do
   # Team: $team_name
   # Subnet: $team_net/24
   dhcp-range=set:net$i,$dhcp_start,$dhcp_end,12h
-  domain=$team_name.$COMPETITION_NAME.local,$dhcp_start,$dhcp_end,12h
+  domain=$team_name.$COMPETITION_NAME.hack,$dhcp_start,$dhcp_end,12h
   dhcp-option=tag:net$i,option:router,$router_ip
   dhcp-option=tag:net$i,option:dns-server,$dns_ip
   dhcp-authoritative

@@ -23,7 +23,7 @@ network:
     name: eth0
     subnets:
       - type: dhcp
-fqdn: <box_name>.<competition_name>.local
+fqdn: <box_name>.<competition_name>.hack
 hostname: <box_name>
 prefer_fqdn_over_hostname: true
 create_hostname_file: true

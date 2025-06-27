@@ -1,0 +1,33 @@
+# Example inventory file showing web group structure
+# This is for reference - your actual inventory is managed by the carve_inventory_plugin
+
+all:
+  children:
+    web:
+      hosts:
+        web-server-1:
+          ansible_host: 192.168.1.10
+          ansible_user: ubuntu
+          ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        web-server-2:
+          ansible_host: 192.168.1.11
+          ansible_user: ubuntu
+          ansible_ssh_private_key_file: ~/.ssh/id_rsa
+        web-server-3:
+          ansible_host: 192.168.1.12
+          ansible_user: ubuntu
+          ansible_ssh_private_key_file: ~/.ssh/id_rsa
+      vars:
+        nginx_port: 80
+        nginx_server_name: "example.com www.example.com"
+        nginx_root_dir: "/var/www/html"
+    database:
+      hosts:
+        db-server-1:
+          ansible_host: 192.168.1.20
+          ansible_user: ubuntu
+    load_balancer:
+      hosts:
+        lb-server-1:
+          ansible_host: 192.168.1.30
+          ansible_user: ubuntu

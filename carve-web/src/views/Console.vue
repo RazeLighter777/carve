@@ -91,7 +91,7 @@ async function fetchBoxCreds() {
   boxCredsError.value = ''
   if (!boxName.value) return
   try {
-    boxCreds.value = await apiService.getBoxCreds(`${boxName.value}.${teamName.value}.${competitionName.value}.local`)
+    boxCreds.value = await apiService.getBoxCreds(`${boxName.value}.${teamName.value}.${competitionName.value}.hack`)
   } catch (e: any) {
     boxCredsError.value = e?.response?.data?.error || 'Could not fetch box credentials.'
   }

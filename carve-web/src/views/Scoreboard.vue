@@ -14,6 +14,8 @@ import {
   Tooltip,
   Legend
 } from 'chart.js'
+import CompetitionStatus from '@/components/CompetitionStatus.vue'
+import { CompetitionStatus as CompetitionStatusEnum, type CompetitionState } from '@/types'
 
 ChartJS.register(
   CategoryScale,
@@ -33,6 +35,11 @@ const selectedTeamCheckStatus = ref<TeamCheckStatusResponse>({  checks: [], flag
 const allTeamsCheckStatus = ref<Record<number, TeamCheckStatusResponse>>({})
 const error = ref('')
 const lastUpdated = ref<Date>()
+
+// Competition status
+const competition = ref<CompetitionState | null>(null)
+const competitionLoading = ref(true)
+const competitionError = ref('')
 
 // Filters
 const selectedTeam = ref<string>('')
@@ -149,6 +156,9 @@ const checkPointsMap = computed(() => {
   const map = new Map<string, number>()
   checks.value.checks.forEach(check => {
     map.set(check.name, check.points)
+  })
+  checks.value.flag_checks.forEach(flag => {
+    map.set(flag.name, flag.points)
   })
   return map
 })
@@ -309,14 +319,46 @@ const getRankIcon = (rank: number) => {
   return rank <= 3 ? '🏆' : `#${rank}`
 }
 
+const loadCompetition = async () => {
+  try {
+    competitionLoading.value = true
+    competitionError.value = ''
+    competition.value = await apiService.getCompetition()
+  } catch (err) {
+    competitionError.value = 'Failed to load competition status'
+  } finally {
+    competitionLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadData()
   loadLeaderboard()
+  loadCompetition()
+})
+
+const isCompetitionFinished = computed(() => {
+  console.log('Competition Status:', typeof competition.value?.status)
+  return competition.value?.status && competition.value.status.toString() === "Finished"
+})
+
+const winnerTeamId = computed(() => {
+  if (!isCompetitionFinished.value || !leaderboard.value.length) return null
+  console.log('Winner Team ID:', leaderboard.value[0]?.teamId)
+  return leaderboard.value[0]?.teamId
 })
 </script>
 
 <template>
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Competition Status Section -->
+    <div v-if="competition && !competitionLoading" class="mb-8">
+      <CompetitionStatus :competition="competition" />
+    </div>
+    <div v-else-if="competitionLoading" class="mb-8 flex items-center justify-center min-h-16">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300"></div>
+    </div>
+    <div v-else-if="competitionError" class="mb-8 card p-4 text-center text-red-600">{{ competitionError }}</div>
     <!-- Leaderboard Section -->
     <div class="mb-8">
       <div class="flex items-center justify-between">
@@ -365,12 +407,16 @@ onMounted(() => {
               <tr
                 class="hover:bg-gray-50 transition-colors cursor-pointer"
                 @click="toggleExpand(entry.teamId.toString())"
-                :class="{ 'bg-gray-100': expandedTeamId === entry.teamId.toString() }"
+                :class="[
+                  expandedTeamId === entry.teamId.toString() ? 'bg-gray-100' : '',
+                  isCompetitionFinished && winnerTeamId === entry.teamId ? 'bg-yellow-100 font-bold' : ''
+                ]"
               >
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                           :class="getRankColor(entry.rank)">
+                      <span v-if="isCompetitionFinished && winnerTeamId === entry.teamId">👑</span>
                       {{ getRankIcon(entry.rank) }}
                     </span>
                   </div>

@@ -228,9 +228,14 @@ impl RedisManager {
         box_name: &str,
         message: &str,
     ) -> Result<String> {
-        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
-        // the key name
         let key = format!("{}:{}:{}", competition_name, team_id, check_name);
+        // Only record if competition is Active
+        let state = self.get_competition_state(competition_name)?;
+        if state.status != CompetitionStatus::Active {
+            // Do nothing, just return the key name
+            return Ok(key);
+        }
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
         let event = ScoreEvent {
             message: message.to_string(),
             timestamp,
@@ -493,8 +498,30 @@ impl RedisManager {
             }
             Some(state_str) => {
                 match serde_yaml::from_str::<CompetitionState>(&state_str) {
-                    Ok(state) => {
-                        // If the state is found, return it
+                    Ok(mut state) => {
+                        // If the state is Active and end_time is set and now >= end_time, set to Finished
+                        if state.status == CompetitionStatus::Active {
+                            if let Some(end_time) = state.end_time {
+                                let now = chrono::Utc::now();
+                                if now >= end_time {
+                                    state.status = CompetitionStatus::Finished;
+                                    state.end_time = Some(end_time); // keep the original end_time
+                                    // Store the updated state in Redis
+                                    let _: () = redis::cmd("HSET")
+                                        .arg(&key)
+                                        .arg("state")
+                                        .arg(serde_yaml::to_string(&state).context("Failed to serialize finished state")?)
+                                        .query(&mut conn)
+                                        .context("Failed to update competition state to finished")?;
+                                    // Optionally publish the finished event
+                                    let _: () = redis::cmd("PUBLISH")
+                                        .arg(format!("{}:events", competition_name))
+                                        .arg(serde_yaml::to_string(&state).context("Failed to serialize finished state for publish")?)
+                                        .query(&mut conn)
+                                        .context("Failed to publish competition finished event")?;
+                                }
+                            }
+                        }
                         Ok(state)
                     }
                     Err(e) => Err(anyhow::anyhow!("Failed to deserialize competition state: {}", e)),

@@ -216,7 +216,7 @@ paths:
                             properties:
                                 name:
                                     type: string
-                                    example: "web.team1.competition.local"
+                                    example: "web.team1.competition.hack"
                 '404':
                     description: Boxes/team not found
     /box:
@@ -229,7 +229,7 @@ paths:
                 required: true
                 schema:
                     type: string
-                    example: "web.team1.competition.local"
+                    example: "web.team1.competition.hack"
             responses:
                 '200':
                     description: A box object
@@ -240,7 +240,7 @@ paths:
                         properties:
                             name:
                                 type: string
-                                example: "web.team1.competition.local"
+                                example: "web.team1.competition.hack"
                             ipAddress:
                                 type: string
                                 example: "192.168.1.1"
@@ -259,7 +259,7 @@ paths:
                 required: true
                 schema:
                     type: string
-                    example: "web.team1.competition.local"
+                    example: "web.team1.competition.hack"
             responses:
                 '200':
                     description: A box default credentials object
@@ -270,7 +270,7 @@ paths:
                         properties:
                             name:
                                 type: string
-                                example: "web.team1.competition.local"
+                                example: "web.team1.competition.hack"
                             username:
                                 type: string
                                 example: "admin"

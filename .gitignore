@@ -1,2 +1,3 @@
 **/target
 disks/*/*
+carve-ansible/.venv
