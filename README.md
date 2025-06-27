@@ -1,4 +1,5 @@
 # CARVE (Cyberspace Assessment Range for Virtual Environments)
+[Click here if you wanna see some pretty screenshots](https://github.com/RazeLighter777/carve/wiki)
 
 CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag) platform designed for cybersecurity competitions. It enables teams to compete by attacking and defending virtual machines (VMs) in a realistic, isolated network environment.
 
