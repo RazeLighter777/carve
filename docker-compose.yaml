@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   vtep:
-    image: vtep
+    image: carve/vtep
     cap_add:
       - NET_ADMIN
     sysctls:
@@ -20,7 +20,7 @@ services:
       - redis
       - carve-api
   vxlan-sidecar-team1-web:
-    image: vxlan-sidecar
+    image: carve/vxlan-sidecar
     cap_add:
       - NET_ADMIN
     ports:
@@ -38,7 +38,7 @@ services:
       - redis
       - vtep
   team1-web:
-    image: qemu-box
+    image: carve/qemu-box
     build:
       context: .
       dockerfile: qemu-box/Dockerfile
@@ -60,7 +60,7 @@ services:
       - /dev/net/tun
       - /dev/kvm
   vxlan-sidecar-team2-web:
-    image: vxlan-sidecar
+    image: carve/vxlan-sidecar
     cap_add:
       - NET_ADMIN
     ports:
@@ -75,7 +75,7 @@ services:
       - redis
       - vtep
   team2-web:
-    image: qemu-box
+    image: carve/qemu-box
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
       - ./disks/ubuntu:/disk
@@ -95,7 +95,7 @@ services:
       - /dev/kvm
 
   canary:
-    image: canary
+    image: carve/canary
     build:
       context: .
       dockerfile: canary/Dockerfile
@@ -106,7 +106,7 @@ services:
       - carve-dnsmasq
     network_mode: service:vtep
   carve-web:
-    image: carve-web
+    image: carve/web
     build:
       context: .
       dockerfile: carve-web/Dockerfile
@@ -133,7 +133,7 @@ services:
       - NET_ADMIN
     network_mode: service:vtep
   carve-api:
-    image: carve-api
+    image: carve/carve-api
     build:
       context: .
       dockerfile: carve-api/Dockerfile
@@ -156,7 +156,7 @@ services:
     depends_on:
       - redis
   carve-novnc-nginx:
-    image: carve-novnc-nginx
+    image: carve/carve-novnc-nginx
     build:
       context: .
       dockerfile: carve-novnc-nginx/Dockerfile
@@ -170,7 +170,7 @@ services:
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
   carve-ansible:
-    image: carve-ansible
+    image: carve/carve-ansible
     build:
       context: .
       dockerfile: carve-ansible/Dockerfile
