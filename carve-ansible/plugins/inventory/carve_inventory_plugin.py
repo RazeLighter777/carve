@@ -13,6 +13,10 @@ DOCUMENTATION = r'''
       competition_name:
         description: Name of the competition
         required: true
+      ssh_proxy:
+        description: SSH proxy to use for connecting to the boxes
+        required: false
+        default: None
 '''
 
 from ansible.plugins.inventory import BaseInventoryPlugin
@@ -38,6 +42,7 @@ class InventoryModule(BaseInventoryPlugin):
         self._read_config_data(path)
         self.path_to_inventory = self.get_option('path_to_inventory')
         self.competition_name = self.get_option('competition_name')
+        self.ssh_proxy = self.get_option('ssh_proxy')
         try:
             with open(self.path_to_inventory) as f:
                 data = yaml.safe_load(f)
@@ -89,7 +94,7 @@ class InventoryModule(BaseInventoryPlugin):
                         # perform DNS resolution using the "vtep" service
                         print("    DNS resolution result:", result)
                         self.inventory.add_host(hostname, group=box_name)
-                        self.inventory.set_variable(hostname, 'ansible_ssh_extra_args', '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null')
+                        self.inventory.set_variable(hostname, 'ansible_ssh_extra_args', f'-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J {self.ssh_proxy}')
                         self.inventory.set_variable(hostname, 'ansible_host', ip_address)
                         self.inventory.set_variable(hostname, 'ansible_user', username)
                         self.inventory.set_variable(hostname, 'ansible_password', password)

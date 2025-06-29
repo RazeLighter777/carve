@@ -2,3 +2,4 @@
 plugin: carve_inventory_plugin
 path_to_inventory: ./competition.yaml
 competition_name: CarveCTF
+ssh_proxy: openssh-server  # SSH proxy for connecting to boxes

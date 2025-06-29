@@ -1,0 +1,14 @@
+namespace: "carvectf"
+description: "Ansible collection for CarveCTF"
+name: "carve_ansible"
+version: "0.0.1"
+readme: "README.md"
+authors:
+    - "RazeLighter777"
+dependencies: {}
+license:
+  - "AGPL-3.0-only"
+tags:
+    - ctf
+    - collection
+repository: "https://www.github.com/razelighter777/carve"

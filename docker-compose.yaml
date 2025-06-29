@@ -16,9 +16,20 @@ services:
       - ./competition.yaml:/app/competition.yaml:ro
     ports:
       - "53:53/udp"
+      - "2222:2222/tcp"  # Expose SSH port for VTEP
     depends_on:
       - redis
       - carve-api
+  openssh-server:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - SSH_PORT=2222
+      - PASSWORD_ACCESS=1
+      - USER_NAME=carve
+      - USER_PASSWORD=carve1234
+    network_mode: service:vtep
   vxlan-sidecar-team1-web:
     image: ghcr.io/razelighter777/vxlan-sidecar
     cap_add:
