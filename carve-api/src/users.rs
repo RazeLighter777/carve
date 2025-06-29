@@ -86,6 +86,7 @@ pub async fn switch_team(
                     .get::<bool>("is_admin")
                     .unwrap_or(Some(false))
                     .unwrap_or(false),
+                identity_sources: vec![]
             },
             Some(&team_name),
         ) {

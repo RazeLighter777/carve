@@ -1,11 +1,19 @@
 use core::num;
 
 use anyhow::{Context, Result};
+use argon2::{password_hash::SaltString, PasswordVerifier};
 use chrono::{DateTime, Utc};
 use rand::{distr::{Distribution, SampleString}, rand_core::le};
 use redis::Client;
 use crate::config::{FlagCheck, RedisConfig};
 use serde::{Deserialize, Serialize};
+use argon2::PasswordHasher;
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum IdentitySources {
+    LocalUserPassword,
+    OIDC,
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct User {
@@ -13,6 +21,7 @@ pub struct User {
     pub email: String,
     pub team_name: Option<String>,
     pub is_admin: bool, // Optional field to indicate if the user is an admin]
+    pub identity_sources: Vec<IdentitySources>, // List of identity sources for the user
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -49,36 +58,39 @@ pub struct CompetitionState {
 
 
 impl User {
-    pub fn new(username: String, email: String) -> Self {
+    pub fn new(username: String, email: String, identity_sources: impl Iterator<Item=IdentitySources>) -> Self {
         Self {
             username,
             email,
             team_name: None,
             is_admin: false, // Default to false, can be set later
+            identity_sources: identity_sources.collect(), // Collect into a Vec
         }
     }
     
-    pub fn with_team(username: String, email: String, team_name: String) -> Self {
+    pub fn with_team(username: String, email: String, team_name: String, identity_sources: impl Iterator<Item=IdentitySources>,) -> Self {
         Self {
             username,
             email,
             team_name: Some(team_name),
             is_admin: false, // Default to false, can be set later
+            identity_sources: identity_sources.collect(), // Collect into a Vec
         }
     }
     
-    // Convert user to Redis storage format (username:email)
+    // Convert user to Redis storage format
     pub fn to_redis_format(&self) -> String {
-        format!("{}:{}", self.username, self.email)
+        //serialize using serde_yaml
+        let user_data = serde_yaml::to_string(self).expect("Failed to serialize user to YAML");
+        return user_data;
     }
     
     // Parse user from Redis storage format (username:email)
     pub fn from_redis_format(data: &str) -> Option<Self> {
-        let parts: Vec<&str> = data.split(':').collect();
-        if parts.len() == 2 {
-            Some(Self::new(parts[0].to_string(), parts[1].to_string()))
-        } else {
-            None
+        // Deserialize using serde_yaml
+        match serde_yaml::from_str::<Self>(data) {
+            Ok(user) => Some(user),
+            Err(_) => None, // Return None if deserialization fails
         }
     }
 }
@@ -366,22 +378,29 @@ impl RedisManager {
         &self,
         competition_name: &str,
         user: &User,
-        team_name: Option<&str>
+        team_name: Option<&str>,
     ) -> Result<()> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
         
         // Keys for Redis operations
         let users_key = format!("{}:users", competition_name);
-        let user_data = user.to_redis_format();
+        let users_data_key = format!("{}:user_data", competition_name);
         
         // Check if user already exists in the competition
         let user_exists: bool = redis::cmd("SISMEMBER")
             .arg(&users_key)
-            .arg(&user_data)
+            .arg(&user.username)
             .query(&mut conn)
             .context("Failed to check if user exists")?;
         
         if user_exists {
+            let existing_user_data_str : String =  redis::cmd("HGET")
+                .arg(&users_data_key)
+                .arg(&user.username)
+                .query(&mut conn)
+                .context("Failed to get existing user data")?;
+            let existing_user = User::from_redis_format(&existing_user_data_str)
+                .context("Failed to deserialize existing user data")?;
             // User exists, need to find their current team and move them if a new team is provided
             if let Some(_) = team_name {
                 let pattern = format!("{}:*:users", competition_name);
@@ -392,27 +411,58 @@ impl RedisManager {
                 for team_key in team_keys {
                     let is_member: bool = redis::cmd("SISMEMBER")
                         .arg(&team_key)
-                        .arg(&user_data)
+                        .arg(&user.username)
                         .query(&mut conn)
                         .context("Failed to check team membership")?;
                     if is_member {
                         // Remove user from old team
                         let _: () = redis::cmd("SREM")
                             .arg(&team_key)
-                            .arg(&user_data)
+                            .arg(&user.username)
                             .query(&mut conn)
                             .context("Failed to remove user from old team")?;
                         break;
                     }
                 }
             }
+            // Update <competition_name>:user_data field 
+            // Make sure new identity_sources are included, make sure to not overwrite existing ones or add duplicates
+            
+            // Add new identity source if not already present   
+            let mut updated_user = existing_user.clone();
+            for new_identity_source in user.identity_sources.clone() {
+                if !updated_user.identity_sources.contains(&new_identity_source) {
+                    updated_user.identity_sources.push(new_identity_source);
+                }
+
+            }
+            // update email and team name
+            updated_user.email = user.email.clone();
+            updated_user.team_name = user.team_name.clone();
+            // write the updated user data back to Redis
+            let user_data = updated_user.to_redis_format();
+            let _: () = redis::cmd("HSET")
+                .arg(&users_data_key)
+                .arg(&user.username)
+                .arg(&user_data)
+                .query(&mut conn)
+                .context("Failed to update user data")?;
         } else {
             // New user, add to global users set
             let _: () = redis::cmd("SADD")
                 .arg(&users_key)
-                .arg(&user_data)
+                .arg(&user.username)
                 .query(&mut conn)
                 .context("Failed to add user to global users set")?;
+            // Serialize user data
+            let user_data = user.to_redis_format();
+            // Store user data in <competition_name>:user_data hash
+            let _: () = redis::cmd("HSET")
+                .arg(&users_data_key)
+                .arg(&user.username)
+                .arg(&user_data)
+                .query(&mut conn)
+                .context("Failed to store user data")?;
         }
         
         // Add user to the new team if provided
@@ -420,14 +470,123 @@ impl RedisManager {
             let new_team_users_key = format!("{}:{}:users", competition_name, team_name);
             let _: () = redis::cmd("SADD")
                 .arg(&new_team_users_key)
-                .arg(&user_data)
+                .arg(&user.username)
                 .query(&mut conn)
                 .context("Failed to add user to new team")?;
         }
         
         Ok(())
     }
-    
+
+    // Set a local user password for a user. This is used for local authentication.
+    // the password is hashed with argon2i and stored in Redis competition_name:users:password_hashes where the key is the username and the value is the hashed password.
+    // The user will be re-registered with the new identity source LocalUserPassword, copying all other existing identity sources and user data.
+    // the method will fail if the user does not exist.
+    pub fn set_user_local_password(
+        &self,
+        competition_name: &str,
+        username: &str,
+        password: &str,
+    ) -> Result<()> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Key for storing user password hashes
+        let password_hashes_key = format!("{}:users:password_hashes", competition_name);
+        
+        // Check if user exists
+        let user_exists: bool = redis::cmd("HEXISTS")
+            .arg(&password_hashes_key)
+            .arg(username)
+            .query(&mut conn)
+            .context("Failed to check if user exists")?;
+        
+        if !user_exists {
+            return Err(anyhow::anyhow!("User does not exist"));
+        }
+        let hasher = argon2::Argon2::default();
+        // Hash the password using argon2i
+        let hashed_password = hasher.hash_password(
+            password.as_bytes(),
+            &SaltString::generate(&mut argon2::password_hash::rand_core::OsRng),
+        ).map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?.to_string();
+        
+        // Store the hashed password in Redis
+        let _: () = redis::cmd("HSET")
+            .arg(&password_hashes_key)
+            .arg(username)
+            .arg(hashed_password)
+            .query(&mut conn)
+            .context("Failed to store user password hash")?;
+        
+        // Re-register the user with the new identity source LocalUserPassword
+        let user_data_key = format!("{}:user_data", competition_name);
+        let user_data_str: String = redis::cmd("HGET")
+            .arg(&user_data_key)
+            .arg(username)
+            .query(&mut conn)
+            .context("Failed to get user data")?;
+        
+        if let Some(mut user) = User::from_redis_format(&user_data_str) {
+            // Add LocalUserPassword identity source if not already present
+            if !user.identity_sources.contains(&IdentitySources::LocalUserPassword) {
+                user.identity_sources.push(IdentitySources::LocalUserPassword);
+                // Update the user data in Redis
+                let updated_user_data = user.to_redis_format();
+                let _: () = redis::cmd("HSET")
+                    .arg(&user_data_key)
+                    .arg(username)
+                    .arg(updated_user_data)
+                    .query(&mut conn)
+                    .context("Failed to update user data with new identity source")?;
+            }
+        }
+        
+        Ok(())
+    }
+
+    // verify a local user password for a user. This is used for local authentication.
+    // the method will return the User's object if the username/password combination is valid, false otherwise.
+    pub fn verify_user_local_password(
+        &self,
+        competition_name: &str,
+        username: &str,
+        password: &str,
+    ) -> Result<Option<User>> {
+        let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;
+        
+        // Key for storing user password hashes
+        let password_hashes_key = format!("{}:users:password_hashes", competition_name);
+        
+        // Get the hashed password for the user
+        let hashed_password: Option<String> = redis::cmd("HGET")
+            .arg(&password_hashes_key)
+            .arg(username)
+            .query(&mut conn)
+            .context("Failed to get user password hash")?;
+        
+        if let Some(hashed_password) = hashed_password {
+            // Verify the password using argon2i
+            let hashed_password = argon2::password_hash::PasswordHash::new(&hashed_password)
+                .map_err(|e| anyhow::anyhow!("Failed to parse hashed password: {}", e))?;
+            let hasher = argon2::Argon2::default();
+            if hasher.verify_password(password.as_bytes(), &hashed_password).is_ok() {
+                // Password is valid, get the user data
+                let user_data_key = format!("{}:user_data", competition_name);
+                let user_data_str: String = redis::cmd("HGET")
+                    .arg(&user_data_key)
+                    .arg(username)
+                    .query(&mut conn)
+                    .context("Failed to get user data")?;
+                
+                if let Some(user) = User::from_redis_format(&user_data_str) {
+                    return Ok(Some(user));
+                }
+            }
+        }
+        
+        Ok(None) // Invalid username/password combination
+    }
+
     // Get all users for a team
     pub fn get_team_users(&self, competition_name: &str, team_name: &str) -> Result<Vec<User>> {
         let mut conn = self.client.get_connection().context("Failed to connect to Redis")?;

@@ -186,6 +186,7 @@ async fn oauth2_callback(
                                 email: email.clone(),
                                 team_name: team_name.clone(),
                                 is_admin: is_admin,
+                                identity_sources: vec![carve::redis_manager::IdentitySources::OIDC],
                             };
                             // call register_user in redis_manager
                             let register_result = redis.register_user(
