@@ -180,15 +180,3 @@ services:
       - team1-web
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
-  carve-ansible:
-    image: ghcr.io/razelighter777/carve-ansible
-    build:
-      context: .
-      dockerfile: carve-ansible/Dockerfile
-    volumes:
-      - ./competition.yaml:/app/competition.yaml:ro
-    environment:
-      - SECRET_KEY=82eb0275e23e5f043e85762e798fd9d61b1040ecdba15d001eb52f416e08ef3e
-    depends_on:
-      - redis
-    network_mode: service:vtep

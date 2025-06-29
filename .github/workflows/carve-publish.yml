@@ -75,7 +75,6 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/vtep
             ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/vxlan-sidecar
             ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/carve-novnc-nginx
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}/carve-ansible
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}},prefix=v
