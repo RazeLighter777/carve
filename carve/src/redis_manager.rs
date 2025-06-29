@@ -93,10 +93,7 @@ impl User {
     // Parse user from Redis storage format (username:email)
     pub fn from_redis_format(data: &str) -> Option<Self> {
         // Deserialize using serde_yaml
-        match serde_yaml::from_str::<Self>(data) {
-            Ok(user) => Some(user),
-            Err(_) => None, // Return None if deserialization fails
-        }
+        serde_yaml::from_str::<Self>(data).ok()
     }
 }
 
@@ -241,7 +238,7 @@ impl RedisManager {
             // Deserialize the payload into a QemuCommands
             if let Ok(command) = serde_yaml::from_str::<QemuCommands>(&payload) {
                 // Check if the command is in the expected events
-                if events.clone().into_iter().any(|e| e == command) {
+                if events.clone().any(|e| e == command) {
                     return Ok(command);
                 }
             }
