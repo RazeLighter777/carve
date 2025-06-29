@@ -45,7 +45,7 @@ pub fn perform_icmp_check(hostname: &str, spec: &IcmpCheckSpec) -> Result<String
     
     // Use hostname directly (the ping library will handle resolution)
     let result = std::process::Command::new("ping")
-        .args(&["-c", "1", "-W", "5", hostname])
+        .args(["-c", "1", "-W", "5", hostname])
         .output()
         .context("Failed to execute ping command")?;
     

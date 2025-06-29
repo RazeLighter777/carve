@@ -162,7 +162,7 @@ async fn main() -> Result<()> {
                 "-net",
                 "bridge,br=br0",
                 "-display",
-                &format!("vnc=0.0.0.0:0,websocket=5700,power-control=on"),
+                "vnc=0.0.0.0:0,websocket=5700,power-control=on",
                 "-daemonize",
                 "-pidfile",
                 "/tmp/qemu.pid",
@@ -199,35 +199,32 @@ async fn main() -> Result<()> {
                     vec![carve::redis_manager::QemuCommands::Restart].into_iter(),
                 ) {
                     Ok(event) => {
-                        match event {
-                            carve::redis_manager::QemuCommands::Restart => {
-                                println!("Received QEMU restart command");
-                                // Handle restart logic here
-                                #[cfg(unix)]
-                                {
-                                    use std::os::unix::net::UnixStream;
-                                    // Connect to the QEMU monitor socket
-                                    let monitor_socket = "/run/qemu-monitor.sock";
-                                    if let Ok(mut stream) = UnixStream::connect(monitor_socket) {
-                                        // Send the 'system_reset' command to QEMU
-                                        let command = "system_reset\n";
-                                        if let Err(e) = stream.write_all(command.as_bytes()) {
-                                            eprintln!(
-                                                "Failed to send command to QEMU monitor: {}",
-                                                e
-                                            );
-                                        } else {
-                                            println!("Sent 'system_reset' command to QEMU monitor");
-                                        }
-                                    } else {
+                        if event == carve::redis_manager::QemuCommands::Restart {
+                            println!("Received QEMU restart command");
+                            // Handle restart logic here
+                            #[cfg(unix)]
+                            {
+                                use std::os::unix::net::UnixStream;
+                                // Connect to the QEMU monitor socket
+                                let monitor_socket = "/run/qemu-monitor.sock";
+                                if let Ok(mut stream) = UnixStream::connect(monitor_socket) {
+                                    // Send the 'system_reset' command to QEMU
+                                    let command = "system_reset\n";
+                                    if let Err(e) = stream.write_all(command.as_bytes()) {
                                         eprintln!(
-                                            "Failed to connect to QEMU monitor socket at {}",
-                                            monitor_socket
+                                            "Failed to send command to QEMU monitor: {}",
+                                            e
                                         );
+                                    } else {
+                                        println!("Sent 'system_reset' command to QEMU monitor");
                                     }
+                                } else {
+                                    eprintln!(
+                                        "Failed to connect to QEMU monitor socket at {}",
+                                        monitor_socket
+                                    );
                                 }
                             }
-                            _ => {}
                         }
                         // Handle the event (e.g., shutdown, reset, etc.)
                     }

@@ -1,6 +1,5 @@
 use actix_web::{App, HttpServer, Responder, get};
 use carve::{config::AppConfig, redis_manager};
-use iptables;
 use redis::Commands;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;

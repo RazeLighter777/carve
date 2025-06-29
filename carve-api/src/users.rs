@@ -75,7 +75,7 @@ pub async fn switch_team(
         match redis.register_user(
             &competition.name,
             &User {
-                username: username,
+                username,
                 email: session
                     .get::<String>("email")
                     .unwrap_or(None)
@@ -99,9 +99,9 @@ pub async fn switch_team(
             }))),
         }
     } else {
-        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+        Ok(HttpResponse::BadRequest().json(serde_json::json!({
             "error": "User not logged in"
-        })));
+        })))
     }
 }
 

@@ -1,7 +1,6 @@
 // Admin-related functionality for the Carve API
 
 
-use actix_session::Session;
 use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
 use carve::config::Competition;
 use carve::redis_manager::RedisManager;
@@ -21,10 +20,10 @@ async fn start_competition(
     let duration = competition.duration;
     match redis.start_competition(competition_name, duration) {
         Ok(_) => {
-            return Ok(HttpResponse::Ok().body("Competition started"));
+            Ok(HttpResponse::Ok().body("Competition started"))
         },
         Err(e) => {
-            return Ok(HttpResponse::InternalServerError().body(format!("Failed to start competition: {}", e)));
+            Ok(HttpResponse::InternalServerError().body(format!("Failed to start competition: {}", e)))
         }
     }
 }
@@ -37,10 +36,10 @@ async fn end_competition(
     let competition_name = &competition.name;
     match redis.end_competition(competition_name) {
         Ok(_) => {
-            return Ok(HttpResponse::Ok().body("Competition stopped"));
+            Ok(HttpResponse::Ok().body("Competition stopped"))
         },
         Err(e) => {
-            return Ok(HttpResponse::InternalServerError().body(format!("Failed to stop competition: {}", e)));
+            Ok(HttpResponse::InternalServerError().body(format!("Failed to stop competition: {}", e)))
         }
     }
 }

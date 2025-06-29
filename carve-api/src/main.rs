@@ -28,7 +28,6 @@ pub use boxes::get_boxes;
 pub use boxes::get_box;
 pub use boxes::get_box_default_creds;
 
-use crate::types::{CheckStatusResponse, FlagCheckStatusResponse, TeamCheckStatusResponse};
 
 // API Handlers
 #[get("/competition")]
@@ -38,9 +37,9 @@ async fn get_competition(competition: web::Data<Competition>, redis: web::Data<R
            Ok(HttpResponse::Ok().json(state))
         }
         Err(_) => {
-            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": "Failed to retrieve competition state"
-            })));
+            })))
         }
     }
 }
@@ -158,7 +157,7 @@ async fn get_score(
     for (team_id, team_name) in teams_to_check {
         for check in &checks_to_check {
             match redis.get_team_score_check_events(
-                &&competition.name,
+                &competition.name,
                 competition.get_team_id_from_name(&team_name).unwrap_or(0),
                 &check.name,
                 start_time,
@@ -170,7 +169,7 @@ async fn get_score(
                             team_id,
                             score_event_type : check.name.clone(),
                             box_name: event.box_name.clone(),
-                            timestamp: timestamp,
+                            timestamp,
                             message: event.message,
                         });
                     }

@@ -1,9 +1,8 @@
-use core::num;
 
 use anyhow::{Context, Result};
 use argon2::{password_hash::SaltString, PasswordVerifier};
 use chrono::{DateTime, Utc};
-use rand::{distr::{Distribution, SampleString}, rand_core::le};
+use rand::distr::{Distribution, SampleString};
 use redis::Client;
 use crate::config::{FlagCheck, RedisConfig};
 use serde::{Deserialize, Serialize};
@@ -81,8 +80,8 @@ impl User {
     // Convert user to Redis storage format
     pub fn to_redis_format(&self) -> String {
         //serialize using serde_yaml
-        let user_data = serde_yaml::to_string(self).expect("Failed to serialize user to YAML");
-        return user_data;
+        
+        serde_yaml::to_string(self).expect("Failed to serialize user to YAML")
     }
     
     // Parse user from Redis storage format (username:email)
@@ -205,7 +204,7 @@ impl RedisManager {
         }
         //unsubscribe from the channel
         pubsub.unsubscribe(&key).context("Failed to unsubscribe from Redis channel")?;
-        return result;
+        result
     }
 
     pub fn send_qemu_event(
@@ -251,7 +250,7 @@ impl RedisManager {
         let event = ScoreEvent {
             message: message.to_string(),
             timestamp,
-            team_id: team_id, // This can be set to a specific team ID if needed
+            team_id, // This can be set to a specific team ID if needed
             score_event_type: check_name.to_string(), // e.g., "icmp_check_1"
             box_name: box_name.to_string(), // Name of the box where the event occurred
         };
@@ -402,7 +401,7 @@ impl RedisManager {
             let existing_user = User::from_redis_format(&existing_user_data_str)
                 .context("Failed to deserialize existing user data")?;
             // User exists, need to find their current team and move them if a new team is provided
-            if let Some(_) = team_name {
+            if team_name.is_some() {
                 let pattern = format!("{}:*:users", competition_name);
                 let team_keys: Vec<String> = redis::cmd("KEYS")
                     .arg(&pattern)
@@ -505,9 +504,10 @@ impl RedisManager {
         }
         let hasher = argon2::Argon2::default();
         // Hash the password using argon2i
+        let mut rng = argon2::password_hash::rand_core::OsRng::default();
         let hashed_password = hasher.hash_password(
             password.as_bytes(),
-            &SaltString::generate(&mut argon2::password_hash::rand_core::OsRng),
+            &SaltString::generate(&mut rng)
         ).map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?.to_string();
         
         // Store the hashed password in Redis

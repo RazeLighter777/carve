@@ -1,4 +1,3 @@
-use actix_session::Session;
 use actix_web::guard::GuardContext;
 use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
 use crate::types;
@@ -8,8 +7,7 @@ use carve::redis_manager::RedisManager;
 pub fn validate_bearer_token_is_secret_key_env_var(ctx : &GuardContext) -> bool {
     if let Some(auth_header) = ctx.head().headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
-            if auth_str.starts_with("Bearer ") {
-                let token = &auth_str[7..];
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 if let Ok(secret_key) = std::env::var("SECRET_KEY") {
                     return token == secret_key;
                 }

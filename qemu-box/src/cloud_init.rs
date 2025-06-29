@@ -70,7 +70,7 @@ ethernets:
         // password
         // Username/password
         let (username, password) =
-            match redis_mgr.read_box_credentials(&competition, &team_name, &box_name)? {
+            match redis_mgr.read_box_credentials(competition, team_name, box_name)? {
                 Some((u, p)) => (u, p),
                 None => {
                     let username = team_name;
@@ -80,10 +80,10 @@ ethernets:
                         .map(char::from)
                         .collect();
                     let _ = redis_mgr.write_box_credentials(
-                        &competition,
-                        &team_name,
-                        &box_name,
-                        &username,
+                        competition,
+                        team_name,
+                        box_name,
+                        username,
                         &password,
                     )?;
                     (username.to_owned(), password)

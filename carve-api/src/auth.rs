@@ -140,36 +140,32 @@ async fn oauth2_callback(
                             let mut team_name: Option<String> = redis
                                 .get_user(&competition.name, &username)
                                 .unwrap_or(None)
-                                .map(|u| u.team_name)
-                                .flatten();
+                                .and_then(|u| u.team_name);
                             let mut is_admin = false;
                             if let Some(groups) = user_info["groups"].as_array() {
                                 for group in groups {
                                     if let Some(group_name) = group.as_str() {
-                                        match competition.registration_type {
-                                            carve::config::RegistrationType::OidcOnly => {
-                                                // get list of teams and find the team name in the groups field. If the team_name is not None, do not set the team_name again
-                                                println!(
-                                                    "Group: {}, admin group: {}",
-                                                    group_name,
-                                                    &competition
-                                                        .admin_group
-                                                        .as_deref()
-                                                        .unwrap_or("None")
-                                                );
-                                                // Check if the group name matches any team name
-                                                if competition
-                                                    .teams
-                                                    .iter()
-                                                    .any(|t| t.name == group_name)
-                                                    && team_name.is_none()
-                                                {
-                                                    team_name = Some(group_name.to_string());
-                                                    break;
-                                                }
-
+                                        if competition.registration_type == carve::config::RegistrationType::OidcOnly {
+                                            // get list of teams and find the team name in the groups field. If the team_name is not None, do not set the team_name again
+                                            println!(
+                                                "Group: {}, admin group: {}",
+                                                group_name,
+                                                &competition
+                                                    .admin_group
+                                                    .as_deref()
+                                                    .unwrap_or("None")
+                                            );
+                                            // Check if the group name matches any team name
+                                            if competition
+                                                .teams
+                                                .iter()
+                                                .any(|t| t.name == group_name)
+                                                && team_name.is_none()
+                                            {
+                                                team_name = Some(group_name.to_string());
+                                                break;
                                             }
-                                            _ => {}
+
                                         }
                                         // Check if the group name matches the admin group
                                         if let Some(admin_group) = &competition.admin_group {
@@ -185,14 +181,14 @@ async fn oauth2_callback(
                                 username: username.clone(),
                                 email: email.clone(),
                                 team_name: team_name.clone(),
-                                is_admin: is_admin,
+                                is_admin,
                                 identity_sources: vec![carve::redis_manager::IdentitySources::OIDC],
                             };
                             // call register_user in redis_manager
                             let register_result = redis.register_user(
                                 &competition.name,
                                 &user,
-                                team_name.as_ref().map(|x| x.as_str()),
+                                team_name.as_deref(),
                             );
                             match register_result {
                                 Ok(_) => {
@@ -217,34 +213,34 @@ async fn oauth2_callback(
                                     .path("/")
                                     .http_only(false)
                                     .finish();
-                            return Ok(HttpResponse::Found()
+                            Ok(HttpResponse::Found()
                                 .append_header(("Location", "/"))
                                 .cookie(cookie)
-                                .finish());
+                                .finish())
                         }
                         Err(e) => {
                             println!("Error parsing user info: {:?}", e);
-                            return Ok(HttpResponse::Found()
+                            Ok(HttpResponse::Found()
                                 .append_header(("Location", "/login?error=userinfo"))
-                                .finish());
+                                .finish())
                         }
                     }
                 }
                 Err(e) => {
                     println!("Error fetching user info: {:?}", e);
-                    return Ok(HttpResponse::Found()
+                    Ok(HttpResponse::Found()
                         .append_header(("Location", "/login?error=userinfo"))
-                        .finish());
+                        .finish())
                 }
             }
         }
         Err(e) => {
             println!("Error {:?}", e.source());
-            return Ok(HttpResponse::Found()
+            Ok(HttpResponse::Found()
                 .append_header(("Location", "/login?error=token"))
-                .finish());
+                .finish())
         }
-    };
+    }
 }
 
 #[get("/logout")]

@@ -12,7 +12,7 @@ use tokio::process::Command;
 pub async fn resolve_box_ip(box_name: &str, vtep_host: &str) -> Option<String> {
     let output = Command::new("dig")
         .arg(box_name)
-        .arg(&format!("@{}", vtep_host))
+        .arg(format!("@{}", vtep_host))
         .arg("+short")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -48,7 +48,7 @@ pub fn is_valid_ipv4(ip: &str) -> bool {
     }
 
     for part in parts {
-        if let Ok(_) = part.parse::<u8>() {
+        if part.parse::<u8>().is_ok() {
             // Valid if it's a number between 0-255
             if part.len() > 1 && part.starts_with('0') {
                 return false; // No leading zeros allowed
@@ -223,7 +223,7 @@ pub async fn send_box_command(
         })));
     }
     // Send command to Redis
-    match redis.send_qemu_event(&competition.name, &team_name, box_type, command) {
+    match redis.send_qemu_event(&competition.name, team_name, box_type, command) {
         Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
             "status": "Command sent successfully"
         }))),

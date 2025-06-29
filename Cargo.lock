@@ -591,6 +591,7 @@ dependencies = [
  "argon2",
  "chrono",
  "config",
+ "getrandom 0.3.3",
  "rand 0.9.1",
  "redis 0.31.0",
  "serde",

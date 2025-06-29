@@ -12,7 +12,8 @@ serde_yaml = "0.9"
 redis = "0.31.0"
 chrono = { version = "0.4.41", features = ["serde"] }
 rand = "0.9.1"
-argon2 = "0.5.3"
+argon2 = { version = "0.5.3", no-default-features = true, features = ["std"] }
+getrandom = "0.3.3"
 
 [lib]
 name = "carve"
