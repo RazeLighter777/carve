@@ -207,3 +207,17 @@ pub(crate) struct GenerateFlagQuery {
 pub(crate) struct GenerateFlagResponse {
     pub(crate) flag: String,
 }
+
+#[derive(Deserialize)]
+pub(crate) struct LoginUserQuery {
+    pub(crate) username: String,
+    pub(crate) password: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct RegistrationQuery {
+    pub(crate) username: String,
+    pub(crate) password: String,
+    pub(crate) email: String,
+    pub(crate) team_join_code: Option<u64>,
+}

@@ -120,3 +120,15 @@ export interface RedeemFlagResponse {
   success: boolean;
   message: string;
 }
+
+export interface LoginUserQuery {
+  username: string;
+  password: string;
+}
+
+export interface RegistrationQuery {
+  username: string;
+  password: string;
+  email: string;
+  team_join_code?: number;
+}

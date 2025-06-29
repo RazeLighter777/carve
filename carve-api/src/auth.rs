@@ -145,7 +145,9 @@ async fn oauth2_callback(
                             if let Some(groups) = user_info["groups"].as_array() {
                                 for group in groups {
                                     if let Some(group_name) = group.as_str() {
-                                        if competition.registration_type == carve::config::RegistrationType::OidcOnly {
+                                        if competition.registration_type
+                                            == carve::config::RegistrationType::OidcOnly
+                                        {
                                             // get list of teams and find the team name in the groups field. If the team_name is not None, do not set the team_name again
                                             println!(
                                                 "Group: {}, admin group: {}",
@@ -165,7 +167,6 @@ async fn oauth2_callback(
                                                 team_name = Some(group_name.to_string());
                                                 break;
                                             }
-
                                         }
                                         // Check if the group name matches the admin group
                                         if let Some(admin_group) = &competition.admin_group {
@@ -185,11 +186,8 @@ async fn oauth2_callback(
                                 identity_sources: vec![carve::redis_manager::IdentitySources::OIDC],
                             };
                             // call register_user in redis_manager
-                            let register_result = redis.register_user(
-                                &competition.name,
-                                &user,
-                                team_name.as_deref(),
-                            );
+                            let register_result =
+                                redis.register_user(&competition.name, &user, team_name.as_deref());
                             match register_result {
                                 Ok(_) => {
                                     println!("User {} registered successfully", username);
@@ -255,4 +253,130 @@ pub async fn logout(session: Session) -> impl Responder {
     HttpResponse::Ok()
         .cookie(userinfo_cookie)
         .body("Logged out successfully")
+}
+
+//Traditional password login endpoint
+#[get("/login")]
+pub async fn login(
+    session: Session,
+    query: web::Query<types::LoginUserQuery>,
+    redis: web::Data<RedisManager>,
+    competition: web::Data<Competition>,
+) -> ActixResult<impl Responder> {
+    // Check if the user is already logged in
+    if let Some(username) = session.get::<String>("username").unwrap_or(None) {
+        if !username.is_empty() {
+            // User is already logged in, redirect to home
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/"))
+                .finish());
+        }
+    }
+
+    // verify the username/password against redis
+    match redis.verify_user_local_password(&competition.name, &query.username, &query.password) {
+        Ok(Some(user)) => {
+            // create session with user info
+            session.insert("username", user.username.clone())?;
+            session.insert("email", user.email.clone())?;
+            session.insert("team_name", user.team_name.clone())?;
+            session.insert("is_admin", user.is_admin)?;
+
+            // create cookies
+            let cookie = Cookie::build("userinfo", serde_json::to_string(&user).unwrap())
+                .path("/")
+                .http_only(false)
+                .finish();
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/"))
+                .cookie(cookie)
+                .finish());
+        }
+        Err(e) => {
+            println!("Error verifying user: {:?}", e);
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/login?error=internal_error"))
+                .finish());
+        }
+        Ok(None) => {
+            // User not found or password incorrect
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/login?error=invalid_credentials"))
+                .finish());
+        }
+    }
+}
+
+//Traditional password registration endpoint
+#[get("/register")]
+pub async fn register(
+    session: Session,
+    query: web::Query<types::RegistrationQuery>,
+    redis: web::Data<RedisManager>,
+    competition: web::Data<Competition>,
+) -> ActixResult<impl Responder> {
+    // Check if the user is already logged in
+    if let Some(username) = session.get::<String>("username").unwrap_or(None) {
+        if !username.is_empty() {
+            // User is already logged in, redirect to home
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/"))
+                .finish());
+        }
+    }
+    let mut team_name = None;
+    // Check if the team join code is valid, if provided
+    if let Some(join_code) = query.team_join_code {
+        if let Ok(Some(team)) = redis
+            .check_team_join_code(&competition.name, join_code)
+            .map_err(|e| {
+                println!("Error checking team join code: {:?}", e);
+                HttpResponse::Found()
+                    .append_header(("Location", "/register?error=internal_error"))
+                    .finish()
+            })
+        {
+            team_name = Some(team);
+        }
+    }
+    // Check if the username already exists
+    if let Ok(Some(_)) = redis.get_user(&competition.name, &query.username) {
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", "/register?error=username_exists"))
+            .finish());
+    }
+    // Create a new user
+    let user = User {
+        username: query.username.clone(),
+        email: query.email.clone(),
+        team_name: team_name.clone(),
+        is_admin: false,
+        identity_sources: vec![carve::redis_manager::IdentitySources::LocalUserPassword],
+    };
+    // Register the user in Redis
+    match redis.register_user(&competition.name, &user, user.team_name.as_deref()) {
+        Ok(_) => {
+            match redis.set_user_local_password(&competition.name, &query.username, &query.password)
+            {
+                Ok(_) => {
+                    // redirect to login page with success message
+                    return Ok(HttpResponse::Found()
+                        .append_header(("Location", "/login?success=registered"))
+                        .finish());
+                }
+                Err(e) => {
+                    println!("Error setting user password: {:?}", e);
+                    return Ok(HttpResponse::Found()
+                        .append_header(("Location", "/register?error=password_requirements_not_met"))
+                        .finish());
+                }
+            }
+        }
+        Err(e) => {
+            println!("Error registering user: {:?}", e);
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/register?error=internal_error"))
+                .finish());
+        }
+    }
 }

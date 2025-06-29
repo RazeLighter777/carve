@@ -414,6 +414,13 @@ async fn main() -> std::io::Result<()> {
                             .service(auth::logout)
                     )
                     .service(
+                        web::scope("/auth")
+                            .wrap(Cors::permissive())
+                            .service(auth::login)
+                            .service(auth::register)
+                            .service(auth::logout)
+                    )
+                    .service(
                         web::scope("/admin")
                             .guard(auth::validate_admin_session)
                             .service(admin::start_competition)

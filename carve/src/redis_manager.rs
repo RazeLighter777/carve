@@ -613,10 +613,10 @@ impl RedisManager {
 
         // Key for storing user password hashes
         let password_hashes_key = format!("{}:users:password_hashes", competition_name);
-
-        // Check if user exists
-        let user_exists: bool = redis::cmd("HEXISTS")
-            .arg(&password_hashes_key)
+        let user_key = format!("{}:users", competition_name);
+        // Check if the user exists
+        let user_exists: bool = redis::cmd("SISMEMBER")
+            .arg(&user_key)
             .arg(username)
             .query(&mut conn)
             .context("Failed to check if user exists")?;
@@ -734,10 +734,13 @@ impl RedisManager {
 
         let result = users
             .into_iter()
-            .filter_map(|user_data| {
-                let mut user = User::from_redis_format(&user_data)?;
-                user.team_name = Some(team_name.to_string());
-                Some(user)
+            .filter_map(|user_name| {
+                // use redis.get_user_data to get the user data
+                if let Ok(Some(userdata)) = self.get_user(competition_name, &user_name) {
+                    Some(userdata)
+                } else {
+                    None
+                }
             })
             .collect();
 
@@ -1139,46 +1142,26 @@ impl RedisManager {
 
         // Get all users to find the one with matching username
         let users_key = format!("{}:users", competition_name);
-        let users: Vec<String> = redis::cmd("SMEMBERS")
+        let user_data_key = format!("{}:user_data", competition_name);
+        if redis::cmd("SISMEMBER")
             .arg(&users_key)
+            .arg(username)
             .query(&mut conn)
-            .context("Failed to get all users")?;
+            .context("Failed to check if user exists")?
+        {
+            // User exists, get their data
+            let user_data: Option<String> = redis::cmd("HGET")
+                .arg(&user_data_key)
+                .arg(username)
+                .query(&mut conn)
+                .context("Failed to get user data")?;
 
-        // Find user with matching username
-        let user_data = users
-            .into_iter()
-            .find(|data| data.starts_with(&format!("{}:", username)));
-
-        if let Some(data) = user_data {
-            if let Some(mut user) = User::from_redis_format(&data) {
-                // Find which team this user belongs to
-                let pattern = format!("{}:*:users", competition_name);
-                let team_keys: Vec<String> = redis::cmd("KEYS")
-                    .arg(&pattern)
-                    .query(&mut conn)
-                    .context("Failed to get team keys")?;
-
-                for team_key in team_keys {
-                    let is_member: bool = redis::cmd("SISMEMBER")
-                        .arg(&team_key)
-                        .arg(&data)
-                        .query(&mut conn)
-                        .context("Failed to check team membership")?;
-
-                    if is_member {
-                        // Extract team name from the key (format: competition:team:users)
-                        let parts: Vec<&str> = team_key.split(':').collect();
-                        if parts.len() >= 2 {
-                            user.team_name = Some(parts[parts.len() - 2].to_string());
-                        }
-                        break;
-                    }
-                }
-
-                return Ok(Some(user));
-            }
+            return if let Some(data) = user_data {
+                Ok(User::from_redis_format(&data))
+            } else {
+                Ok(None) // User data not found
+            };
         }
-
         Ok(None)
     }
 }

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { cookieUtils } from '@/utils/cookies'
 import Login from '@/views/Login.vue'
+import Registration from '@/views/Registration.vue'
 import Home from '@/views/Home.vue'
 import Scoreboard from '@/views/Scoreboard.vue'
 import About from '@/views/About.vue'
@@ -16,6 +17,12 @@ const router = createRouter({
       path: '/login',
       name: 'Login',
       component: Login,
+      meta: { requiresAuth: false }
+    },
+    {
+      path: '/register',
+      name: 'Registration',
+      component: Registration,
       meta: { requiresAuth: false }
     },
     {
@@ -81,13 +88,14 @@ router.beforeEach(async (to, from, next) => {
 
   if (to.meta.requiresAuth && !isLoggedIn) {
     next('/login')
-  } else if (to.path === '/login' && isLoggedIn) {
+  } else if ((to.path === '/login' || to.path === '/register') && isLoggedIn) {
     next('/')
   } else if (
     isLoggedIn &&
     to.path !== '/join_team' &&
     to.path !== '/logout' &&
     to.path !== '/login' &&
+    to.path !== '/register' &&
     to.path !== '/admin'
   ) {
     // Check if user is registered for a team
