@@ -6,10 +6,7 @@ name: Build and Publish Carve Docker Images
 # documentation.
 
 on:
-  schedule:
-    - cron: '15 21 * * *'
   push:
-    branches: [ "main" ]
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   pull_request:
@@ -22,7 +19,7 @@ env:
 
 
 jobs:
-  build:
+  build-and-publish-carve-images:
 
     runs-on: ubuntu-latest
     permissions:

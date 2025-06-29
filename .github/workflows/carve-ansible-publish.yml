@@ -6,18 +6,14 @@ name: Build and Publish Carve Ansible collections
 # documentation.
 
 on:
-  schedule:
-    - cron: '15 21 * * *'
   push:
     branches: [ "main" ]
-    # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
 
 
 jobs:
-  build:
+  build-and-publish-carve-ansible-collections:
 
     runs-on: ubuntu-latest
     permissions:
