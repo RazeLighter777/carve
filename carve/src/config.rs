@@ -16,7 +16,7 @@ pub struct Box {
     pub name: String,
     pub labels: String,
     pub hostname: String,
-    pub cores: Option<u32>, // Optional number of CPU cores
+    pub cores: Option<u32>,  // Optional number of CPU cores
     pub ram_mb: Option<u32>, // Optional RAM in MB
 }
 
@@ -40,17 +40,16 @@ pub struct IcmpCheckSpec {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Hint {
     pub string: String, // Hint text
-    pub penalty: u64, // Points penalty for using this hint
+    pub penalty: u64,   // Points penalty for using this hint
 }
-
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FlagCheck {
-    pub name : String, // Challenge name. Must be unique.
+    pub name: String,        // Challenge name. Must be unique.
     pub description: String, // Description of the challenge
-    pub points: u64, // Points awarded for solving the challenge
-    pub attempts: u64, // Number of attempts allowed
-    pub box_name: String, // Name of the box where the flag is located
+    pub points: u64,         // Points awarded for solving the challenge
+    pub attempts: u64,       // Number of attempts allowed
+    pub box_name: String,    // Name of the box where the flag is located
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -96,15 +95,15 @@ pub struct Competition {
     pub name: String,
     pub redis: RedisConfig,
     pub oidc_provider_name: String, // OIDC provider name
-    pub cidr: Option<String>, // Add this field for VTEP
-    pub vtep_host: Option<String>, // <-- Add this line for VTEP host
+    pub cidr: Option<String>,       // Add this field for VTEP
+    pub vtep_host: Option<String>,  // <-- Add this line for VTEP host
     pub boxes: Vec<Box>,
     pub teams: Vec<Team>,
     pub checks: Vec<Check>,
     pub flag_checks: Vec<FlagCheck>, // Flag checks for the competition
     pub admin_group: Option<String>, // Optional admin group for oidc
     pub description: Option<String>, // Optional description
-    pub duration: Option<u64>, // duration in seconds
+    pub duration: Option<u64>,       // duration in seconds
     pub registration_type: RegistrationType, // Registration type
 }
 
@@ -128,11 +127,16 @@ impl AppConfig {
 
 impl Competition {
     pub fn get_team_by_name(&self, team_name: &str) -> Option<&Team> {
-        self.teams.iter().find(|team| team.name.eq_ignore_ascii_case(team_name))
+        self.teams
+            .iter()
+            .find(|team| team.name.eq_ignore_ascii_case(team_name))
     }
 
     pub fn get_team_id_from_name(&self, team_name: &str) -> Option<u64> {
-        self.teams.iter().position(|team| team.name.eq_ignore_ascii_case(team_name)).map(|id| id as u64 + 1)
+        self.teams
+            .iter()
+            .position(|team| team.name.eq_ignore_ascii_case(team_name))
+            .map(|id| id as u64 + 1)
     }
 
     pub fn get_team_name_from_id(&self, team_id: u64) -> Option<String> {

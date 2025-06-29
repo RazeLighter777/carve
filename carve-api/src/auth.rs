@@ -13,7 +13,7 @@ use oauth2::{
 
 pub fn validate_admin_session(ctx: &GuardContext) -> bool {
     let session = ctx.get_session();
-    if let Some(username) = session.get::<String>("username").unwrap_or(None) {
+    if let Some(_) = session.get::<String>("username").unwrap_or(None) {
         if let Ok(Some(is_admin)) = session.get::<bool>("is_admin") {
             if is_admin {
                 return true;

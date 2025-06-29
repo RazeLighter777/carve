@@ -245,7 +245,7 @@ async fn get_leaderboard(
 }
 
 #[get("/checks")]
-async fn get_checks(competition: web::Data<Competition>, redis: web::Data<RedisManager>) -> ActixResult<impl Responder> {
+async fn get_checks(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
     let checks: Vec<Check> = competition
         .checks
         .clone();
