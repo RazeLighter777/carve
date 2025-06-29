@@ -1,3 +1,4 @@
 **/target
 disks/*/*
 carve-ansible/.venv
+*.tar.gz

@@ -1,4 +1,4 @@
-namespace: "carvectf"
+namespace: "razelighter777"
 description: "Ansible collection for CarveCTF"
 name: "carve_ansible"
 version: "0.0.1"
