@@ -504,7 +504,7 @@ impl RedisManager {
         }
         let hasher = argon2::Argon2::default();
         // Hash the password using argon2i
-        let mut rng = argon2::password_hash::rand_core::OsRng::default();
+        let mut rng = argon2::password_hash::rand_core::OsRng;
         let hashed_password = hasher.hash_password(
             password.as_bytes(),
             &SaltString::generate(&mut rng)
