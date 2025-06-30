@@ -18,7 +18,6 @@ pub async fn resolve_box_ip(box_name: &str, vtep_host: &str) -> Option<String> {
         .stderr(Stdio::piped())
         .output()
         .await;
-    let output = output;
 
     match output {
         Ok(output) => {

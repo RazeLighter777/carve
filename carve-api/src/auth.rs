@@ -13,7 +13,7 @@ use oauth2::{
 
 pub fn validate_admin_session(ctx: &GuardContext) -> bool {
     let session = ctx.get_session();
-    if let Some(_) = session.get::<String>("username").unwrap_or(None) {
+    if session.get::<String>("username").unwrap_or(None).is_some() {
         if let Ok(Some(is_admin)) = session.get::<bool>("is_admin") {
             if is_admin {
                 return true;
@@ -308,22 +308,22 @@ pub async fn login(
                 .path("/")
                 .http_only(false)
                 .finish();
-            return Ok(HttpResponse::Found()
+            Ok(HttpResponse::Found()
                 .append_header(("Location", "/"))
                 .cookie(cookie)
-                .finish());
+                .finish())
         }
         Err(e) => {
             println!("Error verifying user: {:?}", e);
-            return Ok(HttpResponse::Found()
+            Ok(HttpResponse::Found()
                 .append_header(("Location", "/login?error=internal_error"))
-                .finish());
+                .finish())
         }
         Ok(None) => {
             // User not found or password incorrect
-            return Ok(HttpResponse::Found()
+            Ok(HttpResponse::Found()
                 .append_header(("Location", "/login?error=invalid_credentials"))
-                .finish());
+                .finish())
         }
     }
 }
@@ -389,23 +389,23 @@ pub async fn register(
             {
                 Ok(_) => {
                     // redirect to login page with success message
-                    return Ok(HttpResponse::Found()
+                    Ok(HttpResponse::Found()
                         .append_header(("Location", "/login?success=registered"))
-                        .finish());
+                        .finish())
                 }
                 Err(e) => {
                     println!("Error setting user password: {:?}", e);
-                    return Ok(HttpResponse::Found()
+                    Ok(HttpResponse::Found()
                         .append_header(("Location", "/register?error=password_requirements_not_met"))
-                        .finish());
+                        .finish())
                 }
             }
         }
         Err(e) => {
             println!("Error registering user: {:?}", e);
-            return Ok(HttpResponse::Found()
+            Ok(HttpResponse::Found()
                 .append_header(("Location", "/register?error=internal_error"))
-                .finish());
+                .finish())
         }
     }
 }

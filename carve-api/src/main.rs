@@ -344,7 +344,7 @@ pub fn generate_admin_user_if_not_exists(
     redis: &RedisManager,
     competition: &Competition,
 ) -> Result<(), String> {
-    if let Some(users) = redis.get_all_users(&competition.name).ok() {
+    if let Ok(users) = redis.get_all_users(&competition.name) {
         if users.iter().any(|u| u.is_admin) {
             return Ok(());
         }
@@ -361,7 +361,7 @@ pub fn generate_admin_user_if_not_exists(
     println!("Admin user created: {}", admin_user.username);
     // generate a password for the admin user
     let mut rng = rand::rng();
-    let password = rand::distr::Alphanumeric::default()
+    let password = rand::distr::Alphanumeric
         .sample_string(&mut rng, 12)
         .to_string();
     println!("Generated password for admin user: {}", password);
@@ -408,7 +408,7 @@ async fn main() -> std::io::Result<()> {
     let redis_manager = RedisManager::new(&competition.redis).expect("Failed to connect to Redis");
     // if the competition has create_default_admin set to true, generate an admin user
     if competition.create_default_admin {
-        generate_admin_user_if_not_exists(&redis_manager, &competition)
+        generate_admin_user_if_not_exists(&redis_manager, competition)
             .expect("Failed to generate admin user");
     }
 
