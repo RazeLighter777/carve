@@ -174,6 +174,11 @@ fn main() {
             let team_snat_rule = format!("-o {} -j MASQUERADE", vxlan_name);
             ipt.append("nat", "POSTROUTING", &team_snat_rule)
                 .expect("Failed to add SNAT rule for team");
+            // mangle TTL to 64 for the VXLAN interface to stop teams from 
+            // using it to block other teams and allow the scoring server to reach them
+            let team_ttl_rule = format!("-i {} -j TTL --ttl-set 64", vxlan_name);
+            ipt.append("mangle", "PREROUTING", &team_ttl_rule)
+                .expect("Failed to add TTL rule for team");
         }
         // print iptables command for debugging
     }

@@ -533,7 +533,7 @@ impl RedisManager {
             .get_connection()
             .context("Failed to connect to Redis")?;
         // Validate user fields
-        if let Err(_) = util::validate_user_fields(user) {
+        if util::validate_user_fields(user).is_err() {
             return Err(anyhow::anyhow!("Invalid user fields"));
         }
         // Keys for Redis operations
@@ -646,7 +646,7 @@ impl RedisManager {
             .get_connection()
             .context("Failed to connect to Redis")?;
         // Validate username and password
-        if let Err(_) = util::validate_password(password) {
+        if util::validate_password(password).is_err() {
             return Err(anyhow::anyhow!("Invalid password format"));
         }
         // Key for storing user password hashes
