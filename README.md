@@ -79,9 +79,9 @@ CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag
 ## Notes
 
 - **Persistence:** Redis is used for all data storage. By default, persistence is disabled for testing. AOF and backup configuration will be added soon.
-- **Authentication:** Only OIDC is supported right now. More authentication methods are planned.
+- **Authentication:** OIDC and local user/password supported. OIDC is only tested with authentik right now, may or may not work with other applications.
 - **Challenges:** Only a few dummy challenges are included. Add more by creating Ansible playbooks.
-- **Competition Automation:** Future updates will improve Ansible integration for automatic and modular playbook execution.
+- **Competition Automation:** Future updates will improve Ansible integration for automatic and modular playbook creation.
 - **Scalability:** Currently runs with Docker Compose (single host). Helm charts for Kubernetes are planned for horizontal scaling.
 - **Documentation:** More detailed docs for configuration and usage are coming soon.
 
