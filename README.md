@@ -53,7 +53,7 @@ At least a three node (docker, or kubernetes) setup EACH with:
    ```
 
 2. **Configure the platform:**
-   - Edit `docker-compose.yaml` to set your OIDC credentials and `SECRET_KEY` (optional)
+   - Edit `docker-compose.yaml` to set your OIDC credentials (optional) and `SECRET_KEY` 
    - Edit `competition.yaml` to define your competition (docs coming soon).
    - Place your VM disk images in `disks/<subdirectory>/`.
    - Add your Ansible playbooks in the `carve-ansible` directory.
