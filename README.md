@@ -36,13 +36,14 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 - **carve-ansible:** Integrates Ansible for VM provisioning and challenge deployment.
 ## ⚠️ Requirements
 Works only on linux and WSL. You need docker or any OCI container platform. 
-For testing / non-production:
+
+### For testing / non-production:
 - 16gb RAM (so you can run a couple VMs without them running out of RAM)
 - 4 cores (more the better rust takes really long to compile)
-For running an actual game if you don't want your players to be angry:
+### For running an actual game (if you don't want your players to be frustrated at your slow, laggy CTF):
 At least a three node (docker, or kubernetes) setup EACH with:
-- 64gb RAM
-- 16 cores
+- RAM = 1GB * teams * players per team
+-  .5 cores * teams * players per team. 
 
 ## 🟢 Getting Started
 
