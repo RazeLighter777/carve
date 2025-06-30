@@ -3,14 +3,19 @@
 
 [Click here if you wanna see some more pretty screenshots](https://github.com/RazeLighter777/carve/wiki)
 
-CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag) platform designed for cybersecurity competitions. It enables teams to compete by attacking and defending virtual machines (VMs) in a realistic, isolated network environment.
+CARVE is an open source attack-defense CTF (Capture The Flag) platform. Players compete in small teams and show off their l33t skills by hacking into other teams networks to score points. At the same time, teams have to play defense to prevent their networks from being hacked.
 
+Each team recieves access to an identical set of virtual computers (VMs) through a simple easy to use website. The VMs are literred with security flaws and holes, and unfortunately, wide open to attacks from other teams.😈 
+
+Unlike most open-source CTF platforms out there, CARVE is designed to be easy to use and deployable with a few simple commands.
+
+CARVE **DOES NOT** include the actual challenges and setup scripts to make a real competition. You'll need to write them yourself and keep them private until the competition is over, so you don't spoil your game.
 ## ✨ Features
 
-- **Microservice Architecture:** Modular services for scoring, networking, orchestration, and more.
+- **Microservice Architecture:** Modular services for scoring, networking, orchestration, everything you need to run a CTF at scale.
 - **Attack-Defense CTF:** Teams receive VMs to defend and attack others, earning points for solving challenges and keeping services alive.
-- **Virtual Networking:** Uses VXLANs and dnsmasq to create isolated, team-specific networks.
-- **Cloud-Init & Ansible:** VMs are provisioned with cloud-init for basic setup, then made vulnerable with Ansible playbooks.
+- **Virtual Networking:** Uses VXLANs and dnsmasq to create isolated, team-specific networks. All the networking is handled by CARVE, with no need for manual setup.
+- **Cloud-Init & Ansible:** VMs are provisioned with cloud-init for basic setup, then made vulnerable for the game with Ansible playbooks.
 - **Modern Frontend:** Built with TypeScript, Vue, and Tailwind CSS.
 - **Rust Backend:** All backend services are written in Rust for performance and safety.
 - **Redis Persistence:** Uses Redis as the sole database (AOF and backup configuration coming soon).
@@ -29,6 +34,15 @@ CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag
 - **carve-dnsmasq:** DNS and DHCP server for VM boxes.
 - **carve-api:** API gateway for CARVE services.
 - **carve-ansible:** Integrates Ansible for VM provisioning and challenge deployment.
+## ⚠️ Requirements
+Works only on linux and WSL. You need docker or any OCI container platform. 
+For testing / non-production:
+- 16gb RAM (so you can run a couple VMs without them running out of RAM)
+- 4 cores (more the better rust takes really long to compile)
+For running an actual game if you don't want your players to be angry:
+At least a three node (docker, or kubernetes) setup EACH with:
+- 64gb RAM
+- 16 cores
 
 ## 🟢 Getting Started (good luck btw everything is very hacky rn)
 
