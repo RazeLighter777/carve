@@ -44,7 +44,7 @@ At least a three node (docker, or kubernetes) setup EACH with:
 - 64gb RAM
 - 16 cores
 
-## 🟢 Getting Started (good luck btw everything is very hacky rn)
+## 🟢 Getting Started
 
 1. **Clone the repository:**
    ```bash
