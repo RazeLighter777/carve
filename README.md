@@ -7,6 +7,8 @@ CARVE is an open source attack-defense CTF (Capture The Flag) platform. Players 
 
 Each team recieves access to an identical set of virtual computers (VMs) through a simple easy to use website. The VMs are literred with security flaws and holes, and unfortunately, wide open to attacks from other teams.😈 
 
+Backend VM management, networking, scoring, authentication, administration tools, and a sleek looking website are all included!!!! And it's mostly configured through a single file `competition.yaml`.
+
 Unlike most open-source CTF platforms out there, CARVE is designed to be easy to use and deployable with a few simple commands.
 
 CARVE **DOES NOT** include the actual challenges and setup scripts to make a real competition. You'll need to write them yourself and keep them private until the competition is over, so you don't spoil your game.
@@ -18,7 +20,7 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 - **Cloud-Init & Ansible:** VMs are provisioned with cloud-init for basic setup, then made vulnerable for the game with Ansible playbooks.
 - **Modern Frontend:** Built with TypeScript, Vue, and Tailwind CSS.
 - **Rust Backend:** All backend services are written in Rust. Why? It's the language I know the best.
-- **Redis Persistence:** Uses Redis as the sole database (AOF and backup configuration coming soon).
+- **Redis Persistence:** CARVE uses redis as the sole database / backend communication tool. It easy to deploy and makes everything snappy. (and contrary to popular belief won't lose all data if the RAM gives out)
 - **OIDC Authentication:** Currently supports OIDC and local user/password authentication.
 - **Docker Compose Deployment:** Easy to run locally; Kubernetes (Helm) support coming soon.
 
