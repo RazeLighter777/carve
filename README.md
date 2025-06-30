@@ -17,7 +17,7 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 - **Virtual Networking:** Uses VXLANs and dnsmasq to create isolated, team-specific networks. All the networking is handled by CARVE, with no need for manual setup.
 - **Cloud-Init & Ansible:** VMs are provisioned with cloud-init for basic setup, then made vulnerable for the game with Ansible playbooks.
 - **Modern Frontend:** Built with TypeScript, Vue, and Tailwind CSS.
-- **Rust Backend:** All backend services are written in Rust for performance and safety.
+- **Rust Backend:** All backend services are written in Rust. Why? It's the language I know the best.
 - **Redis Persistence:** Uses Redis as the sole database (AOF and backup configuration coming soon).
 - **OIDC Authentication:** Currently supports OIDC and local user/password authentication.
 - **Docker Compose Deployment:** Easy to run locally; Kubernetes (Helm) support coming soon.
