@@ -14,7 +14,7 @@ CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag
 - **Modern Frontend:** Built with TypeScript, Vue, and Tailwind CSS.
 - **Rust Backend:** All backend services are written in Rust for performance and safety.
 - **Redis Persistence:** Uses Redis as the sole database (AOF and backup configuration coming soon).
-- **OIDC Authentication:** Currently supports OIDC only; more auth methods planned.
+- **OIDC Authentication:** Currently supports OIDC and local user/password authentication.
 - **Docker Compose Deployment:** Easy to run locally; Kubernetes (Helm) support coming soon.
 
 ## 🧱 Architecture
@@ -39,7 +39,7 @@ CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag
    ```
 
 2. **Configure the platform:**
-   - Edit `docker-compose.yaml` to set your OIDC credentials and `SECRET_KEY`.
+   - Edit `docker-compose.yaml` to set your OIDC credentials and `SECRET_KEY` (optional)
    - Edit `competition.yaml` to define your competition (docs coming soon).
    - Place your VM disk images in `disks/<subdirectory>/`.
    - Add your Ansible playbooks in the `carve-ansible` directory.
@@ -49,8 +49,12 @@ CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag
    docker compose build
    docker compose up
    ```
+   You can read the default admin and password (set to generate and print on the first run, if configured) using
+   ```bash
+   docker compose logs carve-api
+   ```
 
-4. **Run Ansible Playbooks:**
+5. **Run Ansible Playbooks:**
    - In a new terminal, exec into the carve-ansible container:
      ```bash
      docker compose exec carve-ansible bash
@@ -60,7 +64,7 @@ CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag
      uv run ansible-playbook playbook.yaml -i carve_inventory.yaml
      ```
 
-5. **Access the frontend:**
+6. **Access the frontend:**
    - Open a new terminal, go to the `carve-web` directory, and run:
      ```bash
      npm install
@@ -68,7 +72,7 @@ CARVE is an open source, microservice-based attack-defense CTF (Capture The Flag
      ```
    - The frontend will be available at the address shown in the terminal output (typically http://localhost:5173).
 
-6. **Start the Competition:**
+7. **Start the Competition:**
    - Log in as an admin user (your OIDC account must be in the admin group).
    - In the web UI, click "Start Competition" to begin.
 
