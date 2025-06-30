@@ -39,7 +39,14 @@ pub fn validate_session(ctx: &GuardContext) -> bool {
 pub async fn get_oauth2_redirect_url(
     session: Session,
     client: web::Data<types::OauthClient>,
+    competition : web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
+    // check if OIDC is a valid identity source for the competition
+    if !competition.identity_sources.contains(&carve::redis_manager::IdentitySources::OIDC) {
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", "/login?error=internal_error"))
+            .finish());
+    }
     // Generate CSRF token
     let csrf_token = CsrfToken::new_random();
     session.insert("csrf_token", csrf_token.secret())?;
@@ -71,6 +78,12 @@ async fn oauth2_callback(
     redis: web::Data<RedisManager>,
     competition: web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
+    // check if the OIDC identity source is configured for the competition
+    if !competition.identity_sources.contains(&carve::redis_manager::IdentitySources::OIDC) {
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", "/login?error=internal_error"))
+            .finish());
+    }
     // get code and state from query parameters
     let code = query.code.clone();
     let state = query.state.clone();
@@ -263,6 +276,14 @@ pub async fn login(
     redis: web::Data<RedisManager>,
     competition: web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
+    // check if LocalUserPassword is a valid identity source for the competition
+    if !competition.identity_sources.contains(
+        &carve::redis_manager::IdentitySources::LocalUserPassword,
+    ) {
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", "/login?error=internal_error"))
+            .finish());
+    }
     // Check if the user is already logged in
     if let Some(username) = session.get::<String>("username").unwrap_or(None) {
         if !username.is_empty() {
@@ -315,6 +336,14 @@ pub async fn register(
     redis: web::Data<RedisManager>,
     competition: web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
+    // check if LocalUserPassword is a valid identity source for the competition
+    if !competition.identity_sources.contains(
+        &carve::redis_manager::IdentitySources::LocalUserPassword,
+    ) {
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", "/register?error=internal_error"))
+            .finish());
+    }
     // Check if the user is already logged in
     if let Some(username) = session.get::<String>("username").unwrap_or(None) {
         if !username.is_empty() {
@@ -379,4 +408,15 @@ pub async fn register(
                 .finish());
         }
     }
+}
+
+// returns a list of identity sources configured for the competition
+#[get("/identity_sources")]
+pub async fn identity_sources(
+    competition: web::Data<Competition>,
+) -> ActixResult<impl Responder> {
+    let sources = &competition.identity_sources;
+    Ok(HttpResponse::Ok().json(types::IdentitySourcesResponse {
+        sources: sources.clone(),
+    }))
 }

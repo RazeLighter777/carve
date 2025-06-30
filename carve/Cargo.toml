@@ -14,6 +14,7 @@ chrono = { version = "0.4.41", features = ["serde"] }
 rand = "0.9.1"
 argon2 = { version = "0.5.3", features = ["std"] }
 getrandom = "0.3.3"
+regex = "1.11.1"
 
 [lib]
 name = "carve"

@@ -1,4 +1,4 @@
-use carve::config::{Check, FlagCheck};
+use carve::{config::{Check, FlagCheck}, redis_manager::IdentitySources};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use oauth2::basic::{BasicErrorResponseType, BasicTokenType};
@@ -220,4 +220,10 @@ pub(crate) struct RegistrationQuery {
     pub(crate) password: String,
     pub(crate) email: String,
     pub(crate) team_join_code: Option<u64>,
+}
+
+
+#[derive(Serialize)]
+pub(crate) struct IdentitySourcesResponse {
+    pub(crate) sources: Vec<IdentitySources>,
 }

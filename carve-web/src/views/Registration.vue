@@ -158,6 +158,9 @@ const goToLogin = () => {
                 class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Choose a username"
               />
+              <p class="mt-1 text-xs text-gray-500">
+                Username must be 3-32 characters, start with a letter, and may only contain letters, numbers, underscores, or hyphens.
+              </p>
             </div>
             
             <div>
@@ -187,7 +190,7 @@ const goToLogin = () => {
                 placeholder="Create a strong password"
               />
               <p class="mt-1 text-xs text-gray-500">
-                Use a strong password with a mix of letters, numbers, and special characters
+                Password must be at least 8 characters long.
               </p>
             </div>
             

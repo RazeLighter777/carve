@@ -132,3 +132,14 @@ export interface RegistrationQuery {
   email: string;
   team_join_code?: number;
 }
+
+// Enum equivalent to Rust's IdentitySources
+export enum IdentitySources {
+  LocalUserPassword = 'LocalUserPassword',
+  OIDC = 'OIDC',
+}
+
+// Struct equivalent to Rust's IdentitySourcesResponse
+export interface IdentitySourcesResponse {
+  sources: IdentitySources[];
+}

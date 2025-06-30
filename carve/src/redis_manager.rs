@@ -1,4 +1,5 @@
 use crate::config::{FlagCheck, RedisConfig};
+use crate::util;
 use anyhow::{Context, Result};
 use argon2::PasswordHasher;
 use argon2::{PasswordVerifier, password_hash::SaltString};
@@ -485,6 +486,37 @@ impl RedisManager {
         }
         Ok(None)
     }
+    pub fn get_all_users(&self, competition_name: &str) -> Result<Vec<User>> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+        let key = format!("{}:users", competition_name);
+        let user_data_key = format!("{}:user_data", competition_name);
+        // Get all usernames in the competition
+        let usernames: Vec<String> = redis::cmd("SMEMBERS")
+            .arg(&key)
+            .query(&mut conn)
+            .context("Failed to get usernames")?;
+        let mut users = Vec::new();
+        for username in usernames {
+            // Get user data for each username
+            let user_data_str: String = redis::cmd("HGET")
+                .arg(&user_data_key)
+                .arg(&username)
+                .query(&mut conn)
+                .context("Failed to get user data")?;
+            if let Some(user) = User::from_redis_format(&user_data_str) {
+                users.push(user);
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Failed to deserialize user data for username: {}",
+                    username
+                ));
+            }
+        }
+        Ok(users)
+    }
 
     // Register a user to a team. Creates/inserts a new key in competition_name:users and competition_name:team_name:users
     // competition_name:users -> set of usernames, emails.
@@ -500,7 +532,10 @@ impl RedisManager {
             .client
             .get_connection()
             .context("Failed to connect to Redis")?;
-
+        // Validate user fields
+        if let Err(_) = util::validate_user_fields(user) {
+            return Err(anyhow::anyhow!("Invalid user fields"));
+        }
         // Keys for Redis operations
         let users_key = format!("{}:users", competition_name);
         let users_data_key = format!("{}:user_data", competition_name);
@@ -610,7 +645,10 @@ impl RedisManager {
             .client
             .get_connection()
             .context("Failed to connect to Redis")?;
-
+        // Validate username and password
+        if let Err(_) = util::validate_password(password) {
+            return Err(anyhow::anyhow!("Invalid password format"));
+        }
         // Key for storing user password hashes
         let password_hashes_key = format!("{}:users:password_hashes", competition_name);
         let user_key = format!("{}:users", competition_name);
@@ -742,27 +780,6 @@ impl RedisManager {
                     None
                 }
             })
-            .collect();
-
-        Ok(result)
-    }
-
-    // Get all users in the competition
-    pub fn get_all_users(&self, competition_name: &str) -> Result<Vec<User>> {
-        let mut conn = self
-            .client
-            .get_connection()
-            .context("Failed to connect to Redis")?;
-
-        let users_key = format!("{}:users", competition_name);
-        let users: Vec<String> = redis::cmd("SMEMBERS")
-            .arg(&users_key)
-            .query(&mut conn)
-            .context("Failed to get all users")?;
-
-        let result = users
-            .into_iter()
-            .filter_map(|user_data| User::from_redis_format(&user_data))
             .collect();
 
         Ok(result)

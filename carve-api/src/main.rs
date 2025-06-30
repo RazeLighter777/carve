@@ -27,6 +27,7 @@ mod flag;
 pub use boxes::get_boxes;
 pub use boxes::get_box;
 pub use boxes::get_box_default_creds;
+use rand::distr::SampleString;
 
 
 // API Handlers
@@ -339,6 +340,38 @@ async fn submit_flag(
     }
 }
 
+pub fn generate_admin_user_if_not_exists(
+    redis: &RedisManager,
+    competition: &Competition,
+) -> Result<(), String> {
+    if let Some(users) = redis.get_all_users(&competition.name).ok() {
+        if users.iter().any(|u| u.is_admin) {
+            return Ok(());
+        }
+    }
+    // If no admin user exists, create one
+    let admin_user = carve::redis_manager::User {
+        username: "admin".to_string(),
+        email: "admin@example.com".to_string(),
+        team_name: None,
+        is_admin: true,
+        identity_sources: vec![carve::redis_manager::IdentitySources::LocalUserPassword],
+    };
+    redis.register_user(&competition.name, &admin_user, None).expect("Failed to create admin user");
+    println!("Admin user created: {}", admin_user.username);
+    // generate a password for the admin user
+    let mut rng = rand::rng();
+    let password = rand::distr::Alphanumeric::default()
+        .sample_string(&mut rng, 12)
+        .to_string();
+    println!("Generated password for admin user: {}", password);
+    // Store the password in Redis
+    redis.set_user_local_password(&competition.name, &admin_user.username, &password)
+        .expect("Failed to set admin user password");
+
+    Ok(())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or("info"));
@@ -373,6 +406,11 @@ async fn main() -> std::io::Result<()> {
         .set_redirect_uri(RedirectUrl::new(redirect_url).expect("Invalid redirect URL"));
 
     let redis_manager = RedisManager::new(&competition.redis).expect("Failed to connect to Redis");
+    // if the competition has create_default_admin set to true, generate an admin user
+    if competition.create_default_admin {
+        generate_admin_user_if_not_exists(&redis_manager, &competition)
+            .expect("Failed to generate admin user");
+    }
 
     HttpServer::new(move || {
         App::new()
@@ -419,6 +457,7 @@ async fn main() -> std::io::Result<()> {
                             .service(auth::login)
                             .service(auth::register)
                             .service(auth::logout)
+                            .service(auth::identity_sources)
                     )
                     .service(
                         web::scope("/admin")

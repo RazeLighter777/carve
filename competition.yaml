@@ -14,6 +14,10 @@ competitions:
     duration: 3600  # Competition duration in seconds (1 hour)
     oidc_provider_name: Authentik  # OIDC provider name for authentication
     registration_type: Join  # Registration type OidcOnly means it just pulls the groups from the OIDC provider
+    identity_sources:
+      - "OIDC"
+      - "LocalUserPassword"
+    create_default_admin: true  # Create a default admin user
     boxes:
       # Define service boxes that will be checked
       - name: web

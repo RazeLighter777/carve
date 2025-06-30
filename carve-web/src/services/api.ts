@@ -14,7 +14,8 @@ import type {
   CheckResponse,
   TeamCheckStatusResponse,
   RedeemFlagQuery,
-  RedeemFlagResponse
+  RedeemFlagResponse,
+  IdentitySourcesResponse
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 const api = axios.create({
@@ -182,6 +183,10 @@ export const apiService = {
     const response = await api.get<RedeemFlagResponse>(`competition/submit?${params.toString()}`);
     return response.data;
   },
+  async getIdentitySources(): Promise<IdentitySourcesResponse> {
+    const response = await api.get<IdentitySourcesResponse>('auth/identity_sources');
+    return response.data;
+  } 
 };
 
 export default apiService;

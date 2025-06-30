@@ -4,6 +4,8 @@ use config::{Config, File};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::redis_manager::IdentitySources;
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct RedisConfig {
     pub host: String,
@@ -105,6 +107,8 @@ pub struct Competition {
     pub description: Option<String>, // Optional description
     pub duration: Option<u64>,       // duration in seconds
     pub registration_type: RegistrationType, // Registration type
+    pub identity_sources: Vec<IdentitySources>,
+    pub create_default_admin: bool, // Create default admin user
 }
 
 #[derive(Debug, Deserialize, Clone)]
