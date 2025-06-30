@@ -143,3 +143,14 @@ export enum IdentitySources {
 export interface IdentitySourcesResponse {
   sources: IdentitySources[];
 }
+
+// Rust: pub(crate) struct BoxRestoreQuery { pub(crate) box_name: String }
+export interface BoxRestoreQuery {
+  boxName: string;
+}
+
+// Rust: pub(crate) struct BoxSnapshotQuery { pub(crate) box_name: String }
+export interface BoxSnapshotQuery {
+  boxName: string;
+}
+

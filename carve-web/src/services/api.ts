@@ -15,7 +15,9 @@ import type {
   TeamCheckStatusResponse,
   RedeemFlagQuery,
   RedeemFlagResponse,
-  IdentitySourcesResponse
+  IdentitySourcesResponse,
+  BoxRestoreQuery,
+  BoxSnapshotQuery
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 const api = axios.create({
@@ -186,7 +188,22 @@ export const apiService = {
   async getIdentitySources(): Promise<IdentitySourcesResponse> {
     const response = await api.get<IdentitySourcesResponse>('auth/identity_sources');
     return response.data;
-  } 
+  },
+  async sendBoxRestore(request : BoxRestoreQuery): Promise<void> {
+    await api.get<BoxRestoreQuery>(`competition/box/restore`, {
+      params: {
+        boxName: request.boxName,
+      }
+    });
+  },
+  //requires admin privileges
+  async sendBoxSnapshot(request : BoxSnapshotQuery): Promise<void> {
+    await api.get<BoxSnapshotQuery>(`admin/box/snapshot`, {
+      params: {
+        boxName: request.boxName,
+      }
+    });
+  }
 };
 
 export default apiService;

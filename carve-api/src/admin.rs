@@ -1,29 +1,23 @@
 // Admin-related functionality for the Carve API
 
-
 use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
 use carve::config::Competition;
 use carve::redis_manager::RedisManager;
 
 use crate::types;
 
-
-
-
-
 #[get("/start_competition")]
 async fn start_competition(
     redis: web::Data<RedisManager>,
-    competition : web::Data<Competition>,
+    competition: web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
     let competition_name = &competition.name;
     let duration = competition.duration;
     match redis.start_competition(competition_name, duration) {
-        Ok(_) => {
-            Ok(HttpResponse::Ok().body("Competition started"))
-        },
+        Ok(_) => Ok(HttpResponse::Ok().body("Competition started")),
         Err(e) => {
-            Ok(HttpResponse::InternalServerError().body(format!("Failed to start competition: {}", e)))
+            Ok(HttpResponse::InternalServerError()
+                .body(format!("Failed to start competition: {}", e)))
         }
     }
 }
@@ -35,18 +29,17 @@ async fn end_competition(
 ) -> ActixResult<impl Responder> {
     let competition_name = &competition.name;
     match redis.end_competition(competition_name) {
-        Ok(_) => {
-            Ok(HttpResponse::Ok().body("Competition stopped"))
-        },
+        Ok(_) => Ok(HttpResponse::Ok().body("Competition stopped")),
         Err(e) => {
-            Ok(HttpResponse::InternalServerError().body(format!("Failed to stop competition: {}", e)))
+            Ok(HttpResponse::InternalServerError()
+                .body(format!("Failed to stop competition: {}", e)))
         }
     }
 }
 
 #[get("/generate_join_code")]
 pub async fn generate_join_code(
-    query : web::Query<types::AdminGenerateCodeQuery>,
+    query: web::Query<types::AdminGenerateCodeQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {

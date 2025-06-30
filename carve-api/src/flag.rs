@@ -1,10 +1,10 @@
+use crate::types;
 use actix_web::guard::GuardContext;
 use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
-use crate::types;
 use carve::config::Competition;
 use carve::redis_manager::RedisManager;
 
-pub fn validate_bearer_token_is_secret_key_env_var(ctx : &GuardContext) -> bool {
+pub fn validate_bearer_token_is_secret_key_env_var(ctx: &GuardContext) -> bool {
     if let Some(auth_header) = ctx.head().headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
@@ -16,7 +16,6 @@ pub fn validate_bearer_token_is_secret_key_env_var(ctx : &GuardContext) -> bool 
     }
     false
 }
-
 
 // this method is only for internal use by other services, not exposed to users
 // it takes a GenerateFlagQuery and returns a GenerateFlagResponse
@@ -34,10 +33,9 @@ pub async fn generate_flag(
         Ok(flag) => {
             let response = types::GenerateFlagResponse { flag };
             Ok(HttpResponse::Ok().json(response))
-        },
+        }
         Err(e) => {
             Ok(HttpResponse::InternalServerError().body(format!("Failed to generate flag: {}", e)))
         }
     }
 }
-

@@ -1,8 +1,8 @@
 // Boxes-related API handlers
 
+use crate::types;
 use actix_session::Session;
 use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
-use crate::types;
 use carve::config::Competition;
 use carve::redis_manager::RedisManager;
 use std::process::Stdio;
@@ -146,7 +146,7 @@ pub async fn get_box_default_creds(
     query: web::Query<types::BoxQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
-    session : Session,
+    session: Session,
 ) -> ActixResult<impl Responder> {
     // ...existing code from main.rs...
     let parts: Vec<&str> = query.name.split('.').collect();
@@ -191,15 +191,15 @@ pub async fn get_box_default_creds(
     }
 }
 
-#[get("/box/send_command")]
-pub async fn send_box_command(
-    query: web::Query<types::BoxCommandQuery>,
+#[get("/box/restore")]
+pub async fn send_box_restore(
+    query: web::Query<types::BoxRestoreQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
-    session : Session,
+    session: Session,
 ) -> ActixResult<impl Responder> {
     let parts: Vec<&str> = query.box_name.split('.').collect();
-    if parts.len() < 3 {
+    if parts.len() < 2 {
         return Ok(HttpResponse::NotFound().json(serde_json::json!({
             "error": "Box not found"
         })));
@@ -207,7 +207,7 @@ pub async fn send_box_command(
 
     let box_type = parts[0];
     let team_name = parts[1];
-    let command = query.command.clone();
+    let command = carve::redis_manager::QemuCommands::Restore;
 
     // Verify the user belongs to the team
     if let Some(session_team_name) = session.get::<String>("team_name")? {
@@ -232,4 +232,33 @@ pub async fn send_box_command(
     }
 }
 
+// snapshot command is only for admins and works regardless of the team
+#[get("/box/snapshot")]
+pub async fn send_box_snapshot(
+    query: web::Query<types::BoxSnapshotQuery>,
+    competition: web::Data<Competition>,
+    redis: web::Data<RedisManager>,
+) -> ActixResult<impl Responder> {
+    let parts: Vec<&str> = query.box_name.split('.').collect();
+    if parts.len() < 2 {
+        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Box not found"
+        })));
+    }
 
+    let box_type = parts[0];
+    let team_name = parts[1];
+    let command = carve::redis_manager::QemuCommands::Snapshot;
+
+    // Verification of admin status is with a guard, so we can skip team checks
+
+    // Send command to Redis
+    match redis.send_qemu_event(&competition.name, team_name, box_type, command) {
+        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "status": "Command sent successfully"
+        }))),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "Failed to send command"
+        }))),
+    }
+}

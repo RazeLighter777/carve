@@ -148,7 +148,13 @@ pub fn create_cloud_init_files(cloud_init: &CloudInit) -> Result<String> {
     fs::write(vendor_data_file, &cloud_init.vendor_data)?;
     fs::write(network_config_file, &cloud_init.network_config)?;
     let status = Command::new("cloud-localds")
-        .args([cloud_init_iso, user_data_file, meta_data_file, "--network-config", network_config_file])
+        .args([
+            cloud_init_iso,
+            user_data_file,
+            meta_data_file,
+            "--network-config",
+            network_config_file,
+        ])
         .status()?;
     if !status.success() {
         return Err(anyhow!("Failed to create cloud-init ISO"));

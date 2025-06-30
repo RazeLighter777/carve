@@ -32,9 +32,9 @@ pub enum CompetitionStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// Commands for managing QEMU instances
 pub enum QemuCommands {
-    Start,
+    Restore,
     Stop,
-    Restart,
+    Snapshot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

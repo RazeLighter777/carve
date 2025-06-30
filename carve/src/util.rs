@@ -8,7 +8,11 @@ pub fn validate_user_fields(user: &User) -> Result<(), String> {
     if user.username.len() < 3 || user.username.len() > 32 {
         return Err("Username must be between 3 and 32 characters long".to_string());
     }
-    if !user.username.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+    if !user
+        .username
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
         return Err("Username may only contain _, -, and alphanumeric characters".to_string());
     }
     if user.username.chars().next().unwrap().is_numeric() {
@@ -24,7 +28,7 @@ pub fn validate_user_fields(user: &User) -> Result<(), String> {
 }
 
 pub fn validate_password(password: &str) -> Result<(), String> {
-    // Password must be at least 8 characters long. that's it 
+    // Password must be at least 8 characters long. that's it
     if password.len() < 8 {
         return Err("Password must be at least 8 characters long".to_string());
     }

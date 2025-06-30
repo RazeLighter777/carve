@@ -3,8 +3,8 @@ use carve::{config::AppConfig, redis_manager};
 fn main() {
     let config = AppConfig::new().expect("Failed to load configuration");
     let competition = &config.competitions[0];
-    let redis_manager = redis_manager::RedisManager::new(&competition.redis)
-        .expect("Failed to connect to Redis");
+    let redis_manager =
+        redis_manager::RedisManager::new(&competition.redis).expect("Failed to connect to Redis");
     let mut nginx_config = "# Nginx configuration for Carve competition\n\
     map $http_upgrade $connection_upgrade { \
         default upgrade; \
@@ -13,17 +13,18 @@ fn main() {
  \
 server { \
         listen  80 default_server; \
-        keepalive_timeout       70;".to_string();
+        keepalive_timeout       70;"
+        .to_string();
 
     //loop through each team and box
-   for team in &competition.teams {
-       // get the teams console password from redis
-         let console_password = redis_manager
-              .get_box_console_code(&competition.name, &team.name)
-              .expect("Failed to get team console password");
-       for b in &competition.boxes {
-           nginx_config += &format!(
-               "location /novnc/{}/{}-{} {{ \
+    for team in &competition.teams {
+        // get the teams console password from redis
+        let console_password = redis_manager
+            .get_box_console_code(&competition.name, &team.name)
+            .expect("Failed to get team console password");
+        for b in &competition.boxes {
+            nginx_config += &format!(
+                "location /novnc/{}/{}-{} {{ \
                    resolver 127.0.0.11; \
                    set $upstream vxlan-sidecar-{}-{}; \
                    error_log /var/log/nginx/novnc.log notice; \
@@ -37,10 +38,17 @@ server { \
                    proxy_set_header X-Real-IP $remote_addr; \
                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
                }}\n",
-               console_password, team.name, b.name, team.name, b.name, console_password, team.name, b.name
-           );
-       }
-   }
+                console_password,
+                team.name,
+                b.name,
+                team.name,
+                b.name,
+                console_password,
+                team.name,
+                b.name
+            );
+        }
+    }
     nginx_config += "}\n";
 
     // Write the configuration to a file

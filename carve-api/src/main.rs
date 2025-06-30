@@ -5,7 +5,7 @@ use actix_web::middleware::{self};
 use actix_web::{
     get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result as ActixResult,
 };
-use carve::config::{Check, FlagCheck, CheckSpec, HttpCheckSpec};
+use carve::config::{Check, CheckSpec, FlagCheck, HttpCheckSpec};
 use carve::{
     config::{AppConfig, Competition},
     redis_manager::RedisManager,
@@ -13,35 +13,31 @@ use carve::{
 use chrono::Utc;
 use env_logger::Env;
 use oauth2::basic::*;
-use oauth2::{
-    AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl,
-};
-mod auth;
-mod types;
-mod teams;
-mod users;
-mod boxes;
+use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 mod admin;
+mod auth;
+mod boxes;
 mod flag;
+mod teams;
+mod types;
+mod users;
 
-pub use boxes::get_boxes;
 pub use boxes::get_box;
 pub use boxes::get_box_default_creds;
+pub use boxes::get_boxes;
 use rand::distr::SampleString;
-
 
 // API Handlers
 #[get("/competition")]
-async fn get_competition(competition: web::Data<Competition>, redis: web::Data<RedisManager>) -> ActixResult<impl Responder> {
+async fn get_competition(
+    competition: web::Data<Competition>,
+    redis: web::Data<RedisManager>,
+) -> ActixResult<impl Responder> {
     match redis.get_competition_state(&competition.name) {
-        Ok(state) => {
-           Ok(HttpResponse::Ok().json(state))
-        }
-        Err(_) => {
-            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": "Failed to retrieve competition state"
-            })))
-        }
+        Ok(state) => Ok(HttpResponse::Ok().json(state)),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "Failed to retrieve competition state"
+        }))),
     }
 }
 
@@ -53,30 +49,22 @@ async fn get_score(
 ) -> ActixResult<impl Responder> {
     let end_time = query
         .end_date
-        .unwrap_or_else(|| {
-            match redis.get_competition_state(&competition.name) {
-                Ok(state) => {
-                    match state.end_time {
-                        Some(end) => end,
-                        None => Utc::now(),
-                    }
-                }
-                Err(_) => Utc::now(),
-            }
+        .unwrap_or_else(|| match redis.get_competition_state(&competition.name) {
+            Ok(state) => match state.end_time {
+                Some(end) => end,
+                None => Utc::now(),
+            },
+            Err(_) => Utc::now(),
         })
         .timestamp();
     let start_time = query
         .start_date
-        .unwrap_or_else(|| {
-            match redis.get_competition_state(&competition.name) {
-                Ok(state) => {
-                    match state.start_time {
-                        Some(start) => start,
-                        None => Utc::now() - chrono::Duration::days(1),
-                    }
-                }
-                Err(_) => Utc::now() - chrono::Duration::days(1),
-            }
+        .unwrap_or_else(|| match redis.get_competition_state(&competition.name) {
+            Ok(state) => match state.start_time {
+                Some(start) => start,
+                None => Utc::now() - chrono::Duration::days(1),
+            },
+            Err(_) => Utc::now() - chrono::Duration::days(1),
         })
         .timestamp();
     let mut scores = Vec::new();
@@ -103,11 +91,7 @@ async fn get_score(
 
     // If scoring_check is specified, filter by check or flag check
     let checks_to_check: Vec<_> = if let Some(ref check_name) = query.scoring_check {
-        if let Some(check) = competition
-            .checks
-            .iter()
-            .find(|c| c.name == *check_name)
-        {
+        if let Some(check) = competition.checks.iter().find(|c| c.name == *check_name) {
             vec![check.clone()]
         } else if let Some(flag_check) = competition
             .flag_checks
@@ -134,27 +118,27 @@ async fn get_score(
         }
     } else {
         let mut all = competition.checks.clone();
-        all.extend(
-            competition.flag_checks.iter().map(|flag| Check {
-                name: flag.name.clone(),
-                description: flag.description.clone(),
-                interval: 0, // or a sensible default
-                points: flag.points as u32,
-                label_selector: None,
-                label_selector_alt: None,
-                spec: CheckSpec::Http(HttpCheckSpec {
-                    url: String::new(),
-                    code: 200,
-                    regex: String::new(),
-                }), // Placeholder
-            })
-        );
+        all.extend(competition.flag_checks.iter().map(|flag| Check {
+            name: flag.name.clone(),
+            description: flag.description.clone(),
+            interval: 0, // or a sensible default
+            points: flag.points as u32,
+            label_selector: None,
+            label_selector_alt: None,
+            spec: CheckSpec::Http(HttpCheckSpec {
+                url: String::new(),
+                code: 200,
+                regex: String::new(),
+            }), // Placeholder
+        }));
         all
     };
 
     // Get score events from Redis
-    println!("Fetching score events for teams: {:?} and checks: {:?} at time range: {} to {}", 
-        teams_to_check, checks_to_check, start_time, end_time);
+    println!(
+        "Fetching score events for teams: {:?} and checks: {:?} at time range: {} to {}",
+        teams_to_check, checks_to_check, start_time, end_time
+    );
     for (team_id, team_name) in teams_to_check {
         for check in &checks_to_check {
             match redis.get_team_score_check_events(
@@ -168,7 +152,7 @@ async fn get_score(
                     for (event, timestamp) in events {
                         scores.push(carve::redis_manager::ScoreEvent {
                             team_id,
-                            score_event_type : check.name.clone(),
+                            score_event_type: check.name.clone(),
                             box_name: event.box_name.clone(),
                             timestamp,
                             message: event.message,
@@ -247,12 +231,8 @@ async fn get_leaderboard(
 
 #[get("/checks")]
 async fn get_checks(competition: web::Data<Competition>) -> ActixResult<impl Responder> {
-    let checks: Vec<Check> = competition
-        .checks
-        .clone();
-    let flag_checks: Vec<FlagCheck> = competition
-        .flag_checks
-        .clone();
+    let checks: Vec<Check> = competition.checks.clone();
+    let flag_checks: Vec<FlagCheck> = competition.flag_checks.clone();
     // Combine checks and flags into a single response
     let checks = types::CheckResponse {
         checks,
@@ -296,7 +276,11 @@ async fn submit_flag(
         }
     };
     // Find the flag check
-    let flag_check = match competition.flag_checks.iter().find(|fc| fc.name == query.flag_check_name) {
+    let flag_check = match competition
+        .flag_checks
+        .iter()
+        .find(|fc| fc.name == query.flag_check_name)
+    {
         Some(fc) => fc,
         None => {
             return Ok(HttpResponse::NotFound().json(serde_json::json!({
@@ -336,7 +320,7 @@ async fn submit_flag(
         })),
         Err(e) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
             "error": format!("Failed to redeem flag: {}", e)
-        })))
+        }))),
     }
 }
 
@@ -357,7 +341,9 @@ pub fn generate_admin_user_if_not_exists(
         is_admin: true,
         identity_sources: vec![carve::redis_manager::IdentitySources::LocalUserPassword],
     };
-    redis.register_user(&competition.name, &admin_user, None).expect("Failed to create admin user");
+    redis
+        .register_user(&competition.name, &admin_user, None)
+        .expect("Failed to create admin user");
     println!("Admin user created: {}", admin_user.username);
     // generate a password for the admin user
     let mut rng = rand::rng();
@@ -366,7 +352,8 @@ pub fn generate_admin_user_if_not_exists(
         .to_string();
     println!("Generated password for admin user: {}", password);
     // Store the password in Redis
-    redis.set_user_local_password(&competition.name, &admin_user.username, &password)
+    redis
+        .set_user_local_password(&competition.name, &admin_user.username, &password)
         .expect("Failed to set admin user password");
 
     Ok(())
@@ -443,13 +430,14 @@ async fn main() -> std::io::Result<()> {
                             .service(users::generate_join_code)
                             .service(teams::get_team_check_status)
                             .service(submit_flag)
+                            .service(boxes::send_box_restore),
                     )
                     .service(
                         web::scope("/oauth2")
                             .wrap(Cors::permissive())
                             .service(auth::get_oauth2_redirect_url)
                             .service(auth::oauth2_callback)
-                            .service(auth::logout)
+                            .service(auth::logout),
                     )
                     .service(
                         web::scope("/auth")
@@ -457,7 +445,7 @@ async fn main() -> std::io::Result<()> {
                             .service(auth::login)
                             .service(auth::register)
                             .service(auth::logout)
-                            .service(auth::identity_sources)
+                            .service(auth::identity_sources),
                     )
                     .service(
                         web::scope("/admin")
@@ -465,12 +453,13 @@ async fn main() -> std::io::Result<()> {
                             .service(admin::start_competition)
                             .service(admin::end_competition)
                             .service(admin::generate_join_code)
+                            .service(boxes::send_box_snapshot),
                     )
                     .service(
                         web::scope("/internal")
                             .guard(flag::validate_bearer_token_is_secret_key_env_var)
-                            .service(flag::generate_flag)
-                    )
+                            .service(flag::generate_flag),
+                    ),
             )
     })
     .bind(("0.0.0.0", 8080))?

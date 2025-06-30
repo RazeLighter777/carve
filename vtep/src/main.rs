@@ -193,8 +193,8 @@ fn main() {
     });
     // subscribe to <competition_name>:events
     // NAT outgoing traffic to the internet ONLY if the competition is NOT running
-    let redis_manager =
-        redis_manager::RedisManager::new(&config.competitions[0].redis).expect("Failed to create Redis manager");
+    let redis_manager = redis_manager::RedisManager::new(&config.competitions[0].redis)
+        .expect("Failed to create Redis manager");
     let ipt = iptables::new(false).expect("Failed to create iptables instance");
     let mut rule_added = false;
     let current_competition_state = redis_manager
@@ -232,7 +232,6 @@ fn main() {
                             ipt.append("nat", "POSTROUTING", nat_rule)
                                 .expect("Failed to add NAT rule for outgoing traffic");
                             rule_added = true;
-                            
                         }
                     }
                     redis_manager::CompetitionStatus::Active => {

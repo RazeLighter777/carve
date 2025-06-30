@@ -5,12 +5,12 @@ use carve::config::AppConfig;
 use carve::redis_manager::RedisManager;
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::path::Path;
 use std::process::Command;
 
 mod cloud_init;
-use cloud_init::{CloudInit, create_cloud_init_files};
-
+use cloud_init::{create_cloud_init_files, CloudInit};
 
 #[get("/api/health")]
 async fn health_check() -> impl Responder {
@@ -23,6 +23,27 @@ async fn health_check() -> impl Responder {
         }
     }
     HttpResponse::InternalServerError().body("QEMU is not running")
+}
+
+fn qemu_read(reader: &mut std::os::unix::net::UnixStream) -> Result<String> {
+    // @TODO add timeout
+    let mut buffer = [0; 512];
+    let mut response = Vec::new();
+    loop {
+        let bytes_read = reader.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break; // End of stream
+        }
+        response.extend_from_slice(&buffer[..bytes_read]);
+
+        // Check if we have received the QEMU prompt indicating the end of the response
+        if response.ends_with(b"(qemu) ") {
+            break;
+        }
+    }
+
+    // Convert the response to a string
+    Ok(std::str::from_utf8(&response)?.to_owned())
 }
 
 #[actix_web::main]
@@ -61,7 +82,16 @@ async fn main() -> Result<()> {
     let tmp_disk = "/tmp/disk.qcow2";
     // Create a new qcow2 image in /tmp with the original as a backing file
     let status = Command::new("qemu-img")
-        .args(["create", "-f", "qcow2", "-F", "qcow2", "-b", disk_image.to_str().unwrap(), tmp_disk])
+        .args([
+            "create",
+            "-f",
+            "qcow2",
+            "-F",
+            "qcow2",
+            "-b",
+            disk_image.to_str().unwrap(),
+            tmp_disk,
+        ])
         .status()?;
     if !status.success() {
         return Err(anyhow!("Failed to create qcow2 image with backing file"));
@@ -196,11 +226,15 @@ async fn main() -> Result<()> {
                     &competition,
                     &team_name,
                     &box_name,
-                    vec![carve::redis_manager::QemuCommands::Restart].into_iter(),
+                    vec![
+                        carve::redis_manager::QemuCommands::Snapshot,
+                        carve::redis_manager::QemuCommands::Restore,
+                    ]
+                    .into_iter(),
                 ) {
                     Ok(event) => {
-                        if event == carve::redis_manager::QemuCommands::Restart {
-                            println!("Received QEMU restart command");
+                        if event == carve::redis_manager::QemuCommands::Snapshot {
+                            println!("Received QEMU snapshot command");
                             // Handle restart logic here
                             #[cfg(unix)]
                             {
@@ -208,15 +242,49 @@ async fn main() -> Result<()> {
                                 // Connect to the QEMU monitor socket
                                 let monitor_socket = "/run/qemu-monitor.sock";
                                 if let Ok(mut stream) = UnixStream::connect(monitor_socket) {
-                                    // Send the 'system_reset' command to QEMU
-                                    let command = "system_reset\n";
+                                    qemu_read(&mut stream).unwrap();
+                                    // Send the 'savevm' command to QEMU
+                                    let command = format!("savevm {}_{} \n", team_name, box_name);
                                     if let Err(e) = stream.write_all(command.as_bytes()) {
-                                        eprintln!(
-                                            "Failed to send command to QEMU monitor: {}",
-                                            e
-                                        );
+                                        eprintln!("Failed to send command to QEMU monitor: {}", e);
                                     } else {
-                                        println!("Sent 'system_reset' command to QEMU monitor");
+                                        stream.flush().unwrap();
+                                        println!("Sent 'Snapshot' command to QEMU monitor");
+                                        //print output
+                                        if let Ok(response) = qemu_read(&mut stream) {
+                                            println!("QEMU response: {}", response);
+                                        } else {
+                                            eprintln!("Failed to read response from QEMU monitor");
+                                        }
+                                    }
+                                } else {
+                                    eprintln!(
+                                        "Failed to connect to QEMU monitor socket at {}",
+                                        monitor_socket
+                                    );
+                                }
+                            }
+                        } else if event == carve::redis_manager::QemuCommands::Restore {
+                            println!("Received QEMU restore command");
+                            // Handle restore logic here
+                            #[cfg(unix)]
+                            {
+                                use std::os::unix::net::UnixStream;
+                                // Connect to the QEMU monitor socket
+                                let monitor_socket = "/run/qemu-monitor.sock";
+                                if let Ok(mut stream) = UnixStream::connect(monitor_socket) {
+                                    qemu_read(&mut stream).unwrap();
+                                    let command = format!("loadvm {}_{} \n", team_name, box_name);
+                                    if let Err(e) = stream.write_all(command.as_bytes()) {
+                                        eprintln!("Failed to send command to QEMU monitor: {}", e);
+                                    } else {
+                                        println!("Sent 'Restore' command to QEMU monitor");
+                                        // print output
+                                        if let Ok(response) = qemu_read(&mut stream) {
+                                            println!("QEMU response: {}", response);
+                                        } else {
+                                            eprintln!("Failed to read response from QEMU monitor");
+                                        }
                                     }
                                 } else {
                                     eprintln!(

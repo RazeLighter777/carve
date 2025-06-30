@@ -1,7 +1,10 @@
-use carve::{config::{Check, FlagCheck}, redis_manager::IdentitySources};
+use carve::{
+    config::{Check, FlagCheck},
+    redis_manager::IdentitySources,
+};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use oauth2::basic::{BasicErrorResponseType, BasicTokenType};
+use serde::{Deserialize, Serialize};
 
 // API Response structures
 #[derive(Serialize)]
@@ -20,7 +23,6 @@ pub(crate) struct TeamMember {
 #[derive(Serialize)]
 pub struct CompetitionResponse {
     pub status: String,
-
 }
 
 #[derive(Serialize, Deserialize)]
@@ -47,7 +49,6 @@ pub(crate) type OauthClient = oauth2::Client<
     oauth2::EndpointNotSet,
     oauth2::EndpointSet,
 >;
-
 
 #[derive(Serialize)]
 pub(crate) struct LeaderboardEntry {
@@ -86,7 +87,7 @@ pub(crate) struct BoxCredentialsResponse {
 
 #[derive(Serialize)]
 pub(crate) struct TeamCheckStatusResponse {
-    pub checks : Vec<CheckStatusResponse>,
+    pub checks: Vec<CheckStatusResponse>,
     pub flag_checks: Vec<FlagCheckStatusResponse>,
 }
 
@@ -95,7 +96,6 @@ pub(crate) struct TeamCheckStatusQuery {
     #[serde(rename = "teamId")]
     pub(crate) team_id: u64,
 }
-
 
 #[derive(Serialize)]
 pub(crate) struct CheckResponse {
@@ -176,10 +176,15 @@ pub(crate) struct SwitchTeamQuery {
 }
 
 #[derive(Deserialize)]
-pub(crate) struct BoxCommandQuery {
+pub(crate) struct BoxRestoreQuery {
     #[serde(rename = "boxName")]
     pub(crate) box_name: String,
-    pub(crate) command: carve::redis_manager::QemuCommands,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct BoxSnapshotQuery {
+    #[serde(rename = "boxName")]
+    pub(crate) box_name: String,
 }
 
 #[derive(Deserialize)]
@@ -221,7 +226,6 @@ pub(crate) struct RegistrationQuery {
     pub(crate) email: String,
     pub(crate) team_join_code: Option<u64>,
 }
-
 
 #[derive(Serialize)]
 pub(crate) struct IdentitySourcesResponse {

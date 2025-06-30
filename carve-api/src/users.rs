@@ -48,7 +48,7 @@ pub async fn switch_team(
     query: web::Query<types::SwitchTeamQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
-    session: Session
+    session: Session,
 ) -> ActixResult<impl Responder> {
     //get the user's name from the session, return an error if not found
     if let Some(username) = session.get::<String>("username").unwrap_or(None) {
@@ -86,7 +86,7 @@ pub async fn switch_team(
                     .get::<bool>("is_admin")
                     .unwrap_or(Some(false))
                     .unwrap_or(false),
-                identity_sources: vec![]
+                identity_sources: vec![],
             },
             Some(&team_name),
         ) {

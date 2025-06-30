@@ -1,8 +1,8 @@
 // Teams-related API handlers
 
+use crate::types;
 use actix_session::Session;
 use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
-use crate::types;
 use carve::config::Competition;
 use carve::redis_manager::RedisManager;
 
@@ -46,17 +46,23 @@ pub async fn get_team(
 }
 
 #[get("/teams")]
-pub async fn get_teams(competition: web::Data<Competition>, redis: web::Data<RedisManager>) -> ActixResult<impl Responder> {
+pub async fn get_teams(
+    competition: web::Data<Competition>,
+    redis: web::Data<RedisManager>,
+) -> ActixResult<impl Responder> {
     // ...existing code from main.rs...
     let teams: Vec<types::TeamListEntry> = competition
         .teams
         .iter()
         .enumerate()
         .map(|(idx, team)| types::TeamListEntry {
-            members : redis.get_team_users(&competition.name, &team.name)
+            members: redis
+                .get_team_users(&competition.name, &team.name)
                 .unwrap_or_default()
                 .into_iter()
-                .map(|user| types::TeamMember { name: user.username })
+                .map(|user| types::TeamMember {
+                    name: user.username,
+                })
                 .collect(),
             id: idx as u64 + 1,
             name: team.name.clone(),
@@ -89,7 +95,6 @@ pub async fn get_team_console_code(
                     Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
                         "error": "Failed to retrieve console code"
                     }))),
-
                 }
             }
             Ok(_) => Ok(HttpResponse::BadRequest().json(serde_json::json!({
@@ -99,7 +104,6 @@ pub async fn get_team_console_code(
             Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": "Failed to retrieve competition state"
             }))),
-
         }
     } else {
         Ok(HttpResponse::BadRequest().json(serde_json::json!({
@@ -108,10 +112,9 @@ pub async fn get_team_console_code(
     }
 }
 
-
 #[get("/team/check_status")]
 pub async fn get_team_check_status(
-    query : web::Query<types::TeamCheckStatusQuery>,
+    query: web::Query<types::TeamCheckStatusQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
@@ -122,7 +125,9 @@ pub async fn get_team_check_status(
             checks: Vec::new(),
         };
         for check in competition.checks.iter() {
-            if let Ok(Some((passing, failed_for, message))) = redis.get_check_current_state(&competition.name, &team_name, &check.name) {
+            if let Ok(Some((passing, failed_for, message))) =
+                redis.get_check_current_state(&competition.name, &team_name, &check.name)
+            {
                 response.checks.push(types::CheckStatusResponse {
                     name: check.name.clone(),
                     passing,
@@ -132,7 +137,9 @@ pub async fn get_team_check_status(
             }
         }
         for flag_check in competition.flag_checks.iter() {
-            if let Ok(Some((passing, _, _))) = redis.get_check_current_state(&competition.name, &team_name, &flag_check.name) {
+            if let Ok(Some((passing, _, _))) =
+                redis.get_check_current_state(&competition.name, &team_name, &flag_check.name)
+            {
                 response.flag_checks.push(types::FlagCheckStatusResponse {
                     name: flag_check.name.clone(),
                     passing,

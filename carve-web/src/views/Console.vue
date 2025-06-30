@@ -97,6 +97,17 @@ async function fetchBoxCreds() {
   }
 }
 
+function restoreBox() {
+  openDialog('Restore Box', 'Are you sure you want to restore this box to its previous state? This action cannot be undone.', async () => {
+    try {
+      await apiService.sendBoxRestore({ boxName: `${boxName.value}.${teamName.value}.${competitionName.value}.hack` })
+      status('Box restore requested')
+    } catch (e) {
+      status('Failed to request box restore')
+    }
+  })
+}
+
 onMounted(async () => {
   if (!screenEl.value || !boxName.value || !teamName.value) return
   status('Getting console code...')
@@ -195,6 +206,7 @@ onMounted(async () => {
           <button @click="machineReset" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Reset</button>
           <button @click="machineShutdown" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Shutdown</button>
           <button @click="fullscreen" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Fullscreen</button>
+          <button @click="restoreBox" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Restore Box</button>
         </div>
       </div>
       <div id="screen" ref="screenEl" style="width: 100%; height: 600px; background: #222; border-radius: 0 0 8px 8px; overflow: hidden; display: block;"></div>
