@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carve-network
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carve-network
+  template:
+    metadata:
+      labels:
+        app: carve-network
+    spec:
+      securityContext:
+        runAsUser: 0
+      containers:
+        - name: vtep
+          image: "{{ .Values.images.vtep.repository }}:{{ .Values.images.vtep.tag }}"
+          imagePullPolicy: {{ .Values.images.vtep.pullPolicy }}
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          volumeMounts:
+            - name: competition-config
+              mountPath: /app/competition.yaml
+              subPath: competition.yaml
+              readOnly: true
+        - name: canary
+          image: "{{ .Values.images.canary.repository }}:{{ .Values.images.canary.tag }}"
+          imagePullPolicy: {{ .Values.images.canary.pullPolicy }}
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          volumeMounts:
+            - name: competition-config
+              mountPath: /app/competition.yaml
+              subPath: competition.yaml
+              readOnly: true
+        - name: carve-dnsmasq
+          image: "{{ .Values.images.carveDnsmasq.repository }}:{{ .Values.images.carveDnsmasq.tag }}"
+          imagePullPolicy: {{ .Values.images.carveDnsmasq.pullPolicy }}
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          env:
+            - name: COMPETITION_NAME
+              value: {{ .Values.competition.name | quote }}
+          volumeMounts:
+            - name: competition-config
+              mountPath: /config/competition.yaml
+              subPath: competition.yaml
+              readOnly: true
+            - name: dnsmasq-leases
+              mountPath: /var/lib/misc
+        - name: openssh-server
+          image: "{{ .Values.images.opensshServer.repository }}:{{ .Values.images.opensshServer.tag }}"
+          imagePullPolicy: {{ .Values.images.opensshServer.pullPolicy }}
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: SSH_PORT
+              value: "2222"
+            - name: PASSWORD_ACCESS
+              value: "1"
+            - name: USER_NAME
+              value: "carve"
+            - name: USER_PASSWORD
+              value: "carve1234"
+      volumes:
+        - name: competition-config
+          configMap:
+            name: competition-config
+        - name: dnsmasq-leases
+          persistentVolumeClaim:
+            claimName: dnsmasq-leases-pvc

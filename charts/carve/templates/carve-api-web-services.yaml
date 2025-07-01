@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: carve-api
+  labels:
+    app: carve-api
+spec:
+  type: ClusterIP
+  selector:
+    app: carve-api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carve-web
+  labels:
+    app: carve-web
+spec:
+  type: ClusterIP
+  selector:
+    app: carve-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80

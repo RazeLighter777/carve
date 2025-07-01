@@ -1,0 +1,54 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: carve-web
+  annotations:
+    nginx.ingress.kubernetes.io/default-backend: carve-web
+spec:
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: carve-web
+                port:
+                  number: 80
+---
+# carve-api ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: carve-api
+spec:
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /api/v1
+            backend:
+              service:
+                name: carve-api
+                port:
+                  number: 8080
+---
+# carve-novnc-nginx ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: carve-novnc-nginx
+spec:
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /novnc
+            backend:
+              service:
+                name: carve-novnc-nginx
+                port:
+                  number: 80

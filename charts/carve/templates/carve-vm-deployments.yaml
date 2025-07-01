@@ -1,0 +1,73 @@
+{{- range $team := .Values.competition.teams }}
+  {{- range $box := $.Values.competition.boxes }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carve-{{ $team.name }}-{{ $box.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carve-{{ $team.name }}-{{ $box.name }}
+  template:
+    metadata:
+      labels:
+        app: carve-{{ $team.name }}-{{ $box.name }}
+    spec:
+      securityContext:
+        runAsUser: 0
+      containers:
+        - name: qemu-box
+          image: "{{ $.Values.images.qemuBox.repository }}:{{ $.Values.images.qemuBox.tag }}"
+          imagePullPolicy: {{ $.Values.images.qemuBox.pullPolicy }}
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          env:
+            - name: TEAM_NAME
+              value: {{ $team.name | quote }}
+            - name: BOX_NAME
+              value: {{ $box.name | quote }}
+            - name: COMPETITION_NAME
+              value: {{ $.Values.competition.name | quote }}
+            - name: RUST_LOG
+              value: debug
+          volumeMounts:
+            - name: disks
+              mountPath: /disks
+              readOnly: true
+            - name: state
+              mountPath: /state
+            - name: competition-config
+              mountPath: /config/competition.yaml
+              subPath: competition.yaml
+              readOnly: true
+        - name: vxlan-sidecar
+          image: "{{ $.Values.images.vxlanSidecar.repository }}:{{ $.Values.images.vxlanSidecar.tag }}"
+          imagePullPolicy: {{ $.Values.images.vxlanSidecar.pullPolicy }}
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          env:
+            - name: TEAM_NAME
+              value: {{ $team.name | quote }}
+            - name: COMPETITION_NAME
+              value: {{ $.Values.competition.name | quote }}
+          volumeMounts:
+            - name: competition-config
+              mountPath: /app/competition.yaml
+              subPath: competition.yaml
+              readOnly: true
+      volumes:
+        - name: disks
+          persistentVolumeClaim:
+            claimName: disks-shared
+        - name: state
+          persistentVolumeClaim:
+            claimName: state-{{ $team.name }}-{{ $box.name }}
+        - name: competition-config
+          configMap:
+            name: competition-config
+{{- end }}
+{{- end }}

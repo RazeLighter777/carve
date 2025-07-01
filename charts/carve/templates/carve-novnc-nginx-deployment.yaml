@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carve-novnc-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carve-novnc-nginx
+  template:
+    metadata:
+      labels:
+        app: carve-novnc-nginx
+    spec:
+      containers:
+        - name: carve-novnc-nginx
+          image: "{{ .Values.images.carveNovncNginx.repository }}:{{ .Values.images.carveNovncNginx.tag }}"
+          imagePullPolicy: {{ .Values.images.carveNovncNginx.pullPolicy }}
+          volumeMounts:
+            - name: competition-config
+              mountPath: /config/competition.yaml
+              subPath: competition.yaml
+              readOnly: true
+      volumes:
+        - name: competition-config
+          configMap:
+            name: competition-config

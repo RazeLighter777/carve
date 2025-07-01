@@ -1,0 +1,283 @@
+# Default values for carve.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+replicaCount: 1
+
+# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+image:
+  repository: nginx
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+imagePullSecrets: []
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# This is for setting Kubernetes Annotations to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+# This is for setting Kubernetes Labels to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
+service:
+  # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
+  type: ClusterIP
+  # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
+  port: 80
+
+# This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  host: carve.prizrak.me
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+
+# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# CARVE Helm values file
+# Only relevant values for the CARVE CTF engine are included.
+
+images:
+  vtep:
+    repository: ghcr.io/razelighter777/vtep
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  vxlanSidecar:
+    repository: ghcr.io/razelighter777/vxlan-sidecar
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  qemuBox:
+    repository: ghcr.io/razelighter777/qemu-box
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  canary:
+    repository: ghcr.io/razelighter777/canary
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  carveWeb:
+    repository: ghcr.io/razelighter777/web
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  redis:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  carveDnsmasq:
+    repository: ghcr.io/razelighter777/carve-dnsmasq
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  carveApi:
+    repository: ghcr.io/razelighter777/carve-api
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  carveNovncNginx:
+    repository: ghcr.io/razelighter777/carve-novnc-nginx
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  opensshServer:
+    repository: lscr.io/linuxserver/openssh-server
+    tag: "latest"
+    pullPolicy: IfNotPresent
+competition:
+  secret_key: 82eb0275e23e5f043e85762e798fd9d61b1040ecdba15d001eb52f416e08ef3e
+  name: "CarveCTF"
+  cidr: "10.13.0.0/16"
+  redis:
+    host: "carve-redis"
+    port: 6379
+    db: 0
+  vtep_host: "vtep"
+  admin_group: "booktok-users"
+  duration: 3600
+  oidc_provider_name: "Authentik"
+  registration_type: "Join"
+  identity_sources:
+    - "OIDC"
+    - "LocalUserPassword"
+  create_default_admin: true
+  oauth2_client_id: MerToF4xtp7PwRrumFd4kdOf5ldu1OcmNFaqyZ9p
+  oauth2_client_secret: CBIqtzJu4jLelR92PU1W7eao0i83Wldaz5BDfWVJljcesUHaThp5MM1xzVQKUFizTxgjmxuc81YkXZawKsb2tCLltlUuRzaGUkhtdaeIbp5eT7ct5M53Abix7paxQJtK
+  oauth2_redirect_url: https://carve.prizrak.me/api/v1/oauth2/callback
+  oauth2_token_url: https://authentik.prizrak.me/application/o/token/
+  oauth2_auth_url: https://authentik.prizrak.me/application/o/authorize/
+  oauth2_userinfo_url: https://authentik.prizrak.me/application/o/userinfo/
+  boxes:
+    - name: web
+      labels: http
+      hostname: "web-server"
+      cores: 2
+      ram_mb: 2048
+    - name: db
+      labels: db
+      hostname: "db"
+      cores: 4
+      ram_mb: 4096
+    - name: auth
+      labels: auth
+      hostname: "auth"
+      cores: 1
+      ram_mb: 1024
+  teams:
+    - name: team1
+    - name: team2
+    - name: team3
+  checks:
+    - name: http-example
+      description: "Checks that all boxes with the 'http' label are running a web server."
+      interval: 15
+      points: 5
+      labelSelector:
+        "": http
+      spec:
+        type: http
+        url: /index.html
+        code: 200
+        regex: "{{ team_name }}"
+    - name: icmp-example
+      description: "Checks that all boxes are reachable via ICMP (ping)."
+      labelSelector: {}
+      interval: 30
+      points: 1
+      spec:
+        type: icmp
+        code: 0
+    - name: ssh-example
+      description: "Checks that box named 'web' is reachable via SSH on port 22."
+      interval: 60
+      points: 10
+      labelSelector:
+        "": http
+      spec:
+        type: ssh
+        port: 22
+        username: "{{ username }}"
+        password: "{{ password }}"
+  flag_checks:
+    - name: test-flag-check
+      description: "Checks for a specific flag in the /tmp directory of the 'web' box."
+      points: 25
+      attempts: 3
+      box_name: web
+
+# Persistent Volume and Claim templates for VM disks and state
+persistence:
+  disks:
+    enabled: true
+    accessModes:
+      - ReadOnlyMany
+    storageClassName: ""
+    size: 10Gi
+    # Path to the shared disks volume (should be mounted read-only)
+    # For NFS or hostPath, set here if needed
+    # nfs:
+    #   server: 10.0.0.1
+    #   path: /path/to/disks
+  state:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    storageClassName: ""
+    size: 5Gi
+  dnsmasqLeases:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    storageClassName: ""
+    size: 1Gi
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 6379
+  persistence:
+    enabled: false
+    size: 1Gi
+    storageClassName: ""

@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carve-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carve-web
+  template:
+    metadata:
+      labels:
+        app: carve-web
+    spec:
+      containers:
+        - name: carve-web
+          image: "{{ .Values.images.carveWeb.repository }}:{{ .Values.images.carveWeb.tag }}"
+          imagePullPolicy: {{ .Values.images.carveWeb.pullPolicy }}
+          volumeMounts:
+            - name: competition-config
+              mountPath: /config/competition.yaml
+              subPath: competition.yaml
+              readOnly: true
+      volumes:
+        - name: competition-config
+          configMap:
+            name: competition-config

@@ -1,0 +1,46 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carve-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carve-redis
+  template:
+    metadata:
+      labels:
+        app: carve-redis
+    spec:
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            {{- if .Values.redis.persistence.enabled }}
+            - name: redis-data
+              mountPath: /data
+            {{- end }}
+      volumes:
+        {{- if .Values.redis.persistence.enabled }}
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: carve-redis-data
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carve-redis
+spec:
+  type: ClusterIP
+  selector:
+    app: carve-redis
+  ports:
+    - name: redis
+      port: {{ .Values.redis.service.port }}
+      targetPort: 6379
+{{- end }}

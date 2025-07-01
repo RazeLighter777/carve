@@ -18,6 +18,7 @@ FROM nginx:alpine
 # Copy built assets from previous stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
+COPY ./carve-web/nginx.conf /etc/nginx/conf.d/default.conf
 # Copy custom nginx config (optional)
 # COPY nginx.conf /etc/nginx/nginx.conf
 

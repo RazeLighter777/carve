@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dnsmasq-leases-pvc
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.dnsmasqLeases.accessModes | nindent 2 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.dnsmasqLeases.size }}
+  {{- if .Values.persistence.dnsmasqLeases.storageClassName }}
+  storageClassName: {{ .Values.persistence.dnsmasqLeases.storageClassName }}
+  {{- end }}

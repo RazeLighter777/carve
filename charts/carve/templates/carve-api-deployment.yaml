@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carve-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carve-api
+  template:
+    metadata:
+      labels:
+        app: carve-api
+    spec:
+      containers:
+        - name: carve-api
+          image: "{{ .Values.images.carveApi.repository }}:{{ .Values.images.carveApi.tag }}"
+          imagePullPolicy: {{ .Values.images.carveApi.pullPolicy }}
+          env:
+            - name: COMPETITION_NAME
+              value: {{ .Values.competition.name | quote }}
+            - name: SECRET_KEY
+              value: "{{ .Values.competition.secret_key | default "changeme" }}"
+            - name: OAUTH2_CLIENT_ID
+              value: "{{ .Values.competition.oauth2_client_id | default "" }}"
+            - name: OAUTH2_CLIENT_SECRET
+              value: "{{ .Values.competition.oauth2_client_secret | default "" }}"
+            - name: OAUTH2_REDIRECT_URL
+              value: "{{ .Values.competition.oauth2_redirect_url | default "" }}"
+            - name: OAUTH2_TOKEN_URL
+              value: "{{ .Values.competition.oauth2_token_url | default "" }}"
+            - name: OAUTH2_AUTH_URL
+              value: "{{ .Values.competition.oauth2_auth_url | default "" }}"
+            - name: OAUTH2_USERINFO_URL
+              value: "{{ .Values.competition.oauth2_userinfo_url | default "" }}"
+          volumeMounts:
+            - name: competition-config
+              mountPath: /config/competition.yaml
+              subPath: competition.yaml
+              readOnly: true
+      volumes:
+        - name: competition-config
+          configMap:
+            name: competition-config

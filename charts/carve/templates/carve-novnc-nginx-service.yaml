@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: carve-novnc-nginx
+  labels:
+    app: carve-novnc-nginx
+spec:
+  type: ClusterIP
+  selector:
+    app: carve-novnc-nginx
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80

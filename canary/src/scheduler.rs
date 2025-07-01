@@ -74,7 +74,7 @@ impl Scheduler {
                                 // launch dig with cmd to resolve the hostname to an IP address with the vtep's DNS server
                                 let ip = match std::process::Command::new("dig")
                                     .arg(&hostname)
-                                    .arg("@vtep")
+                                    .arg("@127.0.0.1")
                                     .arg("+short")
                                     .output()
                                 {
