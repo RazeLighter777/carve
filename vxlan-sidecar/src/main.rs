@@ -14,7 +14,7 @@ fn create_vxlan_interface(vxlan_id: &str) -> Result<(), String> {
     // Create vxlan0 with remote
     let status = Command::new("ip")
         .args([
-            "link", "add", "vxlan0", "type", "vxlan", "id", vxlan_id, "dev", "eth0", "learning",
+            "link", "add", "vxlan0", "type", "vxlan", "id", vxlan_id, "dev", "eth0", "nolearning",
             "dstport", "4789",
         ])
         .status()

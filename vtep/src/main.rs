@@ -92,7 +92,7 @@ fn main() {
                 &vxlan_mgmt_id.to_string(),
                 "dev",
                 "eth0",
-                "learning",
+                "nolearning",
                 "dstport",
                 "4789",
             ])
@@ -144,7 +144,7 @@ fn main() {
                     &vxlan_id.to_string(),
                     "dev",
                     "eth0",
-                    "learning",
+                    "nolearning",
                     "dstport",
                     "4789",
                 ])
