@@ -2,7 +2,7 @@ use actix_web::{App, HttpServer, Responder, get};
 use carve::{config::AppConfig, redis_manager};
 use redis::Commands;
 use std::collections::HashMap;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, ToSocketAddrs};
 
 #[get("/health")]
 async fn health() -> impl Responder {
@@ -30,7 +30,7 @@ fn allocate_subnets(base: Ipv4Addr, prefix: u8, num: usize) -> Vec<Ipv4Addr> {
 fn main() {
     // Load config
     let config = AppConfig::new().expect("Failed to load config");
-    for competition in &config.competitions {
+    for competition in &config.competitions.clone() {
         // Get CIDR from config (add to schema if missing)
         let cidr = competition.cidr.as_ref().expect("competition.cidr missing");
         let (base, prefix) = parse_cidr(cidr);
@@ -156,13 +156,7 @@ fn main() {
             // create a bridge for the VXLAN interface
             let bridge_name = format!("br_{}_{}", comp_idx, i);
             let status = std::process::Command::new("ip")
-                .args([
-                    "link",
-                    "add",
-                    &bridge_name,
-                    "type",
-                    "bridge",
-                ])
+                .args(["link", "add", &bridge_name, "type", "bridge"])
                 .status()
                 .expect("Failed to create bridge interface");
             if !status.success() {
@@ -199,7 +193,7 @@ fn main() {
             let team_snat_rule = format!("-o {} -j MASQUERADE", bridge_name);
             ipt.append("nat", "POSTROUTING", &team_snat_rule)
                 .expect("Failed to add SNAT rule for team");
-            // mangle TTL to 64 for the VXLAN interface to stop teams from 
+            // mangle TTL to 64 for the VXLAN interface to stop teams from
             // using it to block other teams and allow the scoring server to reach them
             let team_ttl_rule = format!("-i {} -j TTL --ttl-set 64", bridge_name);
             ipt.append("mangle", "PREROUTING", &team_ttl_rule)
@@ -221,6 +215,62 @@ fn main() {
                 .ok();
         });
     });
+    let config2 = config.clone();
+    //start fdb update thread
+    std::thread::spawn(move || {
+        // create static fdb entry for 00:00:00:00:00:00 for each of the vxlan-sidecar-<team_name>-<box_name> containers
+        loop {
+            for (i, config) in (&config2).clone().competitions.iter().enumerate() {
+                for (j, team) in config.teams.iter().enumerate() {
+                    for b in &config.boxes {
+                        let vxlan_sidecar_name = format!("vxlan-sidecar-{}-{}", team.name, b.name);
+                        let fdb_entry = format!("00:00:00:00:00:00 {}", vxlan_sidecar_name);
+                        match format!("vxlan-sidecar-{}-{}:4789", team.name, b.name)
+                            .to_socket_addrs()
+                        {
+                            Ok(mut addrs) => {
+                                if let Some(addr) = addrs.next() {
+                                    // Add the FDB entry to the bridge interface
+                                    let status = std::process::Command::new("bridge")
+                                        .args([
+                                            "fdb",
+                                            "append",
+                                            &fdb_entry,
+                                            "dev",
+                                            &format!("vxlan_{}_{}", i, j),
+                                            "dst",
+                                            &addr.ip().to_string(),
+                                        ])
+                                        .status()
+                                        .expect("Failed to add FDB entry");
+                                    if !status.success() {
+                                        eprintln!(
+                                            "Failed to add FDB entry for {}: {}",
+                                            vxlan_sidecar_name, status
+                                        );
+                                    } else {
+                                        println!(
+                                            "Added FDB entry for {}: {}",
+                                            vxlan_sidecar_name, fdb_entry
+                                        );
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "Failed to resolve address for {}: {}",
+                                    vxlan_sidecar_name, e
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            // Sleep for a while before updating again
+            std::thread::sleep(std::time::Duration::from_secs(10));
+        }
+    });
+
     // subscribe to <competition_name>:events
     // NAT outgoing traffic to the internet ONLY if the competition is NOT running
     let redis_manager = redis_manager::RedisManager::new(&config.competitions[0].redis)
