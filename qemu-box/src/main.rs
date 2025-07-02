@@ -83,10 +83,10 @@ async fn main() -> Result<()> {
             println!("Found box '{}', backing_image: {:?}", b.name, b.backing_image);
             Some(b.backing_image.clone())
         })
-        .and_then(|img| {
-            println!("Attempting to canonicalize image path: {}", img);
-            Path::new(&img).canonicalize().ok()
-        })
+        // .and_then(|img| {
+        //     println!("Attempting to canonicalize image path: {}", img);
+        //     Path::new(&img).canonicalize().ok()
+        // })
         .ok_or_else(|| {
             println!("Failed to find or canonicalize backing image for box '{}' in competition '{}'", box_name, competition);
             anyhow!(
@@ -95,8 +95,8 @@ async fn main() -> Result<()> {
                 competition
             )
         })?;
-    println!("Using disk image: {}", disk_image.display());
-    let tmp_disk = "/tmp/disk.qcow2";
+    println!("Using disk image: {}", disk_image);
+    let tmp_disk = "/tmp/disk.img";
     // Create a new qcow2 image in /tmp with the original as a backing file
     let status = Command::new("qemu-img")
         .args([
@@ -104,9 +104,13 @@ async fn main() -> Result<()> {
             "-f",
             "qcow2",
             "-F",
-            "qcow2",
+            if disk_image.starts_with("nbd://") {
+                "raw"
+            } else {
+                "qcow2"
+            },
             "-b",
-            disk_image.to_str().unwrap(),
+            &disk_image,
             tmp_disk,
         ])
         .status()?;
@@ -116,7 +120,7 @@ async fn main() -> Result<()> {
     println!(
         "Created qcow2 image at {} with backing file {}",
         tmp_disk,
-        disk_image.display()
+        disk_image
     );
 
     // --- RedisManager and credentials/keys logic ---

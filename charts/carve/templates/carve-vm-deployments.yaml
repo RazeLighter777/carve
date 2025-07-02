@@ -35,9 +35,11 @@ spec:
             - name: RUST_LOG
               value: debug
           volumeMounts:
+            {{- if $.Values.persistence.disks.enabled }}
             - name: disks
               mountPath: /disks
               readOnly: true
+            {{- end }}
             - name: state
               mountPath: /state
             - name: competition-config
@@ -64,13 +66,17 @@ spec:
               mountPath: /app/competition.yaml
               subPath: competition.yaml
               readOnly: true
+            {{- if $.Values.persistence.disks.enabled }}
             - name: disks
               mountPath: /disks
               readOnly: true
+            {{- end }}
       volumes:
+        {{- if $.Values.persistence.disks.enabled }}
         - name: disks
           persistentVolumeClaim:
             claimName: disks-shared
+        {{- end }}
         - name: state
           persistentVolumeClaim:
             claimName: state-{{ $team.name }}-{{ $box.name }}

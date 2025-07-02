@@ -180,3 +180,12 @@ services:
       - team1-web
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
+  qemu-nbd:
+    image: ghcr.io/razelighter777/qemu-nbd
+    build:
+      context: .
+      dockerfile: qemu-nbd/Dockerfile
+    environment:
+      - DOWNLOAD_IMAGE=https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/cloud/nocloud_alpine-3.22.0-x86_64-bios-cloudinit-r0.qcow2
+    ports:
+      - "10809:10809"

@@ -86,10 +86,19 @@ tolerations: []
 
 affinity: {}
 
+
+qemuNbd:
+  alpine:
+    download_image: "https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/cloud/nocloud_alpine-3.22.0-x86_64-bios-cloudinit-r0.qcow2"
+  debian:
+    download_image: "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2"
 # CARVE Helm values file
 # Only relevant values for the CARVE CTF engine are included.
 carveApi:
   replicas: 2
+opensshServer:
+  service:
+    type: ClusterIP
 images:
   vtep:
     repository: ghcr.io/razelighter777/vtep
@@ -131,6 +140,10 @@ images:
     repository: lscr.io/linuxserver/openssh-server
     tag: "latest"
     pullPolicy: IfNotPresent
+  qemuNbd:
+    repository: ghcr.io/razelighter777/qemu-nbd
+    tag: "latest"
+    pullPolicy: IfNotPresent
 competition:
   secret_key: 82eb0275e23e5f043e85762e798fd9d61b1040ecdba15d001eb52f416e08ef3e
   name: "CarveCTF"
@@ -160,17 +173,17 @@ competition:
       labels: http
       cores: 2
       ram_mb: 2048
-      backing_image: "/disks/ubuntu/ubuntu-24.04-nocloud.qcow2"
+      backing_image: "nbd://qemu-nbd-debian:10809"
     - name: db
       labels: db
       cores: 4
       ram_mb: 4096
-      backing_image: "/disks/ubuntu/ubuntu-24.04-nocloud.qcow2"
+      backing_image: "nbd://qemu-nbd-debian:10809"
     - name: auth
       labels: auth
       cores: 1
       ram_mb: 1024
-      backing_image: "/disks/ubuntu/ubuntu-24.04-nocloud.qcow2"
+      backing_image: "nbd://qemu-nbd-debian:10809"
   teams:
     - name: team1
     - name: team2
@@ -216,7 +229,7 @@ competition:
 # Persistent Volume and Claim templates for VM disks and state
 persistence:
   disks:
-    enabled: true
+    enabled: false
     accessModes:
       - ReadOnlyMany
     storageClassName: ""

@@ -1,0 +1,61 @@
+{{- $qemuNbdVals := .Values.qemuNbd -}}
+{{- range $name, $config := $qemuNbdVals }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qemu-nbd-{{ $name }}
+  labels:
+    app: qemu-nbd
+    qemu-nbd-instance: {{ $name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qemu-nbd
+      qemu-nbd-instance: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: qemu-nbd
+        qemu-nbd-instance: {{ $name }}
+    spec:
+      containers:
+        - name: qemu-nbd
+          image: {{ $.Values.images.qemuNbd.repository }}
+          imagePullPolicy: {{ $.Values.images.qemuNbd.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: DOWNLOAD_IMAGE
+              value: "{{ $config.download_image }}"
+          ports:
+            - containerPort: 10809
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- toYaml $.Values.volumeMounts | nindent 12 }}
+      volumes:
+        {{- toYaml $.Values.volumes | nindent 8 }}
+      nodeSelector:
+        {{- toYaml $.Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml $.Values.tolerations | nindent 8 }}
+      affinity:
+        {{- toYaml $.Values.affinity | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qemu-nbd-{{ $name }}
+  labels:
+    app: qemu-nbd
+    qemu-nbd-instance: {{ $name }}
+spec:
+  type: ClusterIP
+  selector:
+    app: qemu-nbd
+    qemu-nbd-instance: {{ $name }}
+  ports:
+    - name: nbd
+      port: 10809
+      targetPort: 10809
+{{- end }}
