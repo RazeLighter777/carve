@@ -1,3 +1,5 @@
+use std::process::exit;
+
 use carve::{config::AppConfig, redis_manager};
 
 fn main() {
@@ -15,7 +17,27 @@ server { \
         listen  80 default_server; \
         keepalive_timeout       70;"
         .to_string();
-
+    // pull resolver from /etc/resolv.conf
+    let mut resolver_address = String::new();
+    // check if dns_upstream_service
+    if let Some(dns_upstream_service) = competition.dns_upstream_service.clone() {
+        resolver_address = dns_upstream_service;
+    } 
+    else if let Some(contents) = std::fs::read_to_string("/etc/resolv.conf").ok() {
+        // Extract the first nameserver line
+        for line in contents.lines() {
+            if line.starts_with("nameserver") {
+                // Split the line and take the second part (the IP address)
+                if let Some(ip) = line.split_whitespace().nth(1) {
+                    resolver_address = ip.to_string();
+                    break;
+                } else {
+                    eprintln!("Failed to parse IP address from /etc/resolv.conf");
+                    exit(1);
+                }
+            }
+        }
+    }
     //loop through each team and box
     for team in &competition.teams {
         // get the teams console password from redis
@@ -25,10 +47,9 @@ server { \
         for b in &competition.boxes {
             nginx_config += &format!(
                 "location /novnc/{}/{}-{} {{ \
-                   resolver 127.0.0.11; \
-                   set $upstream vxlan-sidecar-{}-{}; \
+                   resolver {} valid=10s; \
                    error_log /var/log/nginx/novnc.log notice; \
-                   proxy_pass http://$upstream:5700; \
+                   proxy_pass http://vxlan-sidecar-{}-{}:5700; \
                    rewrite_log on; \
                    rewrite ^/novnc/{}/{}-{}(/.*)?$ /$1 break; \
                    proxy_http_version 1.1; \
@@ -41,6 +62,7 @@ server { \
                 console_password,
                 team.name,
                 b.name,
+                resolver_address,
                 team.name,
                 b.name,
                 console_password,

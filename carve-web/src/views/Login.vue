@@ -9,7 +9,7 @@ import { IdentitySources } from '@/types'
 const route = useRoute()
 const loading = ref(false)
 const error = ref('')
-const providerName = import.meta.env.VITE_OIDC_PROVIDER_NAME || ref('OIDC Provider name unset')
+const providerName = import.meta.env.VITE_OIDC_PROVIDER_NAME || ref('Sign-In with OIDC')
 const passwordLoading = ref(false)
 const identitySources = ref<IdentitySources[]>([])
 

@@ -153,12 +153,37 @@ fn main() {
             if !status.success() {
                 eprintln!("Failed to create vxlan interface {}", vxlan_name);
             }
+            // create a bridge for the VXLAN interface
+            let bridge_name = format!("br_{}_{}", comp_idx, i);
+            let status = std::process::Command::new("ip")
+                .args([
+                    "link",
+                    "add",
+                    &bridge_name,
+                    "type",
+                    "bridge",
+                ])
+                .status()
+                .expect("Failed to create bridge interface");
+            if !status.success() {
+                eprintln!("Failed to create bridge interface {}", bridge_name);
+            }
+            // Add the VXLAN interface to the bridge
+            std::process::Command::new("ip")
+                .args(["link", "set", &vxlan_name, "master", &bridge_name])
+                .status()
+                .expect("Failed to add vxlan interface to bridge");
+            // Bring up the bridge interface
+            std::process::Command::new("ip")
+                .args(["link", "set", &bridge_name, "up"])
+                .status()
+                .expect("Failed to bring up bridge interface");
             // Bring up the interface
             std::process::Command::new("ip")
                 .args(["link", "set", &vxlan_name, "up"])
                 .status()
                 .expect("Failed to bring up vxlan interface");
-            // Assign subnet IP to interface (first IP in subnet)
+            // Assign subnet IP to bridge interface (first IP in subnet)
             let team_gateway_ip = Ipv4Addr::from(u32::from(*team_subnet) + 1);
             std::process::Command::new("ip")
                 .args([
@@ -166,17 +191,17 @@ fn main() {
                     "add",
                     &format!("{}/24", team_gateway_ip),
                     "dev",
-                    &vxlan_name,
+                    &bridge_name,
                 ])
                 .status()
-                .expect("Failed to assign IP to vxlan interface");
+                .expect("Failed to assign IP to bridge interface");
             // SNAT only traffic from this team's VXLAN interface, using MGMT /24 as --to-source
-            let team_snat_rule = format!("-o {} -j MASQUERADE", vxlan_name);
+            let team_snat_rule = format!("-o {} -j MASQUERADE", bridge_name);
             ipt.append("nat", "POSTROUTING", &team_snat_rule)
                 .expect("Failed to add SNAT rule for team");
             // mangle TTL to 64 for the VXLAN interface to stop teams from 
             // using it to block other teams and allow the scoring server to reach them
-            let team_ttl_rule = format!("-i {} -j TTL --ttl-set 64", vxlan_name);
+            let team_ttl_rule = format!("-i {} -j TTL --ttl-set 64", bridge_name);
             ipt.append("mangle", "PREROUTING", &team_ttl_rule)
                 .expect("Failed to add TTL rule for team");
         }

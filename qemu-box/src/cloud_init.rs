@@ -20,16 +20,6 @@ impl CloudInit {
         team_name: &str,
         redis_mgr: &RedisManager,
     ) -> Result<(Self, String, String, String)> {
-        // meta-data
-        let meta_data_str = format!(
-            r#"instance-id: {box_name}
-local-hostname: {box_name}
-"#
-        );
-        // vendor-data
-        let vendor_data_str = r#"#cloud-config
-"#
-        .to_string();
         // mac address
         let mac_address = format!(
             "52:54:00:{:02x}:{:02x}:{:02x}",
@@ -37,6 +27,16 @@ local-hostname: {box_name}
             rand::random::<u8>(),
             rand::random::<u8>()
         );
+
+        let meta_data_str = format!(
+            r#"instance-id: {box_name}-{competition}-{team_name}
+local-hostname: {box_name}
+"#
+        );
+        // vendor-data
+        let vendor_data_str = r#"#cloud-config
+"#
+        .to_string();
         // network-config
         let network_config_str = format!(
             r#"#cloud-config
@@ -47,6 +47,7 @@ ethernets:
     dhcp4: true
     match:
       macaddress: {mac_address}
+    dhcp-identifier: mac
 "#
         );
         // SSH keypair

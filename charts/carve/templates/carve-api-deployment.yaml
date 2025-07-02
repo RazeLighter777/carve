@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: carve-api
 spec:
-  replicas: 1
+  replicas: {{ .Values.carveApi.replicas | default 1 }}
   selector:
     matchLabels:
       app: carve-api

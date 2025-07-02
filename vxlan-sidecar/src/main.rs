@@ -1,5 +1,6 @@
-use actix_web::{App, HttpServer, Responder, get, web};
+use actix_web::{App, HttpServer};
 use carve::config::AppConfig;
+use carve::redis_manager::RedisManager;
 use std::env;
 use std::net::IpAddr;
 use std::process::Command;
@@ -7,31 +8,14 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, sleep};
 
-#[derive(Clone)]
-enum HealthStatus {
-    Healthy,
-    Unhealthy,
-}
-
-type SharedHealth = Arc<Mutex<HealthStatus>>;
-
-#[get("/api/health")]
-async fn health(health: web::Data<SharedHealth>) -> impl Responder {
-    let status = health.lock().await;
-    match *status {
-        HealthStatus::Healthy => "Healthy",
-        HealthStatus::Unhealthy => "Unhealthy",
-    }
-}
-
 fn create_vxlan_interface(vxlan_id: &str) -> Result<(), String> {
     // Remove vxlan0 if it exists
     let _ = Command::new("ip").args(["link", "del", "vxlan0"]).status();
     // Create vxlan0 with remote
     let status = Command::new("ip")
         .args([
-            "link", "add", "vxlan0", "type", "vxlan", "id", vxlan_id, "dev", "eth0", "dstport",
-            "4789",
+            "link", "add", "vxlan0", "type", "vxlan", "id", vxlan_id, "dev", "eth0", "learning",
+            "dstport", "4789",
         ])
         .status()
         .map_err(|e| format!("Failed to create vxlan0: {}", e))?;
@@ -46,7 +30,7 @@ fn create_vxlan_interface(vxlan_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn create_bridge(cidr: &str) -> Result<(), String> {
+fn create_bridge() -> Result<(), String> {
     // Remove br0 if it exists
     let _ = Command::new("ip").args(["link", "del", "br0"]).status();
     // Create br0
@@ -62,19 +46,19 @@ fn create_bridge(cidr: &str) -> Result<(), String> {
         .args(["link", "set", "br0", "up"])
         .status()
         .map_err(|e| format!("Failed to bring up br0: {}", e))?;
-    // Add vxlan0 to br0
     Command::new("ip")
         .args(["link", "set", "vxlan0", "master", "br0"])
         .status()
         .map_err(|e| format!("Failed to add vxlan0 to br0: {}", e))?;
-    // Add IP address to br0
-    // Set vxlan0 address to .254 of the given CIDR
-    let ip_address = format!("{}/24", cidr.trim_end_matches(".0").to_string() + ".254");
-    // println!("Setting br0 address to {}", ip_address);
-    Command::new("ip")
-        .args(["addr", "add", &ip_address, "dev", "br0"])
-        .status()
-        .map_err(|e| format!("Failed to set br0 address: {}", e))?;
+    // we don't need to set an ip address on vxlan0, as it will be used for bridging only
+    // // Add IP address to br0
+    // // Set vxlan0 address to .254 of the given CIDR
+    // let ip_address = format!("{}/24", cidr.trim_end_matches(".0").to_string() + ".254");
+    // // println!("Setting br0 address to {}", ip_address);
+    // Command::new("ip")
+    //     .args(["addr", "add", &ip_address, "dev", "br0"])
+    //     .status()
+    //     .map_err(|e| format!("Failed to set br0 address: {}", e))?;
     Ok(())
 }
 
@@ -83,6 +67,7 @@ async fn main() -> std::io::Result<()> {
     let team_name = env::var("TEAM_NAME").expect("TEAM_NAME env var required");
     let config = AppConfig::new().expect("Failed to load config");
     let competition_name = env::var("COMPETITION_NAME").expect("COMPETITION_NAME env var required");
+    let box_name = env::var("BOX_NAME").expect("BOX_NAME env var required");
     let competition = config
         .competitions
         .iter()
@@ -93,51 +78,42 @@ async fn main() -> std::io::Result<()> {
                 competition_name.as_str()
             )
             .as_str(),
-        );
+        )
+        .clone();
     let teams: Vec<String> = competition.teams.iter().map(|t| t.name.clone()).collect();
     let team_index = teams
         .iter()
         .position(|n| n == &team_name)
         .expect("TEAM_NAME not found in config");
     let vxlan_id = 1338 + team_index as u32;
-
-    // get the cidr for the team
-    let cidr = competition.cidr.as_ref().expect("Competition CIDR missing");
-    let base = cidr.split('/').next().expect("Invalid CIDR");
-    let mut octets: Vec<u8> = base.split('.').map(|s| s.parse().unwrap()).collect();
-    // Set third octet to team_index+1
-    octets[2] = (team_index + 1) as u8;
-    octets[3] = 0;
-    let team_cidr = format!("{}.{}.{}.0", octets[0], octets[1], octets[2]);
-
     // Use vtep_host from the first competition, fallback to localhost if missing
     if let Err(e) = create_vxlan_interface(&vxlan_id.to_string()) {
         eprintln!("{}", e);
     }
-    if let Err(e) = create_bridge(&team_cidr) {
+    if let Err(e) = create_bridge() {
         eprintln!("{}", e);
     }
 
-    // Add route for the competitions's /16 subnet via .1 (first IP in team /24 subnet) on br0
-    let route_command = Command::new("ip")
-        .args([
-            "route",
-            "add",
-            &format!("{}", competition.cidr.as_ref().unwrap()),
-            "via",
-            &format!("{}.{}.{}.1", octets[0], octets[1], octets[2]),
-            "dev",
-            "br0",
-        ])
-        .status();
-    match route_command {
-        Ok(status) if status.success() => {
-            println!("Route added successfully for competition subnet");
-        }
-        Ok(_) | Err(_) => {
-            eprintln!("Failed to add route for competition subnet");
-        }
-    }
+    // // Add route for the competitions's /16 subnet via .1 (first IP in team /24 subnet) on br0
+    // let route_command = Command::new("ip")
+    //     .args([
+    //         "route",
+    //         "add",
+    //         &format!("{}", competition.cidr.as_ref().unwrap()),
+    //         "via",
+    //         &format!("{}.{}.{}.1", octets[0], octets[1], octets[2]),
+    //         "dev",
+    //         "br0",
+    //     ])
+    //     .status();
+    // match route_command {
+    //     Ok(status) if status.success() => {
+    //         println!("Route added successfully for competition subnet");
+    //     }
+    //     Ok(_) | Err(_) => {
+    //         eprintln!("Failed to add route for competition subnet");
+    //     }
+    // }
 
     // DNS resolution loop for vtep_host
     let remote = competition.vtep_host.as_deref().unwrap_or("127.0.0.1");
@@ -149,7 +125,112 @@ async fn main() -> std::io::Result<()> {
         vtep_host
     );
     tokio::spawn(async move {
+        let competition = competition.clone();
+        let redis_manager = RedisManager::new(&competition.redis).unwrap();
+        let eth0_mac = Command::new("cat")
+            .arg("/sys/class/net/eth0/address")
+            .output()
+            .expect("Failed to get eth0 MAC address of this host");
+        let eth0_mac = String::from_utf8_lossy(&eth0_mac.stdout).trim().to_string();
+
         loop {
+            let new_fdb_entries: Vec<(String, String)> = redis_manager
+                .get_teams_fdb_entries(&competition_name, &team_name)
+                .unwrap();
+            for entry in new_fdb_entries {
+                let (ip, mac) = entry;
+                // skip entry with the ip of the vxlan-sidecar-<our_team_name>-<our_box_name> service
+                match tokio::net::lookup_host((
+                    format!("vxlan-sidecar-{}-{}", team_name, box_name).as_str(),
+                    0,
+                ))
+                .await
+                {
+                    Ok(mut addrs) => {
+                        if let Some(vxlan_ip) = addrs.next().map(|sockaddr| sockaddr.ip()) {
+                            println!("entry ip: {} and our vxlan ip: {}", ip, vxlan_ip);
+                            if vxlan_ip.to_string() == ip {
+                                println!(
+                                    "Skipping FDB entry for vxlan-sidecar-{}-{}: {} {}",
+                                    team_name, box_name, mac, ip
+                                );
+                                continue;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "DNS resolution error for vxlan-sidecar-{}-{}: {}",
+                            team_name, box_name, e
+                        );
+                    }
+                }
+                let status1 = Command::new("bridge")
+                    .args([
+                        "fdb",
+                        "append",
+                        "00:00:00:00:00:00",
+                        "dst",
+                        &ip,
+                        "dev",
+                        "vxlan0",
+                        "dynamic",
+                    ])
+                    .status();
+                match status1 {
+                    Ok(s) if s.success() => {
+                        println!(
+                            "Appended multicast FDB entry for vxlan0 remote {} with MAC {}",
+                            ip, mac
+                        );
+                    }
+                    Ok(_) | Err(_) => {
+                        eprintln!(
+                            "Failed to append multicast FDB entry for vxlan0 remote {} with MAC {}",
+                            ip, mac
+                        );
+                    }
+                }
+            }
+            // get mac address and ip of eth0 and add it to the FDB
+            //now lookup the ip of the vxlan-sidecar-<team_name>-<box_name> service and use redis manager to publish the FDB entry
+            match tokio::net::lookup_host((
+                format!("vxlan-sidecar-{}-{}", team_name, box_name).as_str(),
+                0,
+            ))
+            .await
+            {
+                Ok(mut addrs) => {
+                    if let Some(ip) = addrs.next().map(|sockaddr| sockaddr.ip()) {
+                        match redis_manager.create_vxlan_fdb_entry(
+                            &competition_name,
+                            &ip.to_string(),
+                            &eth0_mac,
+                            &team_name,
+                        ) {
+                            Ok(_) => {
+                                println!(
+                                    "Published FDB entry for vxlan-sidecar-{}-{}: {} {}",
+                                    team_name, box_name, eth0_mac, ip
+                                );
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "Failed to publish FDB entry for vxlan-sidecar-{}-{}: {}",
+                                    team_name, box_name, e
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "DNS resolution error for vxlan-sidecar-{}-{}: {}",
+                        team_name, competition.name, e
+                    );
+                }
+            }
+
             match tokio::net::lookup_host((vtep_host.as_str(), 0)).await {
                 Ok(mut addrs) => {
                     if let Some(ip) = addrs.next().map(|sockaddr| sockaddr.ip()) {
@@ -169,6 +250,7 @@ async fn main() -> std::io::Result<()> {
                                     &ip.to_string(),
                                     "dev",
                                     "vxlan0",
+                                    "dynamic",
                                 ])
                                 .status();
                             match status {
@@ -194,50 +276,8 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    // Health check state
-    let health_status: SharedHealth = Arc::new(Mutex::new(HealthStatus::Healthy));
-    let health_status_clone = health_status.clone();
-    let first_ip = format!("{}.{}.{}.1", octets[0], octets[1], octets[2]);
-    tokio::spawn(async move {
-        let mut fail_count = 0;
-        loop {
-            let output = Command::new("ping")
-                .args(["-c", "1", "-W", "2", &first_ip])
-                .output();
-            match output {
-                Ok(out) if out.status.success() => {
-                    if fail_count > 3 {
-                        println!(
-                            "Ping to {} successful after {} failures",
-                            first_ip, fail_count
-                        );
-                    }
-                    fail_count = 0;
-                    let mut status = health_status_clone.lock().await;
-                    *status = HealthStatus::Healthy;
-                }
-                _ => {
-                    fail_count += 1;
-                    if fail_count >= 3 {
-                        let mut status = health_status_clone.lock().await;
-                        *status = HealthStatus::Unhealthy;
-                        eprintln!(
-                            "Ping to {} failed {} times, marking as Unhealthy",
-                            first_ip, fail_count
-                        );
-                    }
-                }
-            }
-            sleep(Duration::from_secs(10)).await;
-        }
-    });
-
-    HttpServer::new(move || {
-        App::new()
-            .app_data(web::Data::new(health_status.clone()))
-            .service(health)
-    })
-    .bind(("0.0.0.0", 8000))?
-    .run()
-    .await
+    HttpServer::new(move || App::new())
+        .bind(("0.0.0.0", 8000))?
+        .run()
+        .await
 }

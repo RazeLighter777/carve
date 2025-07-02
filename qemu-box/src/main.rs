@@ -73,12 +73,29 @@ async fn main() -> Result<()> {
         .find(|c| c.name == competition)
         .ok_or_else(|| anyhow!("Competition '{}' not found in config", competition))?;
 
-    // Find first qcow2 image in /disk
-    let disk_image = fs::read_dir("/disk")?
-        .filter_map(|e| e.ok())
-        .find(|e| e.path().extension().map(|x| x == "qcow2").unwrap_or(false))
-        .map(|e| e.path())
-        .ok_or_else(|| anyhow!("No .qcow2 disk image found in /disk directory"))?;
+    // Find backing image specified by box_name
+    println!("Looking for box '{}' in competition config...", box_name);
+    let disk_image = competition_cfg
+        .boxes
+        .iter()
+        .find(|b| b.name == box_name)
+        .and_then(|b| {
+            println!("Found box '{}', backing_image: {:?}", b.name, b.backing_image);
+            Some(b.backing_image.clone())
+        })
+        .and_then(|img| {
+            println!("Attempting to canonicalize image path: {}", img);
+            Path::new(&img).canonicalize().ok()
+        })
+        .ok_or_else(|| {
+            println!("Failed to find or canonicalize backing image for box '{}' in competition '{}'", box_name, competition);
+            anyhow!(
+                "Backing image for box '{}' not found in competition '{}'",
+                box_name,
+                competition
+            )
+        })?;
+    println!("Using disk image: {}", disk_image.display());
     let tmp_disk = "/tmp/disk.qcow2";
     // Create a new qcow2 image in /tmp with the original as a backing file
     let status = Command::new("qemu-img")

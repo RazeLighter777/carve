@@ -17,9 +17,9 @@ pub struct RedisConfig {
 pub struct Box {
     pub name: String,
     pub labels: String,
-    pub hostname: String,
     pub cores: Option<u32>,  // Optional number of CPU cores
     pub ram_mb: Option<u32>, // Optional RAM in MB
+    pub backing_image: String, // Path to the original disk image
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -109,6 +109,7 @@ pub struct Competition {
     pub registration_type: RegistrationType, // Registration type
     pub identity_sources: Vec<IdentitySources>,
     pub create_default_admin: bool, // Create default admin user
+    pub dns_upstream_service : Option<String>, // DNS upstream service for VTEP and carve-novnc-nginx
 }
 
 #[derive(Debug, Deserialize, Clone)]

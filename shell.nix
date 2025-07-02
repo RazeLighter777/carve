@@ -16,6 +16,7 @@ in
       nodejs
       uv
       kind
+      k9s
       kubectl
       (wrapHelm kubernetes-helm {
         plugins = with pkgs.kubernetes-helmPlugins; [

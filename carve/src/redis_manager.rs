@@ -273,6 +273,72 @@ impl RedisManager {
         Ok(())
     }
 
+    pub fn create_vxlan_fdb_entry(
+        &self,
+        competition_name: &str,
+        overlay_address: &str,
+        mac_address: &str,
+        team_name: &str
+    ) -> Result<()> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+
+        // the key name
+        let key = format!("{}:vxlan_fdb:{}", competition_name, team_name);
+
+        // Create a unique identifier for the entry
+        let entry_id = overlay_address;
+
+        // Store the FDB entry as a hash with overlay address and MAC address
+        let _: () = redis::cmd("HSET")
+            .arg(&key)
+            .arg(&entry_id)
+            .arg(mac_address)
+            .query(&mut conn)
+            .context("Failed to create VXLAN FDB entry")?;
+        //expire the entry every 10 seconds
+        let _: () = redis::cmd("HEXPIRE")
+            .arg(&key)
+            .arg(20) // 20 seconds
+            .arg("FIELDS")
+            .arg(1)
+            .arg(entry_id)
+            .query(&mut conn)
+            .context("Failed to set expiration for VXLAN FDB entry")?;
+
+        Ok(())
+    }
+
+    pub fn get_teams_fdb_entries(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+    ) -> Result<Vec<(String, String)>> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+
+        // the key name
+        let key = format!("{}:vxlan_fdb:{}", competition_name, team_name);
+
+        // Get all FDB entries for the team
+        let entries: Vec<String> = redis::cmd("HGETALL")
+            .arg(&key)
+            .query(&mut conn)
+            .context("Failed to get VXLAN FDB entries")?;
+        //use chunks to parse the entries
+        let mut result = Vec::new();
+        for chunk in entries.chunks(2) {
+                let overlay_address = chunk[0].to_string();
+                let mac_address = chunk[1].to_string();
+                result.push((overlay_address, mac_address));
+        }
+        Ok(result)
+    }
+
     pub fn record_sucessful_check_result(
         &self,
         competition_name: &str,

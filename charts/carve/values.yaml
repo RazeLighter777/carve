@@ -81,23 +81,6 @@ resources: {}
   #   cpu: 100m
   #   memory: 128Mi
 
-# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
-livenessProbe:
-  httpGet:
-    path: /
-    port: http
-readinessProbe:
-  httpGet:
-    path: /
-    port: http
-
-# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 100
-  targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
 
 # Additional volumes on the output Deployment definition.
 volumes: []
@@ -120,7 +103,8 @@ affinity: {}
 
 # CARVE Helm values file
 # Only relevant values for the CARVE CTF engine are included.
-
+carveApi:
+  replicas: 2
 images:
   vtep:
     repository: ghcr.io/razelighter777/vtep
@@ -166,11 +150,12 @@ competition:
   secret_key: 82eb0275e23e5f043e85762e798fd9d61b1040ecdba15d001eb52f416e08ef3e
   name: "CarveCTF"
   cidr: "10.13.0.0/16"
+  dns_upstream_service: "kube-dns.kube-system.svc.cluster.local"
   redis:
     host: "carve-redis"
     port: 6379
     db: 0
-  vtep_host: "vtep"
+  vtep_host: "carve-network-vtep"
   admin_group: "booktok-users"
   duration: 3600
   oidc_provider_name: "Authentik"
@@ -188,19 +173,19 @@ competition:
   boxes:
     - name: web
       labels: http
-      hostname: "web-server"
       cores: 2
       ram_mb: 2048
+      backing_image: "/disks/ubuntu/ubuntu-24.04-nocloud.qcow2"
     - name: db
       labels: db
-      hostname: "db"
       cores: 4
       ram_mb: 4096
+      backing_image: "/disks/ubuntu/ubuntu-24.04-nocloud.qcow2"
     - name: auth
       labels: auth
-      hostname: "auth"
       cores: 1
       ram_mb: 1024
+      backing_image: "/disks/ubuntu/ubuntu-24.04-nocloud.qcow2"
   teams:
     - name: team1
     - name: team2

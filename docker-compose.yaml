@@ -55,7 +55,7 @@ services:
       dockerfile: qemu-box/Dockerfile
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
-      - ./disks/ubuntu:/disk
+      - ./disks/:/disks
     environment:
       - TEAM_NAME=team1
       - BOX_NAME=web
@@ -89,7 +89,7 @@ services:
     image: ghcr.io/razelighter777/qemu-box
     volumes:
       - ./competition.yaml:/config/competition.yaml:ro
-      - ./disks/ubuntu:/disk
+      - ./disks:/disks
     environment:
       - TEAM_NAME=team2
       - BOX_NAME=web

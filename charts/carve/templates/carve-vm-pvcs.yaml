@@ -9,6 +9,7 @@ spec:
       storage: {{ .Values.persistence.disks.size }}
   {{- if .Values.persistence.disks.storageClassName }}
   storageClassName: {{ .Values.persistence.disks.storageClassName }}
+  
   {{- end }}
 ---
 {{- range $team := .Values.competition.teams }}
