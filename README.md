@@ -15,6 +15,7 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 ## ✨ Features
 
 - **Microservice Architecture:** Modular services for scoring, networking, orchestration, everything you need to run a CTF at scale.
+- **Automatic Infrastructure Management**: Let CARVE handle the tedious work of making networks and virtual machines. Unlike many CTFs, carve gives players VMs (not containers) expanding the range of possibilities. And the network managed network is isolated, secure, and created automatically with the magic of VXLANs. 
 - **Attack-Defense CTF:** Teams receive VMs to defend and attack others, earning points for solving challenges and keeping services alive.
 - **Virtual Networking:** Uses VXLANs and dnsmasq to create isolated, team-specific networks. All the networking is handled by CARVE, with no need for manual setup.
 - **Cloud-Init & Ansible:** VMs are provisioned with cloud-init for basic setup, then made vulnerable for the game with Ansible playbooks.
