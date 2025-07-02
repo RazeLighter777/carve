@@ -1,9 +1,12 @@
+{{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: carve-web
   annotations:
-    nginx.ingress.kubernetes.io/default-backend: carve-web
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
 spec:
   rules:
     - host: {{ .Values.ingress.host }}
@@ -22,6 +25,10 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: carve-api
+  annotations:
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
 spec:
   rules:
     - host: {{ .Values.ingress.host }}
@@ -40,6 +47,10 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: carve-novnc-nginx
+  annotations:
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
 spec:
   rules:
     - host: {{ .Values.ingress.host }}
@@ -52,3 +63,4 @@ spec:
                 name: carve-novnc-nginx
                 port:
                   number: 80
+{{- end }}
