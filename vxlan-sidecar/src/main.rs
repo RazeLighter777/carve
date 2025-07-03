@@ -235,6 +235,7 @@ async fn main() -> std::io::Result<()> {
                                     &ip.to_string(),
                                     "dev",
                                     "vxlan0",
+                                    "dynamic",
                                 ])
                                 .status();
                             match status {

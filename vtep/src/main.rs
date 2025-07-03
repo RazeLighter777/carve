@@ -1,412 +1,385 @@
 use actix_web::{App, HttpServer, Responder, get};
-use carve::{config::AppConfig, redis_manager};
+use carve::{config::AppConfig, redis_manager::{RedisManager, CompetitionStatus}};
 use redis::Commands;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, ToSocketAddrs};
+use std::process::Command;
+use std::thread;
+use std::time::Duration;
+use anyhow::{Result, Context, bail};
 
 #[get("/health")]
 async fn health() -> impl Responder {
     "Healthy"
 }
 
-fn parse_cidr(cidr: &str) -> (Ipv4Addr, u8) {
-    let parts: Vec<&str> = cidr.split('/').collect();
-    let ip = parts[0].parse().expect("Invalid IP in CIDR");
-    let prefix = parts[1].parse().expect("Invalid prefix in CIDR");
-    (ip, prefix)
+#[derive(Debug)]
+struct NetworkConfig {
+    mgmt_subnet: Ipv4Addr,
+    team_subnets: Vec<Ipv4Addr>,
 }
 
-fn allocate_subnets(base: Ipv4Addr, prefix: u8, num: usize) -> Vec<Ipv4Addr> {
-    let mut subnets = Vec::new();
-    let step = 1 << (32 - (prefix + 8)); // /24s from /16
-    let mut current = u32::from(base);
-    for _ in 0..num {
-        subnets.push(Ipv4Addr::from(current));
-        current += step;
-    }
-    subnets
-}
-
-fn main() {
-    // Load config
-    let config = AppConfig::new().expect("Failed to load config");
-    for competition in &config.competitions.clone() {
-        // Get CIDR from config (add to schema if missing)
-        let cidr = competition.cidr.as_ref().expect("competition.cidr missing");
-        let (base, prefix) = parse_cidr(cidr);
-        let num_teams = competition.teams.len();
-        let mut subnets = allocate_subnets(base, prefix, num_teams + 1); // +1 for MGMT
+impl NetworkConfig {
+    fn new(cidr: &str, num_teams: usize) -> Result<Self> {
+        let (base_ip, prefix) = Self::parse_cidr(cidr)?;
+        let mut subnets = Self::allocate_subnets(base_ip, prefix, num_teams + 1)?;
         let mgmt_subnet = subnets.remove(0);
-        // Connect to redis
-        let redis_url = format!(
-            "redis://{}:{}/{}",
-            competition.redis.host, competition.redis.port, competition.redis.db
-        );
-        let client = redis::Client::open(redis_url).expect("redis client");
-        let mut con = client.get_connection().expect("redis conn");
-        // Clean subnets hash
-        let _: () = redis::cmd("DEL")
-            .arg(format!("{}:subnets", competition.name))
-            .query(&mut con)
-            .unwrap();
-        // Allocate subnets and VXLAN IDs
-        let mut vxlan_id = 1338u32;
-        let mut subnet_map = HashMap::new();
-        subnet_map.insert("MGMT".to_string(), format!("{}/24,MGMT,0", mgmt_subnet));
-        for (team, subnet) in competition.teams.iter().zip(subnets.iter()) {
-            subnet_map.insert(
-                team.name.clone(),
-                format!("{}/24,{},{}", subnet, team.name, vxlan_id),
-            );
-            vxlan_id += 1;
-        }
-        // Store in redis
-        let _: () = con
-            .hset_multiple(
-                format!("{}:subnets", competition.name),
-                &subnet_map
-                    .iter()
-                    .map(|(k, v)| (k.as_str(), v.as_str()))
-                    .collect::<Vec<_>>(),
-            )
-            .unwrap();
-        // Set up iptables
-        let ipt = iptables::new(false).expect("Failed to create iptables instance");
-        // Create MGMT VXLAN interface
-        // Use a short index for interface names to avoid long names
-        let comp_idx = config
-            .competitions
-            .iter()
-            .position(|c| c.name == competition.name)
-            .unwrap_or(0);
-        let vxlan_mgmt_name = format!("vxlan_mgmt_{}", comp_idx);
-        let vxlan_mgmt_id = 1337; // MGMT VXLAN ID is 1337
-        let status = std::process::Command::new("ip")
-            .args([
-                "link",
-                "add",
-                &vxlan_mgmt_name,
-                "type",
-                "vxlan",
-                "id",
-                &vxlan_mgmt_id.to_string(),
-                "dev",
-                "eth0",
-                "nolearning",
-                "dstport",
-                "4789",
-            ])
-            .status()
-            .expect("Failed to create vxlan interface");
-        if !status.success() {
-            eprintln!("Failed to create vxlan interface {}", vxlan_mgmt_name);
-        }
-        // Bring up the MGMT VXLAN interface
-        std::process::Command::new("ip")
-            .args(["link", "set", &vxlan_mgmt_name, "up"])
-            .status()
-            .expect("Failed to bring up vxlan interface");
-        // Assign MGMT subnet IP to interface (first IP in subnet)
-        let mgmt_gateway_ip = Ipv4Addr::from(u32::from(mgmt_subnet) + 1);
-        std::process::Command::new("ip")
-            .args([
-                "addr",
-                "add",
-                &format!("{}/24", mgmt_gateway_ip),
-                "dev",
-                &vxlan_mgmt_name,
-            ])
-            .status()
-            .expect("Failed to assign IP to vxlan interface");
-
-        // Create VXLAN interfaces for each team and SNAT their traffic
-        for (i, team) in competition.teams.iter().enumerate() {
-            let vxlan_name = format!("vxlan_{}_{}", comp_idx, i);
-            let vxlan_id = 1338 + i as u32; // Start VXLAN IDs from 1338
-            let team_subnet = subnets.get(i).expect("subnet");
-            println!(
-                "Creating vxlan interface for {} named {}",
-                team.name, vxlan_name
-            );
-            // Remove interface if it exists
-            let _ = std::process::Command::new("ip")
-                .args(["link", "del", &vxlan_name])
-                .status();
-            // Create VXLAN interface
-            let status = std::process::Command::new("ip")
-                .args([
-                    "link",
-                    "add",
-                    &vxlan_name,
-                    "type",
-                    "vxlan",
-                    "id",
-                    &vxlan_id.to_string(),
-                    "dev",
-                    "eth0",
-                    "nolearning",
-                    "dstport",
-                    "4789",
-                ])
-                .status()
-                .expect("Failed to create vxlan interface");
-            if !status.success() {
-                eprintln!("Failed to create vxlan interface {}", vxlan_name);
-            }
-            // create a bridge for the VXLAN interface
-            let bridge_name = format!("br_{}_{}", comp_idx, i);
-            let status = std::process::Command::new("ip")
-                .args(["link", "add", &bridge_name, "type", "bridge"])
-                .status()
-                .expect("Failed to create bridge interface");
-            if !status.success() {
-                eprintln!("Failed to create bridge interface {}", bridge_name);
-            }
-            // Add the VXLAN interface to the bridge
-            std::process::Command::new("ip")
-                .args(["link", "set", &vxlan_name, "master", &bridge_name])
-                .status()
-                .expect("Failed to add vxlan interface to bridge");
-            // Bring up the bridge interface
-            std::process::Command::new("ip")
-                .args(["link", "set", &bridge_name, "up"])
-                .status()
-                .expect("Failed to bring up bridge interface");
-            // Bring up the interface
-            std::process::Command::new("ip")
-                .args(["link", "set", &vxlan_name, "up"])
-                .status()
-                .expect("Failed to bring up vxlan interface");
-            // Assign subnet IP to bridge interface (first IP in subnet)
-            let team_gateway_ip = Ipv4Addr::from(u32::from(*team_subnet) + 1);
-            std::process::Command::new("ip")
-                .args([
-                    "addr",
-                    "add",
-                    &format!("{}/24", team_gateway_ip),
-                    "dev",
-                    &bridge_name,
-                ])
-                .status()
-                .expect("Failed to assign IP to bridge interface");
-            // SNAT only traffic from this team's VXLAN interface, using MGMT /24 as --to-source
-            let team_snat_rule = format!("-o {} -j MASQUERADE", bridge_name);
-            ipt.append("nat", "POSTROUTING", &team_snat_rule)
-                .expect("Failed to add SNAT rule for team");
-            // mangle TTL to 64 for the VXLAN interface to stop teams from
-            // using it to block other teams and allow the scoring server to reach them
-            let team_ttl_rule = format!("-i {} -j TTL --ttl-set 64", bridge_name);
-            ipt.append("mangle", "PREROUTING", &team_ttl_rule)
-                .expect("Failed to add TTL rule for team");
-        }
-        // print iptables command for debugging
+        
+        Ok(Self {
+            mgmt_subnet,
+            team_subnets: subnets,
+        })
     }
-    // Execute the firewall rules
 
-    // Start Actix-web server for health check
-    std::thread::spawn(|| {
+    fn parse_cidr(cidr: &str) -> Result<(Ipv4Addr, u8)> {
+        let parts: Vec<&str> = cidr.split('/').collect();
+        if parts.len() != 2 {
+            bail!("Invalid CIDR format: {}", cidr);
+        }
+        
+        let ip = parts[0].parse().context("Invalid IP in CIDR")?;
+        let prefix = parts[1].parse().context("Invalid prefix in CIDR")?;
+        Ok((ip, prefix))
+    }
+
+    fn allocate_subnets(base: Ipv4Addr, prefix: u8, num: usize) -> Result<Vec<Ipv4Addr>> {
+        let step = 1 << (32 - (prefix + 8)); // /24s from /16
+        let mut current = u32::from(base);
+        
+        let subnets = (0..num)
+            .map(|_| {
+                let subnet = Ipv4Addr::from(current);
+                current += step;
+                subnet
+            })
+            .collect::<Vec<_>>();
+        Ok(subnets)
+    }
+}
+
+struct NetworkManager {
+    ipt: iptables::IPTables,
+}
+
+impl NetworkManager {
+    fn new() -> Result<Self> {
+        let ipt = iptables::new(false).expect("Failed to create iptables instance");
+        Ok(Self { ipt })
+    }
+
+    fn create_vxlan_interface(&self, name: &str, vxlan_id: u32) -> Result<()> {
+        // Remove existing interface if it exists
+        let _ = Command::new("ip")
+            .args(["link", "del", name])
+            .status();
+
+        let status = Command::new("ip")
+            .args([
+                "link", "add", name, "type", "vxlan", "id", &vxlan_id.to_string(),
+                "dev", "eth0", "nolearning", "dstport", "4789",
+            ])
+            .status()
+            .context("Failed to create VXLAN interface")?;
+
+        if !status.success() {
+            bail!("Failed to create VXLAN interface {}", name);
+        }
+
+        Command::new("ip")
+            .args(["link", "set", name, "up"])
+            .status()
+            .context("Failed to bring up VXLAN interface")?;
+
+        Ok(())
+    }
+
+    fn create_bridge_with_vxlan(&self, bridge_name: &str, vxlan_name: &str, gateway_ip: Ipv4Addr) -> Result<()> {
+        // Create bridge
+        let status = Command::new("ip")
+            .args(["link", "add", bridge_name, "type", "bridge"])
+            .status()
+            .context("Failed to create bridge interface")?;
+
+        if !status.success() {
+            bail!("Failed to create bridge interface {}", bridge_name);
+        }
+
+        // Add VXLAN to bridge
+        Command::new("ip")
+            .args(["link", "set", vxlan_name, "master", bridge_name])
+            .status()
+            .context("Failed to add VXLAN interface to bridge")?;
+
+        // Bring up bridge
+        Command::new("ip")
+            .args(["link", "set", bridge_name, "up"])
+            .status()
+            .context("Failed to bring up bridge interface")?;
+
+        // Assign IP to bridge
+        Command::new("ip")
+            .args(["addr", "add", &format!("{}/24", gateway_ip), "dev", bridge_name])
+            .status()
+            .context("Failed to assign IP to bridge interface")?;
+
+        Ok(())
+    }
+
+    fn setup_team_rules(&self, bridge_name: &str) -> Result<()> {
+        // SNAT rule
+        let snat_rule = format!("-o {} -j MASQUERADE", bridge_name);
+        self.ipt.append("nat", "POSTROUTING", &snat_rule)
+            .expect("Failed to add SNAT rule");
+
+        // TTL rule
+        let ttl_rule = format!("-i {} -j TTL --ttl-set 64", bridge_name);
+        self.ipt.append("mangle", "PREROUTING", &ttl_rule)
+            .expect("Failed to add TTL rule");
+
+        Ok(())
+    }
+
+    fn manage_nat_rule(&self, enable: bool, rule_active: &mut bool) -> Result<()> {
+        let nat_rule = "-o eth0 -j MASQUERADE";
+        
+        match (enable, *rule_active) {
+            (true, false) => {
+                self.ipt.append("nat", "POSTROUTING", nat_rule)
+                    .expect("Failed to add NAT rule");
+                *rule_active = true;
+                println!("NAT enabled for outgoing traffic");
+            }
+            (false, true) => {
+                self.ipt.delete("nat", "POSTROUTING", nat_rule)
+                    .expect("Failed to remove NAT rule");
+                *rule_active = false;
+                println!("NAT disabled for outgoing traffic");
+            }
+            _ => {} // No change needed
+        }
+        Ok(())
+    }
+}
+
+struct FdbManager;
+
+impl FdbManager {
+    fn update_fdb_entries(config: &AppConfig) -> Result<()> {
+        for (comp_idx, competition) in config.competitions.iter().enumerate() {
+            let redis_manager = RedisManager::new(&competition.redis)
+                .context("Failed to create Redis manager")?;
+
+            for (team_idx, team) in competition.teams.iter().enumerate() {
+                let vxlan_name = format!("vxlan_{}_{}", comp_idx, team_idx);
+                let mac_address = Self::get_interface_mac(&vxlan_name)?;
+                
+                Self::publish_fdb_entry(&redis_manager, competition, &mac_address, team)?;
+                Self::update_bridge_fdb(&redis_manager, competition, team, &vxlan_name)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn get_interface_mac(interface: &str) -> Result<String> {
+        let output = Command::new("cat")
+            .arg(format!("/sys/class/net/{}/address", interface))
+            .output()
+            .context("Failed to get MAC address")?;
+
+        String::from_utf8(output.stdout)
+            .context("Failed to convert MAC address to string")
+            .map(|s| s.trim().to_string())
+    }
+
+    fn publish_fdb_entry(
+        redis_manager: &RedisManager,
+        competition: &carve::config::Competition,
+        mac_address: &str,
+        team: &carve::config::Team,
+    ) -> Result<()> {
+        let host = format!("{}:4789", competition.vtep_host.as_ref().context("vtep_host missing")?);
+        let addr = host.to_socket_addrs()
+            .context("Failed to resolve host")?
+            .next()
+            .context("No addresses found")?;
+
+        redis_manager.create_vxlan_fdb_entry(&competition.name, mac_address, addr.ip(), &team.name)
+            .context("Failed to create VXLAN FDB entry")?;
+
+        println!("Published FDB entry for {}: {} -> {}", team.name, addr.ip(), mac_address);
+        Ok(())
+    }
+
+    fn update_bridge_fdb(
+        redis_manager: &RedisManager,
+        competition: &carve::config::Competition,
+        team: &carve::config::Team,
+        vxlan_name: &str,
+    ) -> Result<()> {
+        let fdb_entries = redis_manager.get_domain_fdb_entries(&competition.name, &team.name)
+            .context("Failed to get FDB entries")?;
+
+        for (mac, addr) in fdb_entries {
+            Self::add_fdb_entry(vxlan_name, &mac, &addr, false)?;
+            Self::add_fdb_entry(vxlan_name, "00:00:00:00:00:00", &addr, true)?;
+        }
+        Ok(())
+    }
+
+    fn add_fdb_entry(vxlan_name: &str, mac: &str, addr: &str, is_broadcast: bool) -> Result<()> {
+        let status = Command::new("bridge")
+            .args(["fdb", "append", mac, "dev", vxlan_name, "dst", addr, "dynamic"])
+            .status()
+            .context("Failed to add FDB entry")?;
+
+        if !status.success() {
+            bail!("Failed to add {} FDB entry: {}", 
+                if is_broadcast { "broadcast" } else { "unicast" }, status);
+        }
+
+        println!("Added {} FDB entry: {} -> {}", 
+            if is_broadcast { "broadcast" } else { "unicast" }, mac, addr);
+        Ok(())
+    }
+}
+
+fn setup_competition_network(competition: &carve::config::Competition, comp_idx: usize) -> Result<()> {
+    let cidr = competition.cidr.as_ref().context("competition.cidr missing")?;
+    let network_config = NetworkConfig::new(cidr, competition.teams.len())?;
+    let network_manager = NetworkManager::new()?;
+
+    // Setup Redis
+    let redis_url = format!("redis://{}:{}/{}", 
+        competition.redis.host, competition.redis.port, competition.redis.db);
+    let client = redis::Client::open(redis_url).context("Failed to create Redis client")?;
+    let mut con = client.get_connection().context("Failed to get Redis connection")?;
+
+    // Clean and populate subnet data
+    let _: () = redis::cmd("DEL")
+        .arg(format!("{}:subnets", competition.name))
+        .query(&mut con)
+        .context("Failed to clean subnets hash")?;
+
+    let mut subnet_map = HashMap::new();
+    subnet_map.insert("MGMT".to_string(), format!("{}/24,MGMT,0", network_config.mgmt_subnet));
+
+    // Setup MGMT VXLAN
+    let vxlan_mgmt_name = format!("vxlan_mgmt_{}", comp_idx);
+    network_manager.create_vxlan_interface(&vxlan_mgmt_name, 1337)?;
+    
+    let mgmt_gateway_ip = Ipv4Addr::from(u32::from(network_config.mgmt_subnet) + 1);
+    Command::new("ip")
+        .args(["addr", "add", &format!("{}/24", mgmt_gateway_ip), "dev", &vxlan_mgmt_name])
+        .status()
+        .context("Failed to assign IP to MGMT VXLAN interface")?;
+
+    // Setup team networks
+    for (i, (team, &subnet)) in competition.teams.iter().zip(&network_config.team_subnets).enumerate() {
+        let vxlan_id = 1338 + i as u32;
+        let vxlan_name = format!("vxlan_{}_{}", comp_idx, i);
+        let bridge_name = format!("br_{}_{}", comp_idx, i);
+
+        println!("Creating VXLAN interface for {} named {}", team.name, vxlan_name);
+
+        // Create VXLAN interface
+        network_manager.create_vxlan_interface(&vxlan_name, vxlan_id)?;
+
+        // Create bridge and setup
+        let team_gateway_ip = Ipv4Addr::from(u32::from(subnet) + 1);
+        network_manager.create_bridge_with_vxlan(&bridge_name, &vxlan_name, team_gateway_ip)?;
+
+        // Setup iptables rules
+        network_manager.setup_team_rules(&bridge_name)?;
+
+        // Add to subnet map
+        subnet_map.insert(team.name.clone(), format!("{}/24,{},{}", subnet, team.name, vxlan_id));
+    }
+
+    // Store subnet map in Redis
+    let subnet_pairs: Vec<_> = subnet_map.iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    
+    let _: () = con.hset_multiple(format!("{}:subnets", competition.name), &subnet_pairs)
+        .context("Failed to store subnet map in Redis")?;
+
+    Ok(())
+}
+
+fn start_web_server() {
+    thread::spawn(|| {
         let sys = actix_rt::System::new();
         sys.block_on(async {
-            HttpServer::new(|| App::new().service(health))
+            if let Err(e) = HttpServer::new(|| App::new().service(health))
                 .bind(("0.0.0.0", 8000))
-                .expect("Failed to bind Actix server")
-                .run()
+                .context("Failed to bind Actix server")
+                .and_then(|server| Ok(server.run()))
+                .unwrap()
                 .await
-                .ok();
+            {
+                eprintln!("Web server error: {}", e);
+            }
         });
     });
-    let config2 = config.clone();
-    //start fdb update thread
-    std::thread::spawn(move || {
-        // create static fdb entry for 00:00:00:00:00:00 for each of the vxlan-sidecar-<team_name>-<box_name> containers
+}
+
+fn start_fdb_update_thread(config: AppConfig) {
+    thread::spawn(move || {
         loop {
-            for (i, config) in (&config2).clone().competitions.iter().enumerate() {
-                for (j, team) in config.teams.iter().enumerate() {
-                    let redis_manager = redis_manager::RedisManager::new(&config.redis)
-                        .expect("Failed to create Redis manager");
-
-                    let mac_address = std::process::Command::new("cat")
-                        .arg(format!("/sys/class/net/vxlan_{}_{}//address", i, j))
-                        .output()
-                        .expect("Failed to get MAC address")
-                        .stdout;
-                    let mac_address = String::from_utf8(mac_address)
-                        .expect("Failed to convert MAC address to string")
-                        .trim()
-                        .to_string();
-                    // now lookup our IP address from the vtep-host in the config
-                    let host = format!(
-                        "{}:4789",
-                        &config.clone().vtep_host.expect("vtep_host missing")
-                    );
-
-                    match host.to_socket_addrs() {
-                        Ok(mut addrs) => {
-                            if let Some(addr) = addrs.next() {
-                                match redis_manager.create_vxlan_fdb_entry(
-                                    &config.name,
-                                    &mac_address,
-                                    addr.ip(),
-                                    team.name.as_str(),
-                                ) {
-                                    Ok(_) => {
-                                        println!(
-                                            "Published FDB entry for {}: {} -> {}",
-                                            team.name.as_str(),
-                                            addr.ip(),
-                                            mac_address
-                                        );
-                                    }
-                                    Err(e) => {
-                                        eprintln!(
-                                            "Failed to publish FDB entry for {}: {}",
-                                            team.name.as_str(),
-                                            e
-                                        );
-                                    }
-                                }
-                            } else {
-                                eprintln!("No addresses found for {}", host);
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("Failed to resolve {}: {}", host, e);
-                        }
-                    }
-                    for b in &config.boxes {
-                        let broadcast_entry = "00:00:00:00:00:00".to_string();
-                        let redis_fdb_entries = redis_manager
-                            .get_domain_fdb_entries(&config.name, &team.name)
-                            .expect("Failed to get FDB entries");
-                        for (mac, addr) in redis_fdb_entries {
-                            // Add the FDB entry to the bridge
-                            println!("mac: {}, addr: {}", mac, addr);
-                            let vxlan_name = format!("vxlan_{}_{}", i, j);
-                            println!(
-                                "Adding FDB entries for  this {}: {} -> {}",
-                                vxlan_name, mac, addr
-                            );
-                            let vxlan_sidecar_name =
-                                format!("vxlan-sidecar-{}-{}", team.name, b.name);
-                            let status = std::process::Command::new("bridge")
-                                .args([
-                                    "fdb",
-                                    "append",
-                                    &mac,
-                                    "dev",
-                                    &vxlan_name,
-                                    "dst",
-                                    &addr,
-                                    "dynamic",
-                                ])
-                                .status()
-                                .expect("Failed to add FDB entry");
-                            if !status.success() {
-                                eprintln!(
-                                    "Failed to add unicast FDB entry for {}: {}",
-                                    vxlan_sidecar_name, status
-                                );
-                            } else {
-                                println!(
-                                    "Added unicast FDB entry for {}: {} -> {}",
-                                    vxlan_sidecar_name, mac, addr
-                                );
-                            }
-                            // Add the broadcast FDB entry for the vxlan-sidecar
-                            let status = std::process::Command::new("bridge")
-                                .args([
-                                    "fdb",
-                                    "append",
-                                    &broadcast_entry,
-                                    "dev",
-                                    &vxlan_name,
-                                    "dst",
-                                    &addr,
-                                    "dynamic",
-                                ])
-                                .status()
-                                .expect("Failed to add broadcast FDB entry");
-                            if !status.success() {
-                                eprintln!(
-                                    "Failed to add broadcast FDB entry for {}: {}",
-                                    vxlan_sidecar_name, status
-                                );
-                            } else {
-                                println!(
-                                    "Added broadcast FDB entry for {}: {} -> {}",
-                                    vxlan_sidecar_name, mac, broadcast_entry
-                                );
-                            }
-                        }
-                    }
-                }
+            if let Err(e) = FdbManager::update_fdb_entries(&config) {
+                eprintln!("FDB update error: {}", e);
             }
-            std::thread::sleep(std::time::Duration::from_secs(10));
+            thread::sleep(Duration::from_secs(5));
         }
-        // Sleep for a while before updating again
     });
+}
 
-    // subscribe to <competition_name>:events
-    // NAT outgoing traffic to the internet ONLY if the competition is NOT running
-    let redis_manager = redis_manager::RedisManager::new(&config.competitions[0].redis)
-        .expect("Failed to create Redis manager");
-    let ipt = iptables::new(false).expect("Failed to create iptables instance");
+fn manage_competition_nat(config: &AppConfig) -> Result<()> {
+    let redis_manager = RedisManager::new(&config.competitions[0].redis)
+        .context("Failed to create Redis manager")?;
+    let network_manager = NetworkManager::new()?;
     let mut rule_added = false;
-    let current_competition_state = redis_manager
-        .get_competition_state(config.competitions[0].name.as_str())
-        .expect("Failed to get competition state");
-    match current_competition_state.status {
-        redis_manager::CompetitionStatus::Unstarted => {
-            // NAT outgoing traffic to the internet
-            println!("Competition is not running, enabling NAT for outgoing traffic");
-            // Add NAT rule for outgoing traffic
-            let nat_rule = "-o eth0 -j MASQUERADE";
-            ipt.append("nat", "POSTROUTING", nat_rule)
-                .expect("Failed to add NAT rule for outgoing traffic");
-            rule_added = true;
-        }
-        redis_manager::CompetitionStatus::Active => {
-            // do nothing, rule doesn't need to be added
-            println!("Competition is running, NAT disabled for outgoing traffic");
-        }
-        redis_manager::CompetitionStatus::Finished => {
-            // Do nothing, competition is finished
-        }
-    }
+
+    // Handle initial state
+    let competition_name = &config.competitions[0].name;
+    let current_state = redis_manager.get_competition_state(competition_name)
+        .context("Failed to get competition state")?;
+
+    let should_enable_nat = matches!(current_state.status, CompetitionStatus::Unstarted);
+    network_manager.manage_nat_rule(should_enable_nat, &mut rule_added)?;
+
+    // Handle state changes
     loop {
-        match redis_manager.wait_for_competition_event(config.competitions[0].name.as_str()) {
+        match redis_manager.wait_for_competition_event(competition_name) {
             Ok(event) => {
-                match event.status {
-                    redis_manager::CompetitionStatus::Unstarted => {
-                        // NAT outgoing traffic to the internet
-                        println!("Competition is not running, enabling NAT for outgoing traffic");
-                        // Add NAT rule for outgoing traffic
-                        let nat_rule = "-o eth0 -j MASQUERADE";
-                        if !rule_added {
-                            // Only add the rule if it wasn't added before
-                            ipt.append("nat", "POSTROUTING", nat_rule)
-                                .expect("Failed to add NAT rule for outgoing traffic");
-                            rule_added = true;
-                        }
-                    }
-                    redis_manager::CompetitionStatus::Active => {
-                        // Disable NAT for outgoing traffic
-                        println!("Competition is running, disabling NAT for outgoing traffic");
-                        // Remove NAT rule for outgoing traffic
-                        let nat_rule = "-o eth0 -j MASQUERADE";
-                        if rule_added {
-                            ipt.delete("nat", "POSTROUTING", nat_rule)
-                                .expect("Failed to remove NAT rule for outgoing traffic");
-                        }
-                    }
-                    redis_manager::CompetitionStatus::Finished => {
-                        // Do nothing, competition is finished
-                    }
+                let should_enable_nat = matches!(event.status, CompetitionStatus::Unstarted);
+                if let Err(e) = network_manager.manage_nat_rule(should_enable_nat, &mut rule_added) {
+                    eprintln!("Failed to manage NAT rule: {}", e);
                 }
             }
             Err(e) => {
                 eprintln!("Error waiting for competition event: {}", e);
+                thread::sleep(Duration::from_secs(5));
             }
         }
     }
+}
+
+fn main() -> Result<()> {
+    let config = AppConfig::new().context("Failed to load config")?;
+
+    // Setup network for each competition
+    for (comp_idx, competition) in config.competitions.iter().enumerate() {
+        setup_competition_network(competition, comp_idx)
+            .with_context(|| format!("Failed to setup network for competition {}", competition.name))?;
+    }
+
+    // Start background services
+    start_web_server();
+    start_fdb_update_thread(config.clone());
+
+    // Manage NAT rules based on competition state
+    manage_competition_nat(&config)?;
+
+    Ok(())
 }
