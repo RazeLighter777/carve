@@ -27,6 +27,16 @@ fn create_vxlan_interface(vxlan_id: &str) -> Result<(), String> {
         .args(["link", "set", "vxlan0", "up"])
         .status()
         .map_err(|e| format!("Failed to bring up vxlan0: {}", e))?;
+    //set eth0 to promiscuous mode
+    Command::new("ip")
+        .args(["link", "set", "eth0", "promisc", "on"])
+        .status()
+        .map_err(|e| format!("Failed to set eth0 to promiscuous mode: {}", e))?;
+    // Set vxlan0 to promiscuous mode
+    Command::new("ip")
+        .args(["link", "set", "vxlan0", "promisc", "on"])
+        .status()
+        .map_err(|e| format!("Failed to set vxlan0 to promiscuous mode: {}", e))?;
     Ok(())
 }
 
