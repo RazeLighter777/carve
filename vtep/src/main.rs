@@ -222,53 +222,128 @@ fn main() {
         loop {
             for (i, config) in (&config2).clone().competitions.iter().enumerate() {
                 for (j, team) in config.teams.iter().enumerate() {
-                    for b in &config.boxes {
-                        let vxlan_sidecar_name = format!("vxlan-sidecar-{}-{}", team.name, b.name);
-                        let fdb_entry = format!("00:00:00:00:00:00 {}", vxlan_sidecar_name);
-                        match format!("vxlan-sidecar-{}-{}:4789", team.name, b.name)
-                            .to_socket_addrs()
-                        {
-                            Ok(mut addrs) => {
-                                if let Some(addr) = addrs.next() {
-                                    // Add the FDB entry to the bridge interface
-                                    let status = std::process::Command::new("bridge")
-                                        .args([
-                                            "fdb",
-                                            "append",
-                                            &fdb_entry,
-                                            "dev",
-                                            &format!("vxlan_{}_{}", i, j),
-                                            "dst",
-                                            &addr.ip().to_string(),
-                                        ])
-                                        .status()
-                                        .expect("Failed to add FDB entry");
-                                    if !status.success() {
-                                        eprintln!(
-                                            "Failed to add FDB entry for {}: {}",
-                                            vxlan_sidecar_name, status
-                                        );
-                                    } else {
+                    let redis_manager = redis_manager::RedisManager::new(&config.redis)
+                        .expect("Failed to create Redis manager");
+
+                    let mac_address = std::process::Command::new("cat")
+                        .arg(format!("/sys/class/net/vxlan_{}_{}//address", i, j))
+                        .output()
+                        .expect("Failed to get MAC address")
+                        .stdout;
+                    let mac_address = String::from_utf8(mac_address)
+                        .expect("Failed to convert MAC address to string")
+                        .trim()
+                        .to_string();
+                    // now lookup our IP address from the vtep-host in the config
+                    let host = format!(
+                        "{}:4789",
+                        &config.clone().vtep_host.expect("vtep_host missing")
+                    );
+
+                    match host.to_socket_addrs() {
+                        Ok(mut addrs) => {
+                            if let Some(addr) = addrs.next() {
+                                match redis_manager.create_vxlan_fdb_entry(
+                                    &config.name,
+                                    &mac_address,
+                                    addr.ip(),
+                                    team.name.as_str(),
+                                ) {
+                                    Ok(_) => {
                                         println!(
-                                            "Added FDB entry for {}: {}",
-                                            vxlan_sidecar_name, fdb_entry
+                                            "Published FDB entry for {}: {} -> {}",
+                                            team.name.as_str(),
+                                            addr.ip(),
+                                            mac_address
+                                        );
+                                    }
+                                    Err(e) => {
+                                        eprintln!(
+                                            "Failed to publish FDB entry for {}: {}",
+                                            team.name.as_str(),
+                                            e
                                         );
                                     }
                                 }
+                            } else {
+                                eprintln!("No addresses found for {}", host);
                             }
-                            Err(e) => {
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to resolve {}: {}", host, e);
+                        }
+                    }
+                    for b in &config.boxes {
+                        let broadcast_entry = "00:00:00:00:00:00".to_string();
+                        let redis_fdb_entries = redis_manager
+                            .get_domain_fdb_entries(&config.name, &team.name)
+                            .expect("Failed to get FDB entries");
+                        for (mac, addr) in redis_fdb_entries {
+                            // Add the FDB entry to the bridge
+                            println!("mac: {}, addr: {}", mac, addr);
+                            let vxlan_name = format!("vxlan_{}_{}", i, j);
+                            println!(
+                                "Adding FDB entries for  this {}: {} -> {}",
+                                vxlan_name, mac, addr
+                            );
+                            let vxlan_sidecar_name =
+                                format!("vxlan-sidecar-{}-{}", team.name, b.name);
+                            let status = std::process::Command::new("bridge")
+                                .args([
+                                    "fdb",
+                                    "append",
+                                    &mac,
+                                    "dev",
+                                    &vxlan_name,
+                                    "dst",
+                                    &addr,
+                                    "dynamic",
+                                ])
+                                .status()
+                                .expect("Failed to add FDB entry");
+                            if !status.success() {
                                 eprintln!(
-                                    "Failed to resolve address for {}: {}",
-                                    vxlan_sidecar_name, e
+                                    "Failed to add unicast FDB entry for {}: {}",
+                                    vxlan_sidecar_name, status
+                                );
+                            } else {
+                                println!(
+                                    "Added unicast FDB entry for {}: {} -> {}",
+                                    vxlan_sidecar_name, mac, addr
+                                );
+                            }
+                            // Add the broadcast FDB entry for the vxlan-sidecar
+                            let status = std::process::Command::new("bridge")
+                                .args([
+                                    "fdb",
+                                    "append",
+                                    &broadcast_entry,
+                                    "dev",
+                                    &vxlan_name,
+                                    "dst",
+                                    &addr,
+                                    "dynamic",
+                                ])
+                                .status()
+                                .expect("Failed to add broadcast FDB entry");
+                            if !status.success() {
+                                eprintln!(
+                                    "Failed to add broadcast FDB entry for {}: {}",
+                                    vxlan_sidecar_name, status
+                                );
+                            } else {
+                                println!(
+                                    "Added broadcast FDB entry for {}: {} -> {}",
+                                    vxlan_sidecar_name, mac, broadcast_entry
                                 );
                             }
                         }
                     }
                 }
             }
-            // Sleep for a while before updating again
             std::thread::sleep(std::time::Duration::from_secs(10));
         }
+        // Sleep for a while before updating again
     });
 
     // subscribe to <competition_name>:events

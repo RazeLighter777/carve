@@ -127,18 +127,13 @@ async fn main() -> std::io::Result<()> {
     tokio::spawn(async move {
         let competition = competition.clone();
         let redis_manager = RedisManager::new(&competition.redis).unwrap();
-        let eth0_mac = Command::new("cat")
-            .arg("/sys/class/net/eth0/address")
-            .output()
-            .expect("Failed to get eth0 MAC address of this host");
-        let eth0_mac = String::from_utf8_lossy(&eth0_mac.stdout).trim().to_string();
 
         loop {
             let new_fdb_entries: Vec<(String, String)> = redis_manager
-                .get_teams_fdb_entries(&competition_name, &team_name)
+                .get_domain_fdb_entries(&competition_name, &team_name)
                 .unwrap();
             for entry in new_fdb_entries {
-                let (ip, mac) = entry;
+                let (mac, ip) = entry;
                 // skip entry with the ip of the vxlan-sidecar-<our_team_name>-<our_box_name> service
                 match tokio::net::lookup_host((
                     format!("vxlan-sidecar-{}-{}", team_name, box_name).as_str(),
@@ -191,45 +186,35 @@ async fn main() -> std::io::Result<()> {
                         );
                     }
                 }
+                let status2 = Command::new("bridge")
+                    .args([
+                        "fdb",
+                        "append",
+                        &mac,
+                        "dst",
+                        &ip,
+                        "dev",
+                        "vxlan0",
+                        "dynamic",
+                    ])
+                    .status();
+                match status2 {
+                    Ok(s) if s.success() => {
+                        println!(
+                            "Appended FDB entry for vxlan0 remote {} with MAC {}",
+                            ip, mac
+                        ); 
+                    }
+                    Ok(_) | Err(_) => {
+                        eprintln!(
+                            "Failed to append FDB entry for vxlan0 remote {} with MAC {}",
+                            ip, mac
+                        );
+                    }
+                }
             }
             // get mac address and ip of eth0 and add it to the FDB
             //now lookup the ip of the vxlan-sidecar-<team_name>-<box_name> service and use redis manager to publish the FDB entry
-            match tokio::net::lookup_host((
-                format!("vxlan-sidecar-{}-{}", team_name, box_name).as_str(),
-                0,
-            ))
-            .await
-            {
-                Ok(mut addrs) => {
-                    if let Some(ip) = addrs.next().map(|sockaddr| sockaddr.ip()) {
-                        match redis_manager.create_vxlan_fdb_entry(
-                            &competition_name,
-                            &ip.to_string(),
-                            &eth0_mac,
-                            &team_name,
-                        ) {
-                            Ok(_) => {
-                                println!(
-                                    "Published FDB entry for vxlan-sidecar-{}-{}: {} {}",
-                                    team_name, box_name, eth0_mac, ip
-                                );
-                            }
-                            Err(e) => {
-                                eprintln!(
-                                    "Failed to publish FDB entry for vxlan-sidecar-{}-{}: {}",
-                                    team_name, box_name, e
-                                );
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!(
-                        "DNS resolution error for vxlan-sidecar-{}-{}: {}",
-                        team_name, competition.name, e
-                    );
-                }
-            }
 
             match tokio::net::lookup_host((vtep_host.as_str(), 0)).await {
                 Ok(mut addrs) => {

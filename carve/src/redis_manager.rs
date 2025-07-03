@@ -1,3 +1,5 @@
+use std::net::{IpAddr};
+
 use crate::config::{FlagCheck, RedisConfig};
 use crate::util;
 use anyhow::{Context, Result};
@@ -276,9 +278,9 @@ impl RedisManager {
     pub fn create_vxlan_fdb_entry(
         &self,
         competition_name: &str,
-        overlay_address: &str,
         mac_address: &str,
-        team_name: &str
+        ip_address: IpAddr,
+        domain: &str
     ) -> Result<()> {
         let mut conn = self
             .client
@@ -286,16 +288,15 @@ impl RedisManager {
             .context("Failed to connect to Redis")?;
 
         // the key name
-        let key = format!("{}:vxlan_fdb:{}", competition_name, team_name);
-
+        let key = format!("{}:vxlan_fdb:{}", competition_name, domain);
+        
         // Create a unique identifier for the entry
-        let entry_id = overlay_address;
 
         // Store the FDB entry as a hash with overlay address and MAC address
         let _: () = redis::cmd("HSET")
             .arg(&key)
-            .arg(&entry_id)
-            .arg(mac_address)
+            .arg(&mac_address)
+            .arg(ip_address.to_string())
             .query(&mut conn)
             .context("Failed to create VXLAN FDB entry")?;
         //expire the entry every 10 seconds
@@ -304,17 +305,17 @@ impl RedisManager {
             .arg(20) // 20 seconds
             .arg("FIELDS")
             .arg(1)
-            .arg(entry_id)
+            .arg(mac_address)
             .query(&mut conn)
             .context("Failed to set expiration for VXLAN FDB entry")?;
 
         Ok(())
     }
 
-    pub fn get_teams_fdb_entries(
+    pub fn get_domain_fdb_entries(
         &self,
         competition_name: &str,
-        team_name: &str,
+        domain: &str,
     ) -> Result<Vec<(String, String)>> {
         let mut conn = self
             .client
@@ -322,7 +323,7 @@ impl RedisManager {
             .context("Failed to connect to Redis")?;
 
         // the key name
-        let key = format!("{}:vxlan_fdb:{}", competition_name, team_name);
+        let key = format!("{}:vxlan_fdb:{}", competition_name, domain);
 
         // Get all FDB entries for the team
         let entries: Vec<String> = redis::cmd("HGETALL")

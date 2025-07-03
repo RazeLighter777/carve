@@ -6,6 +6,7 @@ use carve::redis_manager::RedisManager;
 use std::env;
 use std::fs;
 use std::io::Read;
+use std::net::ToSocketAddrs;
 use std::path::Path;
 use std::process::Command;
 
@@ -80,7 +81,10 @@ async fn main() -> Result<()> {
         .iter()
         .find(|b| b.name == box_name)
         .and_then(|b| {
-            println!("Found box '{}', backing_image: {:?}", b.name, b.backing_image);
+            println!(
+                "Found box '{}', backing_image: {:?}",
+                b.name, b.backing_image
+            );
             Some(b.backing_image.clone())
         })
         // .and_then(|img| {
@@ -88,7 +92,10 @@ async fn main() -> Result<()> {
         //     Path::new(&img).canonicalize().ok()
         // })
         .ok_or_else(|| {
-            println!("Failed to find or canonicalize backing image for box '{}' in competition '{}'", box_name, competition);
+            println!(
+                "Failed to find or canonicalize backing image for box '{}' in competition '{}'",
+                box_name, competition
+            );
             anyhow!(
                 "Backing image for box '{}' not found in competition '{}'",
                 box_name,
@@ -119,8 +126,7 @@ async fn main() -> Result<()> {
     }
     println!(
         "Created qcow2 image at {} with backing file {}",
-        tmp_disk,
-        disk_image
+        tmp_disk, disk_image
     );
 
     // --- RedisManager and credentials/keys logic ---
@@ -241,12 +247,16 @@ async fn main() -> Result<()> {
         let qemu_pid_val = fs::read_to_string("/tmp/qemu.pid")?.trim().parse::<i32>()?;
         println!("QEMU started with PID: {}", qemu_pid_val);
         // start new thread to wait for redis subscription for qemu events
+        let redis_manager1 = redis_mgr.clone();
+        let team_name1 = team_name.clone();
+        let box_name1 = box_name.clone();
+        let competition1 = competition.clone();
         let _ = std::thread::spawn(move || {
             loop {
-                match redis_mgr.wait_for_qemu_event(
-                    &competition,
-                    &team_name,
-                    &box_name,
+                match redis_manager1.wait_for_qemu_event(
+                    &competition1,
+                    &team_name1,
+                    &box_name1,
                     vec![
                         carve::redis_manager::QemuCommands::Snapshot,
                         carve::redis_manager::QemuCommands::Restore,
@@ -265,7 +275,7 @@ async fn main() -> Result<()> {
                                 if let Ok(mut stream) = UnixStream::connect(monitor_socket) {
                                     qemu_read(&mut stream).unwrap();
                                     // Send the 'savevm' command to QEMU
-                                    let command = format!("savevm {}_{} \n", team_name, box_name);
+                                    let command = format!("savevm {}_{} \n", team_name1, box_name1);
                                     if let Err(e) = stream.write_all(command.as_bytes()) {
                                         eprintln!("Failed to send command to QEMU monitor: {}", e);
                                     } else {
@@ -295,7 +305,7 @@ async fn main() -> Result<()> {
                                 let monitor_socket = "/run/qemu-monitor.sock";
                                 if let Ok(mut stream) = UnixStream::connect(monitor_socket) {
                                     qemu_read(&mut stream).unwrap();
-                                    let command = format!("loadvm {}_{} \n", team_name, box_name);
+                                    let command = format!("loadvm {}_{} \n", team_name1, box_name1);
                                     if let Err(e) = stream.write_all(command.as_bytes()) {
                                         eprintln!("Failed to send command to QEMU monitor: {}", e);
                                     } else {
@@ -319,6 +329,43 @@ async fn main() -> Result<()> {
                     }
                     Err(e) => eprintln!("Error waiting for QEMU event: {}", e),
                 }
+            }
+        });
+        let redis_manager2 = redis_mgr.clone();
+        let competition2 = competition.clone();
+        let team_name2 = team_name.clone();
+        let box_name2 = box_name.clone();
+        std::thread::spawn(move || {
+            //every ten seconds create a new VXLAN FDB entry for the box
+            loop {
+                //lookup the vxlan-sidecar-<our_team_name>-<our_box_name> service IP
+                let vxlan_sidecar_ip = format!("vxlan-sidecar-{}-{}:4789", team_name2, box_name2);
+                // Get the IP address of the vxlan-sidecar service
+                match vxlan_sidecar_ip.to_socket_addrs() {
+                    Ok(addr) => {
+                        for ip in addr {
+                            // Create VXLAN FDB entry in Redis
+                            if let Err(e) = redis_manager2.create_vxlan_fdb_entry(
+                                &competition2,
+                                &mac_address,
+                                ip.ip(),
+                                &team_name,
+                            ) {
+                                eprintln!("Failed to create VXLAN FDB entry: {}", e);
+                            } else {
+                                println!(
+                                    "Created VXLAN FDB entry for {}: {} -> {}",
+                                    team_name,
+                                    mac_address,
+                                    ip.ip()
+                                );
+                            }
+                        }
+                    }
+                    _ => eprintln!("Failed to resolve vxlan-sidecar service address"),
+                }
+                // Sleep for 10 seconds before the next iteration   
+                std::thread::sleep(std::time::Duration::from_secs(10));
             }
         });
         // Start actix-web server for cloud-init
