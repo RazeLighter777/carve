@@ -188,7 +188,7 @@ impl VmManager {
         let ram_mb = box_cfg.ram_mb.unwrap_or(1024);
 
         println!("Starting QEMU VM with {} cores, {} MB RAM", cores, ram_mb);
-
+        
         let status = Command::new("qemu-system-x86_64")
             .args([
                 "-enable-kvm",

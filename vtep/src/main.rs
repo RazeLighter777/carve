@@ -72,11 +72,26 @@ impl NetworkManager {
         let _ = Command::new("ip")
             .args(["link", "del", name])
             .status();
-
+        // get ip address of eth0
+        let eth0_ip = Command::new("ip")
+            .args(["-4", "addr", "show", "dev", "eth0"])
+            .output()
+            .context("Failed to get eth0 IP address")?;
+        if !eth0_ip.status.success() {
+            bail!("Failed to get eth0 IP address");
+        }
+        let eth0_ip = String::from_utf8(eth0_ip.stdout)
+            .context("Failed to convert eth0 IP address to string")?;
+        let eth0_ip = eth0_ip.lines()
+            .find(|line| line.contains("inet "))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .context("Failed to parse eth0 IP address")?;
+        let eth0_ip = eth0_ip.split('/').next().context("Failed to split eth0 IP address")?;
+        println!("Using eth0 IP address: {}", eth0_ip);
         let status = Command::new("ip")
             .args([
                 "link", "add", name, "type", "vxlan", "id", &vxlan_id.to_string(),
-                "dev", "eth0", "nolearning", "dstport", "4789",
+                "local", eth0_ip, "nolearning", "dstport", "4789",
             ])
             .status()
             .context("Failed to create VXLAN interface")?;

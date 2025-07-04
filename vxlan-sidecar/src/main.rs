@@ -11,11 +11,27 @@ use tokio::time::{Duration, sleep};
 fn create_vxlan_interface(vxlan_id: &str) -> Result<(), String> {
     // Remove vxlan0 if it exists
     let _ = Command::new("ip").args(["link", "del", "vxlan0"]).status();
+    //get ip address of eth0
+    let eth0_ip = Command::new("ip")
+        .args(["-4", "addr", "show", "dev", "eth0"])
+        .output()
+        .map_err(|e| format!("Failed to get eth0 IP address: {}", e))?
+        .stdout;
+    let eth0_ip = String::from_utf8(eth0_ip)
+        .map_err(|e| format!("Failed to parse eth0 IP address: {}", e))?
+        .lines()
+        .find(|line| line.contains("inet "))
+        .and_then(|line| line.split_whitespace().nth(1))
+        .ok_or("Failed to find eth0 IP address")?
+        .split('/')
+        .next()
+        .ok_or("Failed to parse eth0 IP address")?
+        .to_string();   
     // Create vxlan0 with remote
     let status = Command::new("ip")
         .args([
-            "link", "add", "vxlan0", "type", "vxlan", "id", vxlan_id, "dev", "eth0", "nolearning", "proxy", "l2miss","l3miss",
-            "dstport", "4789",
+            "link", "add", "vxlan0", "type", "vxlan", "id", vxlan_id,"nolearning", "l2miss","l3miss",
+            "dstport", "4789", "local", &eth0_ip,
         ])
         .status()
         .map_err(|e| format!("Failed to create vxlan0: {}", e))?;
@@ -134,32 +150,6 @@ async fn main() -> std::io::Result<()> {
                 .unwrap();
             for entry in new_fdb_entries {
                 let (mac, ip) = entry;
-                // skip entry with the ip of the vxlan-sidecar-<our_team_name>-<our_box_name> service
-                match tokio::net::lookup_host((
-                    format!("vxlan-sidecar-{}-{}", team_name, box_name).as_str(),
-                    0,
-                ))
-                .await
-                {
-                    Ok(mut addrs) => {
-                        if let Some(vxlan_ip) = addrs.next().map(|sockaddr| sockaddr.ip()) {
-                            println!("entry ip: {} and our vxlan ip: {}", ip, vxlan_ip);
-                            if vxlan_ip.to_string() == ip {
-                                println!(
-                                    "Skipping FDB entry for vxlan-sidecar-{}-{}: {} {}",
-                                    team_name, box_name, mac, ip
-                                );
-                                continue;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "DNS resolution error for vxlan-sidecar-{}-{}: {}",
-                            team_name, box_name, e
-                        );
-                    }
-                }
                 let status1 = Command::new("bridge")
                     .args([
                         "fdb",
