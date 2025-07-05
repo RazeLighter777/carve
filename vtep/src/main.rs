@@ -90,7 +90,7 @@ impl NetworkManager {
         println!("Using eth0 IP address: {}", eth0_ip);
         let status = Command::new("ip")
             .args([
-                "link", "add", name, "type", "vxlan0", "id", &vxlan_id.to_string(),  "nolearning", "dstport", "4789",
+                "link", "add", name, "type", "vxlan", "id", &vxlan_id.to_string(),  "nolearning", "dstport", "4789",
             ])
             .status()
             .context("Failed to create VXLAN interface")?;
