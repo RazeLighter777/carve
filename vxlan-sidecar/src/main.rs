@@ -26,12 +26,24 @@ fn create_vxlan_interface(vxlan_id: &str) -> Result<(), String> {
         .split('/')
         .next()
         .ok_or("Failed to parse eth0 IP address")?
-        .to_string();   
+        .to_string();
     // Create vxlan0 with remote
     let status = Command::new("ip")
         .args([
-            "link", "add", "vxlan0", "type", "vxlan", "id", vxlan_id,"nolearning", "l2miss","l3miss",
-            "dstport", "4789", "local", &eth0_ip,
+            "link",
+            "add",
+            "vxlan0",
+            "type",
+            "vxlan",
+            "id",
+            vxlan_id,
+            "nolearning",
+            "l2miss",
+            "l3miss",
+            "dstport",
+            "4789",
+            "local",
+            &eth0_ip,
         ])
         .status()
         .map_err(|e| format!("Failed to create vxlan0: {}", e))?;
@@ -43,6 +55,11 @@ fn create_vxlan_interface(vxlan_id: &str) -> Result<(), String> {
         .args(["link", "set", "vxlan0", "up"])
         .status()
         .map_err(|e| format!("Failed to bring up vxlan0: {}", e))?;
+    //set mtu to 1370
+    Command::new("ip")
+        .args(["link", "set", "vxlan0", "mtu", "1370"])
+        .status()
+        .map_err(|e| format!("Failed to set mtu for vxlan0: {}", e))?;
     Ok(())
 }
 
@@ -150,6 +167,33 @@ async fn main() -> std::io::Result<()> {
                 .unwrap();
             for entry in new_fdb_entries {
                 let (mac, ip) = entry;
+                // skip entry with the ip of the vxlan-sidecar-<our_team_name>-<our_box_name> service
+                match tokio::net::lookup_host((
+                    format!("vxlan-sidecar-{}-{}", team_name, box_name).as_str(),
+                    0,
+                ))
+                .await
+                {
+                    Ok(mut addrs) => {
+                        if let Some(vxlan_ip) = addrs.next().map(|sockaddr| sockaddr.ip()) {
+                            println!("entry ip: {} and our vxlan ip: {}", ip, vxlan_ip);
+                            if vxlan_ip.to_string() == ip {
+                                println!(
+                                    "Skipping FDB entry for vxlan-sidecar-{}-{}: {} {}",
+                                    team_name, box_name, mac, ip
+                                );
+                                continue;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "DNS resolution error for vxlan-sidecar-{}-{}: {}",
+                            team_name, box_name, e
+                        );
+                    }
+                }
+
                 let status1 = Command::new("bridge")
                     .args([
                         "fdb",
@@ -159,7 +203,6 @@ async fn main() -> std::io::Result<()> {
                         &ip,
                         "dev",
                         "vxlan0",
-                        "dynamic",
                     ])
                     .status();
                 match status1 {
@@ -177,23 +220,14 @@ async fn main() -> std::io::Result<()> {
                     }
                 }
                 let status2 = Command::new("bridge")
-                    .args([
-                        "fdb",
-                        "append",
-                        &mac,
-                        "dst",
-                        &ip,
-                        "dev",
-                        "vxlan0",
-                        "dynamic",
-                    ])
+                    .args(["fdb", "append", &mac, "dst", &ip, "dev", "vxlan0"])
                     .status();
                 match status2 {
                     Ok(s) if s.success() => {
                         println!(
                             "Appended FDB entry for vxlan0 remote {} with MAC {}",
                             ip, mac
-                        ); 
+                        );
                     }
                     Ok(_) | Err(_) => {
                         eprintln!(

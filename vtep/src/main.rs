@@ -90,8 +90,7 @@ impl NetworkManager {
         println!("Using eth0 IP address: {}", eth0_ip);
         let status = Command::new("ip")
             .args([
-                "link", "add", name, "type", "vxlan", "id", &vxlan_id.to_string(),
-                "local", eth0_ip, "nolearning", "dstport", "4789",
+                "link", "add", name, "type", "vxlan0", "id", &vxlan_id.to_string(),  "nolearning", "dstport", "4789",
             ])
             .status()
             .context("Failed to create VXLAN interface")?;
@@ -104,7 +103,11 @@ impl NetworkManager {
             .args(["link", "set", name, "up"])
             .status()
             .context("Failed to bring up VXLAN interface")?;
-
+        // Set MTU to 1370
+        Command::new("ip")
+            .args(["link", "set", name, "mtu", "1370"])
+            .status()
+            .context("Failed to set MTU for VXLAN interface")?;
         Ok(())
     }
 
@@ -130,6 +133,12 @@ impl NetworkManager {
             .args(["link", "set", bridge_name, "up"])
             .status()
             .context("Failed to bring up bridge interface")?;
+
+        // set bridge MTU
+        Command::new("ip")
+            .args(["link", "set", bridge_name, "mtu", "1370"])
+            .status()
+            .context("Failed to set MTU for bridge interface")?;
 
         // Assign IP to bridge
         Command::new("ip")
@@ -189,7 +198,7 @@ impl FdbManager {
                 let mac_address = Self::get_interface_mac(&vxlan_name)?;
                 
                 Self::publish_fdb_entry(&redis_manager, competition, &mac_address, team)?;
-                Self::update_bridge_fdb(&redis_manager, competition, team, &vxlan_name)?;
+                Self::update_bridge_fdb(&redis_manager, competition, team, &vxlan_name, &mac_address)?;
             }
         }
         Ok(())
@@ -230,11 +239,16 @@ impl FdbManager {
         competition: &carve::config::Competition,
         team: &carve::config::Team,
         vxlan_name: &str,
+        our_mac: &str,
     ) -> Result<()> {
         let fdb_entries = redis_manager.get_domain_fdb_entries(&competition.name, &team.name)
             .context("Failed to get FDB entries")?;
 
         for (mac, addr) in fdb_entries {
+            if mac == our_mac {
+                println!("Skipping our own MAC address: {}", mac);
+                continue; // Skip our own MAC
+            }
             Self::add_fdb_entry(vxlan_name, &mac, &addr, false)?;
             Self::add_fdb_entry(vxlan_name, "00:00:00:00:00:00", &addr, true)?;
         }
@@ -243,7 +257,7 @@ impl FdbManager {
 
     fn add_fdb_entry(vxlan_name: &str, mac: &str, addr: &str, is_broadcast: bool) -> Result<()> {
         let status = Command::new("bridge")
-            .args(["fdb", "append", mac, "dev", vxlan_name, "dst", addr, "dynamic"])
+            .args(["fdb", "append", mac, "dev", vxlan_name, "dst", addr])
             .status()
             .context("Failed to add FDB entry")?;
 

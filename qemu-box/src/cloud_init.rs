@@ -43,7 +43,7 @@ local-hostname: {box_name}
 version: 2
 ethernets:
   eth0:
-    mtu: 1400
+    mtu: 1370
     dhcp4: true
     match:
       macaddress: {mac_address}

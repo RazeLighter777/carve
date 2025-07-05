@@ -168,8 +168,6 @@ impl VmManager {
             .args([
                 "-A",
                 "FORWARD",
-                "-i",
-                "br0",
                 "-m",
                 "physdev",
                 "--physdev-is-bridged",
