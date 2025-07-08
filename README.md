@@ -38,7 +38,7 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 - **carve-api:** API gateway for CARVE services.
 - **carve-ansible:** Integrates Ansible for VM provisioning and challenge deployment.
 ## ⚠️ Requirements
-Works only on linux and WSL. You need docker or any OCI container platform. 
+Works only on linux and WSL. You need docker or any OCI container platform. Cilium in native-routing mode is the only tested CNI. 
 
 ### For testing / non-production:
 - 16gb RAM (so you can run a couple VMs without them running out of RAM)
