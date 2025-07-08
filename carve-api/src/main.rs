@@ -169,6 +169,66 @@ async fn get_score(
     Ok(HttpResponse::Ok().json(scores))
 }
 
+//returns the score at a given point in time filtered by check
+#[get("/scoreat")]
+async fn get_score_at_given_time(
+    query: web::Query<types::ScoreAtGivenTimeQuery>,
+    competition: web::Data<Competition>,
+    redis: web::Data<RedisManager>,
+) -> ActixResult<impl Responder> {
+    let team_id = query.team_id;
+    let at_time = query.at_time.timestamp();
+
+    // Validate team
+    if team_id == 0 || team_id as usize > competition.teams.len() {
+        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Team not found"
+        })));
+    }
+
+    // Determine which checks to use
+    let checks_to_check: Vec<_> = if let Some(ref check_name) = query.scoring_check {
+        if let Some(check) = competition.checks.iter().find(|c| c.name == *check_name) {
+            vec![check.name.clone()]
+        } else if let Some(flag_check) = competition.flag_checks.iter().find(|c| c.name == *check_name) {
+            vec![flag_check.name.clone()]
+        } else {
+            return Ok(HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Scoring check not found"
+            })));
+        }
+    } else {
+        let mut all: Vec<String> = competition.checks.iter().map(|c| c.name.clone()).collect();
+        all.extend(competition.flag_checks.iter().map(|fc| fc.name.clone()));
+        all
+    };
+
+    let mut total_score = 0i64;
+
+    for check_name in checks_to_check {
+        // For each check, get the score for this team up to at_time
+        match redis.get_number_of_successful_checks_at_time(
+            &competition.name,
+            team_id,
+            &check_name,
+            at_time,
+        ) {
+            Ok(score) => total_score += score * competition
+                .checks
+                .iter()
+                .find(|c| c.name == check_name)
+                .map_or(0, |c| c.points as i64),
+            Err(_) => {
+                // Continue even if Redis query fails for this check
+            }
+        }
+    }
+
+    Ok(HttpResponse::Ok().json(types::ScoreAtGivenTimeResponse {
+        score: total_score,
+    }))
+}
+
 #[get("/leaderboard")]
 async fn get_leaderboard(
     competition: web::Data<Competition>,
@@ -430,7 +490,8 @@ async fn main() -> std::io::Result<()> {
                             .service(users::generate_join_code)
                             .service(teams::get_team_check_status)
                             .service(submit_flag)
-                            .service(boxes::send_box_restore),
+                            .service(boxes::send_box_restore)
+                            .service(get_score_at_given_time)
                     )
                     .service(
                         web::scope("/oauth2")

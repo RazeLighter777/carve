@@ -164,6 +164,21 @@ pub(crate) struct ScoreQuery {
 }
 
 #[derive(Deserialize)]
+pub(crate) struct ScoreAtGivenTimeQuery {
+    #[serde(rename = "teamId")]
+    pub(crate) team_id: u64,
+    #[serde(rename = "scoringCheck")]
+    pub(crate) scoring_check: Option<String>,
+    #[serde(rename = "atTime")]
+    pub(crate) at_time: DateTime<Utc>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct ScoreAtGivenTimeResponse {
+    pub(crate) score: i64,
+}
+
+#[derive(Deserialize)]
 pub struct OauthCallBackQuery {
     pub code: String,
     pub state: String,

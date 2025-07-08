@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { apiService } from '@/services/api'
 import { type CheckResponse, type TeamCheckStatusResponse, type ScoreboardEntry, type Team } from '@/types'
 import { ChartBarIcon, FunnelIcon, ArrowPathIcon, TrophyIcon } from '@heroicons/vue/24/outline'
@@ -172,13 +172,78 @@ const lineData = computed(() => {
   if (selectedTeam.value && selectedTeamId.value !== null) {
     teamsToShow = teams.value.filter(team => team.id === selectedTeamId.value)
   }
+  // Calculate the starting point (Y-intercept) for each team using scoreAt
+  const startTime = getStartTime()
+  const startTimeISO = startTime.toISOString()
+  const checkName = selectedCheck.value || undefined
+  // We'll need to fetch the starting score for each team synchronously before building the graph
+  // This requires making async calls, so we need to cache the results in a ref
+  // We'll use a ref to store the starting scores
+  // This block will only run once per filter change
+  // We'll use a watcher below to update it
+  return {
+    labels: allTimestamps.map(ts => new Date(ts).toLocaleTimeString()),
+    datasets: Array.from(teamMap.values()).map((series, idx) => ({
+      label: series.label,
+      data: series.data.map(d => d.y),
+      fill: false,
+      borderColor: `hsl(${(idx * 60) % 360}, 70%, 50%)`,
+      tension: 0.2,
+      pointRadius: 0 // Hide points on the graph
+    }))
+  }
+})
+
+// Add a ref to store the starting scores for each team
+const startingScores = ref<Record<number, number>>({})
+
+// Watch for changes in filters and fetch starting scores
+watch([
+  () => selectedTeam.value,
+  () => selectedCheck.value,
+  () => selectedTime.value,
+  () => teams.value.length,
+], async () => {
+  // For each team, fetch the starting score at the start time
+  const startTime = getStartTime()
+  const checkName = selectedCheck.value || undefined
+  const teamIds = selectedTeam.value && selectedTeamId.value !== null
+    ? [selectedTeamId.value]
+    : teams.value.map(t => t.id)
+  const scores: Record<number, number> = {}
+  await Promise.all(teamIds.map(async teamId => {
+    try {
+      const query = {
+        teamId,
+        scoringCheck: checkName,
+        atTime: startTime.toISOString(),
+      }
+      const resp = await apiService.scoreAt(query)
+      scores[teamId] = resp.score || 0
+    } catch {
+      scores[teamId] = 0
+    }
+  }))
+  startingScores.value = scores
+}, { immediate: true })
+
+// Patch the lineData computed to use the startingScores
+const patchedLineData = computed(() => {
+  // Group by team, accumulate points over time
+  const teamMap = new Map<number, { label: string, data: Array<{ x: string, y: number }> }>()
+  // Get all unique timestamps sorted
+  const allTimestamps = Array.from(new Set(scoreboard.value.map(e => e.timestamp))).sort()
+  let teamsToShow = teams.value
+  if (selectedTeam.value && selectedTeamId.value !== null) {
+    teamsToShow = teams.value.filter(team => team.id === selectedTeamId.value)
+  }
   teamsToShow.forEach(team => {
-    let total = 0
+    let total = startingScores.value[team.id] || 0
     const pointsByTime: Array<{ x: string, y: number }> = []
     allTimestamps.forEach(ts => {
-      // Sum all points for this team up to this timestamp
-      const events = scoreboard.value.filter(e => e.team_id === team.id && e.timestamp <= ts).filter(e => e.score_event_type === selectedCheck.value || !selectedCheck.value)
-      total = events.reduce((sum, e) => sum + (checkPointsMap.value.get(e.score_event_type) || 0), 0)
+      // Sum all points for this team up to this timestamp, but only for events after the start time
+      const events = scoreboard.value.filter(e => e.team_id === team.id && e.timestamp <= ts && new Date(e.timestamp) >= getStartTime()).filter(e => e.score_event_type === selectedCheck.value || !selectedCheck.value)
+      total = (startingScores.value[team.id] || 0) + events.reduce((sum, e) => sum + (checkPointsMap.value.get(e.score_event_type) || 0), 0)
       pointsByTime.push({ x: ts, y: total })
     })
     teamMap.set(team.id, { label: team.name, data: pointsByTime })
@@ -195,18 +260,7 @@ const lineData = computed(() => {
     }))
   }
 })
-
-const lineOptions = {
-  responsive: true,
-  plugins: {
-    legend: { position: 'top' as const },
-    title: { display: true, text: 'Score Progression Over Time' }
-  },
-  scales: {
-    x: { title: { display: true, text: 'Time' } },
-    y: { title: { display: true, text: 'Points' }, beginAtZero: true }
-  }
-}
+// Use patchedLineData in your chart
 
 // Add filtered computed properties for check status
 const filteredChecks = computed(() => {
@@ -347,6 +401,19 @@ const winnerTeamId = computed(() => {
   console.log('Winner Team ID:', leaderboard.value[0]?.teamId)
   return leaderboard.value[0]?.teamId
 })
+
+// Line chart options
+const lineOptions = {
+  responsive: true,
+  plugins: {
+    legend: { position: 'top' as const },
+    title: { display: true, text: 'Score Progression Over Time' }
+  },
+  scales: {
+    x: { title: { display: true, text: 'Time' } },
+    y: { title: { display: true, text: 'Points' }, beginAtZero: true }
+  }
+}
 </script>
 
 <template>
@@ -529,7 +596,7 @@ const winnerTeamId = computed(() => {
         Showing {{ filteredScoreboard.length }} event{{ filteredScoreboard.length !== 1 ? 's' : '' }}
       </div>
       <div class="bg-white rounded shadow p-4 mb-6">
-        <Line :data="lineData" :options="lineOptions" class="h-60" />
+        <Line :data="patchedLineData" :options="lineOptions" class="h-60" />
       </div>
     </div>
 

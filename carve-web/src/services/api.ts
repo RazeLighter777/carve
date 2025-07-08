@@ -17,7 +17,9 @@ import type {
   RedeemFlagResponse,
   IdentitySourcesResponse,
   BoxRestoreQuery,
-  BoxSnapshotQuery
+  BoxSnapshotQuery,
+  ScoreAtGivenTimeResponse,
+  ScoreAtGivenTimeQuery
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 const api = axios.create({
@@ -90,6 +92,11 @@ export const apiService = {
     const response = await api.get(`competition/score?${params.toString()}`);
     return response.data || [];
   },
+  async scoreAt(query : ScoreAtGivenTimeQuery): Promise<ScoreAtGivenTimeResponse> {
+    const response = await api.get<ScoreAtGivenTimeResponse>(`competition/scoreat`, { params: query });
+    return response.data;
+  },
+
 
   // Get available teams and boxes for filters
   async getTeams(): Promise<Team[]> {

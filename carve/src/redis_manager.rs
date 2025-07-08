@@ -1248,4 +1248,30 @@ impl RedisManager {
         }
         Ok(None)
     }
+
+    /// Get the score for a team for a specific check up to a given timestamp (inclusive).
+    /// Returns the total score (number of successful events * check points).
+    pub fn get_number_of_successful_checks_at_time(
+        &self,
+        competition_name: &str,
+        team_id: u64,
+        check_name: &str,
+        timestamp: i64,
+    ) -> Result<i64> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+        // the key name
+        let key = format!("{}:{}:{}", competition_name, team_id, check_name);
+        // Get the number of events for this team/check up to the timestamp
+        let count: i64 = redis::cmd("ZCOUNT")
+            .arg(&key)
+            .arg("-inf")
+            .arg(timestamp)
+            .query(&mut conn)
+            .context("Failed to get team score by check at time")?;
+        // Try to get the check points from the check or flag_check (not available here, so just return count)
+        Ok(count)
+    }
 }

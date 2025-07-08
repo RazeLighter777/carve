@@ -154,3 +154,14 @@ export interface BoxSnapshotQuery {
   boxName: string;
 }
 
+
+// Rust: pub(crate) struct ScoreAtGivenTimeQuery
+export interface ScoreAtGivenTimeQuery {
+  teamId: number;
+  scoringCheck?: string;
+  atTime: string; // ISO8601 string
+}
+
+export interface ScoreAtGivenTimeResponse {
+  score: number;
+}
