@@ -43,7 +43,7 @@ Works only on linux and WSL. You need docker or any OCI container platform. Cili
 
 Cilium tunnel mode does NOT work due to a bug in how they handle nested VXLANS. 
 
-**The K8S Helm chart is highly recommended over the docker compose for production. The helm chart will automatically create the containers based on the competition.yaml and be easier to manage.**
+**The K8S Helm chart is highly recommended over the docker compose. The helm chart makes configuration much less verbose because it parses the competitions.yaml (under the competitions yaml key) and makes the containers automatically with the right environment variables. The docker compose is for testing/evaluation purposes only**
 ### For testing / non-production:
 - 16gb RAM (so you can run a couple VMs without them running out of RAM)
 - 4 cores (more the better rust takes really long to compile)
