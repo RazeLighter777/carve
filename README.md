@@ -104,7 +104,7 @@ At least a three node K8S setup EACH with:
 - **Authentication:** OIDC and local user/password supported. OIDC is only tested with authentik right now, may or may not work with other applications.
 - **Challenges:** Only a few dummy challenges are included. Add more by creating Ansible playbooks.
 - **Competition Automation:** Future updates will improve Ansible integration for automatic and modular playbook creation.
-- **Scalability:** Currently runs with Docker Compose (single host). Helm charts for Kubernetes are planned for horizontal scaling.
+- **Scalability:** Scales horizontally with K8S. 
 - **Documentation:** More detailed docs for configuration and usage are coming soon.
 
 ## Contributing
