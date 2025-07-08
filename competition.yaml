@@ -25,19 +25,19 @@ competitions:
         hostname: "web-server"
         cores: 2
         ram_mb: 2048
-        backing_image: "/disks/ubuntu/ubuntu-24.04-nocloud.qcow2"
+        backing_image: "nbd://qemu-nbd-debian:10809"  # Use NBD for backing image
       - name: db
         labels: db
         hostname: "db"
         cores: 4
         ram_mb: 4096
-        backing_image: "/disks/ubuntu/ubuntu-24.04-nocloud.qcow2"
+        backing_image: "nbd://qemu-nbd-ubuntu:10809"
       - name: auth
         labels: auth
         hostname: "auth"
         cores: 1
         ram_mb: 1024
-        backing_image: "/disks/ubuntu/ubuntu-24.04-nocloud.qcow2"
+        backing_image: "nbd://qemu-nbd-ubuntu:10809"
     teams:
       # List of competing teams
       - name: team1
