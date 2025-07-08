@@ -23,7 +23,8 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 - **Rust Backend:** All backend services are written in Rust. Why? It's the language I know the best.
 - **Redis Persistence:** CARVE uses redis as the sole database / backend communication tool. Its easy to deploy and makes everything snappy. (and contrary to popular belief won't lose all data if the RAM gives out)
 - **OIDC Authentication:** Currently supports OIDC and local user/password authentication.
-- **Docker Compose Deployment:** Easy to run locally; Kubernetes (Helm) support coming soon.
+- **Docker Compose Deployment:** Easy to run locally for testing.
+- **Helm chart support:** Helm chart makes deploying in production easy. 
 
 ## 🧱 Architecture
 
@@ -40,11 +41,14 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 ## ⚠️ Requirements
 Works only on linux and WSL. You need docker or any OCI container platform. Cilium in native-routing mode is the only tested CNI. 
 
+Cilium tunnel mode does NOT work due to a bug in how they handle nested VXLANS. 
+
+**The K8S Helm chart is highly recommended over the docker compose for production. The helm chart will automatically create the containers based on the competition.yaml and be easier to manage.**
 ### For testing / non-production:
 - 16gb RAM (so you can run a couple VMs without them running out of RAM)
 - 4 cores (more the better rust takes really long to compile)
 ### For running an actual game (if you don't want your players to be frustrated at your slow, laggy CTF):
-At least a three node (docker, or kubernetes) setup EACH with:
+At least a three node K8S setup EACH with:
 - RAM = 1GB * teams * players per team
 -  .5 cores * teams * players per team. 
 
@@ -57,11 +61,12 @@ At least a three node (docker, or kubernetes) setup EACH with:
    ```
 
 2. **Configure the platform:**
-   - Edit `docker-compose.yaml` to set your OIDC credentials (optional) and `SECRET_KEY` 
+## Docker
+   - Edit `docker-compose.yaml` to set your OIDC credentials (optional) and `SECRET_KEY`
    - Edit `competition.yaml` to define your competition (docs coming soon).
-   - Place your VM disk images in `disks/<subdirectory>/`.
-   - Add your Ansible playbooks in the `carve-ansible` directory.
-
+## K8S
+   - Edit charts/carve/values.yaml (this contains the same schema competition.yaml under the competition key)
+## Docker
 3. **Build and run with Docker Compose:**
    ```bash
    docker compose build
@@ -71,17 +76,14 @@ At least a three node (docker, or kubernetes) setup EACH with:
    ```bash
    docker compose logs carve-api
    ```
-
+## Kubernetes
+3. ```bash
+   cd charts/carve
+   helm 
 5. **Run Ansible Playbooks:**
-   - In a new terminal, exec into the carve-ansible container:
-     ```bash
-     docker compose exec carve-ansible bash
-     ```
-   - Run your playbook (replace with your playbook path):
-     ```bash
-     uv run ansible-playbook playbook.yaml -i carve_inventory.yaml
-     ```
-
+   - Install the carve ansible plugin https://galaxy.ansible.com/ui/repo/published/razelighter777/carve_ansible/
+   - Configure the carve_inventory.yaml file (see carve-ansible/carve_inventory.yaml for example)
+   - Run your playbooks. 
 6. **Access the frontend:**
    - Open a new terminal, go to the `carve-web` directory, and run:
      ```bash
@@ -93,6 +95,8 @@ At least a three node (docker, or kubernetes) setup EACH with:
 7. **Start the Competition:**
    - Log in as an admin user (your OIDC account must be in the admin group).
    - In the web UI, click "Start Competition" to begin.
+
+
 
 ## Notes
 
