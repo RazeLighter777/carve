@@ -108,7 +108,9 @@ pub(crate) struct CheckStatusResponse {
     pub(crate) name: String,
     pub(crate) passing: bool,
     pub(crate) failed_for: u64,
-    pub(crate) message: String,
+    pub(crate) message: Vec<String>,
+    pub(crate) success_fraction: (u64, u64), // (passing, total)
+    pub(crate) passing_boxes: Vec<String>, // List of boxes that passed this check
 }
 
 #[derive(Serialize)]

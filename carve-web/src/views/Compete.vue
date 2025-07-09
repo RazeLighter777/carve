@@ -22,7 +22,27 @@
                 <p class="mb-2">{{ selectedItem.description }}</p>
                 <p class="mb-2 font-semibold">Points: {{ selectedItem.points }}</p>
                 <p class="mb-4 font-semibold" v-if="selectedItem.interval">Interval: {{ selectedItem.interval }} seconds</p>
-                <p class="mb-4 font-semibold" v-if="selectedItem.message">Status: {{ selectedItem.message }}</p>
+                <p class="mb-4 font-semibold" v-if="selectedItem.message">
+                    Status:
+                    <span v-if="Array.isArray(selectedItem.message)">
+                        <ul class="list-disc list-inside">
+                            <li v-for="(msg, idx) in selectedItem.message" :key="idx">{{ msg }}</li>
+                        </ul>
+                    </span>
+                    <span v-else>{{ selectedItem.message }}</span>
+                </p>
+                <!-- Show passing boxes for regular checks -->
+                <div v-if="!selectedItem.isFlag">
+                    <div class="mb-2">
+                        <span class="font-semibold">Passing boxes:</span>
+                        <span v-if="selectedItem.passing_boxes && selectedItem.passing_boxes.length > 0">
+                            <ul class="list-disc list-inside">
+                                <li v-for="box in selectedItem.passing_boxes" :key="box">{{ box }}</li>
+                            </ul>
+                        </span>
+                        <span v-else class="text-gray-500">None</span>
+                    </div>
+                </div>
                 <div v-if="selectedItem.isFlag">
                     <div v-if="getFlagSolved(selectedItem.name)">
                         <span class="text-green-600 font-bold">Flag already solved!</span>
@@ -117,8 +137,24 @@ export default defineComponent({
         function colorFromRaw(ctx: TreemapScriptableContext, isFlag = false) {
             if (ctx.raw && ctx.raw.g) {
                 const name = ctx.raw.g;
-                const passing = getCheckPassing(name, isFlag);
-                return passing ? 'green' : 'red';
+                if (isFlag) {
+                    const passing = getCheckPassing(name, true);
+                    return passing ? 'green' : 'red';
+                } else {
+                    // For regular checks, use yellow if partial
+                    const check = checkStatus.value.checks.find(c => c.name === name);
+                    if (!check) return 'gray';
+                    if (check.passing === true) return 'green';
+                    if (check.passing === false) {
+                        // Check for partial pass
+                        if (check.success_fraction && Array.isArray(check.success_fraction)) {
+                            const [num, denom] = check.success_fraction;
+                            if (num > 0 && num < denom) return 'yellow';
+                        }
+                        return 'red';
+                    }
+                    return 'gray';
+                }
             }
             return 'gray';
         }

@@ -125,24 +125,26 @@ pub async fn get_team_check_status(
             checks: Vec::new(),
         };
         for check in competition.checks.iter() {
-            if let Ok(Some((passing, failed_for, message))) =
+            if let Ok(Some(state)) =
                 redis.get_check_current_state(&competition.name, &team_name, &check.name)
             {
                 response.checks.push(types::CheckStatusResponse {
                     name: check.name.clone(),
-                    passing,
-                    failed_for,
-                    message,
+                    passing: state.success,
+                    failed_for: state.number_of_failures,
+                    message: state.message.clone(),
+                    success_fraction: state.success_fraction,
+                    passing_boxes: state.passing_boxes,
                 });
             }
         }
         for flag_check in competition.flag_checks.iter() {
-            if let Ok(Some((passing, _, _))) =
+            if let Ok(Some(state)) =
                 redis.get_check_current_state(&competition.name, &team_name, &flag_check.name)
             {
                 response.flag_checks.push(types::FlagCheckStatusResponse {
                     name: flag_check.name.clone(),
-                    passing,
+                    passing: state.success,
                 });
             }
         }

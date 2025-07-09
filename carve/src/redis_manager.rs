@@ -56,6 +56,15 @@ pub struct CompetitionState {
     pub end_time: Option<DateTime<Utc>>,   // Unix timestamp in seconds
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CheckCurrentState {
+    pub success: bool,
+    pub number_of_failures: u64,
+    pub message: Vec<String>,
+    pub success_fraction: (u64, u64), // fraction of successful checks over total checks
+    pub passing_boxes : Vec<String>, // List of boxes that passed the check
+}
+
 impl User {
     pub fn new(
         username: String,
@@ -1138,7 +1147,9 @@ impl RedisManager {
                 &flag_check.name,
                 true,
                 0, // No failures on successful flag redemption
-                &event_message,
+                vec![event_message],
+                (1, 1), // 1 success out of 1 check
+                Vec::new(), // No passing boxes for flag checks
             )?;
         }
 
@@ -1162,7 +1173,9 @@ impl RedisManager {
         check_name_or_flag_check_name: &str,
         success: bool,
         number_of_failures: u64,
-        message: &str,
+        messages: Vec<String>,
+        success_fraction : (u64, u64), // fraction of successful checks over total checks
+        passing_boxes : Vec<String>,
     ) -> Result<()> {
         let mut conn = self
             .client
@@ -1172,8 +1185,15 @@ impl RedisManager {
         // Key for storing the current state of the flag check
         let key = format!("{}:{}:current_state", competition_name, team_name);
         let key2 = check_name_or_flag_check_name.to_string();
-        let status = format!("{}:{}:{}", success as u64, number_of_failures, message);
-        // Store the current state as a u64 (0 for false, 1 for true)
+        let state = CheckCurrentState {
+            success,
+            number_of_failures,
+            message : messages,
+            success_fraction: success_fraction,
+            passing_boxes,
+        };
+        let status = serde_yaml::to_string(&state).context("Failed to serialize check state to YAML")?;
+        // Store the current state as a YAML string
         let _: () = redis::cmd("HSET")
             .arg(&key)
             .arg(key2)
@@ -1189,7 +1209,7 @@ impl RedisManager {
         competition_name: &str,
         team_name: &str,
         check_name_or_flag_check_name: &str,
-    ) -> Result<Option<(bool, u64, String)>> {
+    ) -> Result<Option<CheckCurrentState>> {
         let mut conn = self
             .client
             .get_connection()
@@ -1203,18 +1223,22 @@ impl RedisManager {
             .query(&mut conn)
             .context("Failed to get current state")?;
         if let Some(state_str) = state {
-            let parts: Vec<&str> = state_str.split(':').collect();
-            if parts.len() >= 3 {
-                if let (Ok(success), Ok(failures)) =
-                    (parts[0].parse::<u64>(), parts[1].parse::<u64>())
-                {
-                    return Ok(Some((success != 0, failures, parts[2..].join(":"))));
+            match serde_yaml::from_str::<CheckCurrentState>(&state_str) {
+                Ok(parsed) => {
+                    return Ok(Some(parsed));
                 }
-                return Err(anyhow::anyhow!("Invalid state format: {}", state_str));
+                Err(e) => {
+                    return Err(anyhow::anyhow!("Invalid state format (YAML): {}: {}", state_str, e));
+                }
             }
-            return Err(anyhow::anyhow!("Invalid state format: {}", state_str));
         }
-        Ok(Some((false, 0, String::from("Unsolved")))) // No state found
+        Ok(Some(CheckCurrentState {
+            success: false,
+            number_of_failures: 0,
+            message: Vec::from(["Unsolved".to_string()]),
+            success_fraction: (0, 0),
+            passing_boxes: Vec::new(),
+        })) // No state found
     }
 
     // Get a specific user by username and find their team

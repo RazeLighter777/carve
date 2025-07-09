@@ -44,9 +44,14 @@ impl Scheduler {
                     let time_to_next_check = interval - (now % interval);
                     let check_timestamp = now + time_to_next_check;
                     sleep(Duration::from_secs(time_to_next_check as u64)).await;
-
+                    
+                    let mut check_frac_map: HashMap<String, (u64, u64)> = HashMap::new();
+                    let mut messages = Vec::new();
                     // Process the check for all applicable boxes and teams
                     for team in &teams {
+                        // check frac map should be cleared for each team so checks are independent
+                        check_frac_map.clear();
+                        messages.clear();
                         for box_config in &boxes {
                             // Create an empty HashMap to use as a fallback
                             let empty_selector: HashMap<String, String> = HashMap::new();
@@ -104,14 +109,18 @@ impl Scheduler {
                                 );
 
                                 // Get current check state from Redis
-                                let (_, mut prev_failures) = match redis_manager
+                                let (_, mut prev_failures,mut passing_boxes) = match redis_manager
                                     .get_check_current_state(
                                         &competition_name,
                                         &team.name,
                                         &check.name,
                                     ) {
-                                    Ok(Some((passing, failures, _))) => (passing, failures),
-                                    _ => (true, 0), // Default: passing, 0 failures
+                                    Ok(Some(state)) => (
+                                        state.success,
+                                        state.number_of_failures,
+                                        state.passing_boxes,
+                                    ),
+                                    _ => (true, 0, Vec::new()), // Default: passing, 0 failures, 0 successful checks out of 1
                                 };
 
                                 // Get box credentials for template substitution
@@ -142,16 +151,31 @@ impl Scheduler {
                                 };
 
                                 // Perform the check
+                                let success_closure = |frac : (u64, u64)| {
+                                    (frac.0 + 1, frac.1 + 1)
+                                };
+                                let failure_closure = |frac : (u64, u64)| {
+                                    (frac.0, frac.1 + 1)
+                                };
+                                // push the message to the messages vector
                                 match perform_check(&ip.to_string(), &templated_spec).await {
                                     Ok(message) => {
+                                        messages.push(message.clone());
                                         // Set state: passing, failures=0
+                                        if !passing_boxes.contains(&box_config.name) {
+                                            passing_boxes.push(box_config.name.clone());
+                                        }
                                         if let Err(e) = redis_manager.set_check_current_state(
                                             &competition_name,
                                             &team.name,
                                             &check.name,
                                             true,
                                             0,
-                                            &message,
+                                            messages.clone(),
+                                            success_closure(*check_frac_map
+                                                .entry(box_config.name.clone())
+                                                .or_insert((0, 0))),
+                                            passing_boxes
                                         ) {
                                             error!("Failed to set check state: {}", e);
                                         }
@@ -175,14 +199,25 @@ impl Scheduler {
                                     }
                                     Err(e) => {
                                         // Set state: failing, failures+1
+                                        // remove box from passing boxes if it was previously passing
+                                        if passing_boxes.contains(&box_config.name) {
+                                            passing_boxes.retain(|b| b != &box_config.name);
+                                        }
+                                        messages.push(format!("{}", e));
                                         prev_failures += 1;
                                         if let Err(err) = redis_manager.set_check_current_state(
                                             &competition_name,
                                             &team.name,
                                             &check.name,
-                                            false,
+                                            //if one check is successful, the check is still considered passing
+                                        check_frac_map.entry(box_config.name.clone())
+                                                .or_insert((0, 0)).0 > 0,
                                             prev_failures,
-                                            &format!("{}", e),
+                                            messages.clone(),
+                                            failure_closure(*check_frac_map
+                                                .entry(box_config.name.clone())
+                                                .or_insert((0, 0))),
+                                            passing_boxes.clone(),
                                         ) {
                                             error!("Failed to set check state: {}", err);
                                         }

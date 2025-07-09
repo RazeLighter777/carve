@@ -34,7 +34,9 @@ export interface CheckStatusResponse {
     name: string;
     passing: boolean;
     failed_for: number;
-    message: string;
+    message: string[];
+    success_fraction: [number, number]; // Tuple of (passing, total)
+    passing_boxes: string[]; // List of boxes that passed this check
 }
 
 export interface TeamCheckStatusResponse {

@@ -626,11 +626,18 @@ const lineOptions = {
                   <td class="px-4 py-2">{{ check.name }}</td>
                   <td class="px-4 py-2">
                     <span v-if="check.failed_for === 0 && !check.passing" class="text-gray-500 font-bold">Pending</span>
-                    <span v-else :class="check.passing ? 'text-green-600 font-bold' : 'text-red-600 font-bold'">
-                      {{ check.passing ? 'Passing' : `Failing for ${check.failed_for} checks now` }}
-                    </span>
+                    <span v-else-if="check.passing" class="text-green-600 font-bold">Passing</span>
+                    <span v-else-if="check.success_fraction && Array.isArray(check.success_fraction) && check.success_fraction[0] > 0 && check.success_fraction[0] < check.success_fraction[1]" class="text-yellow-600 font-bold">Partially Passing</span>
+                    <span v-else class="text-red-600 font-bold">Failing for {{ check.failed_for }} checks now</span>
                   </td>
-                  <td class="px-4 py-2">{{ check.message }}</td>
+                  <td class="px-4 py-2">
+                    <span v-if="Array.isArray(check.message)">
+                      <ul class="list-disc list-inside">
+                        <li v-for="(msg, idx) in check.message" :key="idx">{{ msg }}</li>
+                      </ul>
+                    </span>
+                    <span v-else>{{ check.message }}</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
