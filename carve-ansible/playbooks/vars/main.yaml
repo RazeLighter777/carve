@@ -1,4 +1,0 @@
----
-api_host: "carve-api"
-api_port: 8080
-api_path: "/api/v1/internal/generate_flag"

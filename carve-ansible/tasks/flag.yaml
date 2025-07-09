@@ -1,0 +1,21 @@
+- name: Include vars from main.yaml
+  include_vars:
+    file: "main.yaml"
+- name: Call generate_flag API
+  uri:
+    url: "{{ api_host }}/api/v1/internal/generate_flag?flagCheckName={{ flag_check_name }}&teamName={{ team_name }}"
+    method: GET
+    return_content: yes
+    status_code: 200
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ secret_key }}"
+  register: flag_response
+
+- name: Set flag variable
+  set_fact:
+    generated_flag: "{{ flag_response.json.flag }}"
+
+- name: Debug flag
+  debug:
+    var: generated_flag

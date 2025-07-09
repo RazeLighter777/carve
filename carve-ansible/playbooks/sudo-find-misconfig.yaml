@@ -1,0 +1,13 @@
+---
+- name: Sudo misconfiguration to allow all users to run find as root
+  hosts: all
+  become: true
+  tasks:
+    - name: Allow all users to run find as root without password
+      copy:
+        dest: /etc/sudoers.d/find_nopasswd
+        content: "ALL ALL=(ALL) NOPASSWD: /usr/bin/find\n"
+        owner: root
+        group: root
+        mode: '0440'
+        validate: 'visudo -cf %s'

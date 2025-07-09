@@ -17,6 +17,12 @@ DOCUMENTATION = r'''
         description: SSH proxy to use for connecting to the boxes
         required: false
         default: None
+      api_host:
+        description: Url of the Carve API server
+        required: true
+      secret_key:
+        description: Secret key for the Carve API server
+        required: true
 '''
 
 from ansible.plugins.inventory import BaseInventoryPlugin
@@ -42,6 +48,8 @@ class InventoryModule(BaseInventoryPlugin):
         self.path_to_inventory = self.get_option('path_to_inventory')
         self.competition_name = self.get_option('competition_name')
         self.ssh_proxy = self.get_option('ssh_proxy')
+        self.inventory.set_variable("all", "secret_key", self.get_option('secret_key'))
+        self.inventory.set_variable("all", "api_host", self.get_option('api_host'))
         try:
             with open(self.path_to_inventory) as f:
                 data = yaml.safe_load(f)
@@ -95,7 +103,7 @@ class InventoryModule(BaseInventoryPlugin):
                         print("    team_name:", team_name)
                         print("    box_name:", box_name)
                         self.inventory.add_host(hostname, group=box_name)
-                        self.inventory.set_variable(hostname, 'ansible_ssh_extra_args', f'-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J {self.ssh_proxy}')
+                        self.inventory.set_variable(hostname, 'ansible_ssh_common_args', f'-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J {self.ssh_proxy}')
                         self.inventory.set_variable(hostname, 'ansible_host', ip_address)
                         self.inventory.set_variable(hostname, 'ansible_user', username)
                         self.inventory.set_variable(hostname, 'ansible_password', password)

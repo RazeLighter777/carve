@@ -1,0 +1,30 @@
+---
+- name: Create wacky named users with insecure passwords
+  hosts: all
+  become: true
+  tasks:
+    - name: Create user wackywombat with password 'qwerty1234'
+      ansible.builtin.user:
+        name: "wackywombat"
+        password: "$6$AqrCcoWZ/LQpSald$PIS0fnSKrcmPiyyTT6tlKE/W7J341p654CO5HtqcEWe.TMcTQ84DwjXs.2MMiKvw8OC3ThNcwx.Sc7a5KBksn/"
+        shell: /bin/bash
+
+    - name: Create user noodlewizard with password 'letmein'
+      ansible.builtin.user:
+        name: "noodlewizard"
+        password: "$6$2sz.FwImH3/BSlCW$naLaDurnN48/Hp4yShRA/h8wRpKd9FaqSIdotyf6PdtwMbxNdjVejhbY8Dm4K9rv7vqbzLja7gUvxdWhAb410/"
+        shell: /bin/bash
+        home: "/home/noodlewizard"
+    - name: Generate flag for wacky-user challenge
+      include_tasks: "../tasks/flag.yaml"
+      vars:
+        flag_check_name: "test-flag-check"
+        team_name: "{{ ansible_user }}"
+      args:
+        apply:
+          delegate_to: localhost
+          become: false
+    - name: Create flag file for wacky-user challenge
+      ansible.builtin.copy:
+        dest: "/home/noodlewizard/secret.txt"
+        content: "{{ generated_flag }}"
