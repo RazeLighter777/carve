@@ -10,6 +10,7 @@ competitions:
       port: 6379       # Redis port
       db: 0            # Redis database number
     vtep_host: vtep  # VTEP hostname for VXLAN
+    dns_host: vtep
     admin_group: "booktok-users"  # Admin group for the competition
     duration: 3600  # Competition duration in seconds (1 hour)
     oidc_provider_name: Authentik  # OIDC provider name for authentication

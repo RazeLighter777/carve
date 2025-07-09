@@ -12,6 +12,7 @@ in
       llvmPackages.bintools
       rustup
       openssl
+      sshpass
       pkg-config
       nodejs
       uv

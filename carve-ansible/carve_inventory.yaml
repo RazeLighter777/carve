@@ -1,5 +1,5 @@
 ---
 plugin: carve_inventory_plugin
-path_to_inventory: ./competition.yaml
+path_to_inventory: ../charts/carve/values.yaml  # Path to the inventory file
 competition_name: CarveCTF
-ssh_proxy: openssh-server  # SSH proxy for connecting to boxes
+ssh_proxy: carve@localhost:2222

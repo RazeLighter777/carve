@@ -98,7 +98,8 @@ pub struct Competition {
     pub redis: RedisConfig,
     pub oidc_provider_name: String, // OIDC provider name
     pub cidr: Option<String>,       // Add this field for VTEP
-    pub vtep_host: Option<String>,  // <-- Add this line for VTEP host
+    pub dns_host: Option<String>,  // <-- Add this line for VTEP host
+    pub vtep_host: Option<String>,  // VTEP host
     pub boxes: Vec<Box>,
     pub teams: Vec<Team>,
     pub checks: Vec<Check>,

@@ -66,9 +66,11 @@ spec:
             - name: PASSWORD_ACCESS
               value: "1"
             - name: USER_NAME
-              value: "carve"
+              value: {{ .Values.opensshServer.userName | default "carve" | quote }}
             - name: USER_PASSWORD
-              value: "carve1234"
+              value: {{ .Values.opensshServer.userPassword | quote }}
+            - name: DOCKER_MODS
+              value: "linuxserver/mods:openssh-server-ssh-tunnel"
       volumes:
         - name: competition-config
           configMap:

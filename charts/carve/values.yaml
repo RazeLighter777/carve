@@ -99,6 +99,8 @@ carveApi:
 opensshServer:
   service:
     type: ClusterIP
+  userName: "carve"
+  userPassword: "carve1234"
 images:
   vtep:
     repository: ghcr.io/razelighter777/vtep
@@ -153,6 +155,7 @@ competition:
     host: "carve-redis"
     port: 6379
     db: 0
+  dns_host: "carve-network-dns"
   vtep_host: "carve-network-vtep"
   admin_group: "booktok-users"
   duration: 3600

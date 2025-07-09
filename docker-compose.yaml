@@ -26,9 +26,10 @@ services:
       - PUID=1000
       - PGID=1000
       - SSH_PORT=2222
-      - PASSWORD_ACCESS=1
+      - PASSWORD_ACCESS=true
       - USER_NAME=carve
       - USER_PASSWORD=carve1234
+      - DOCKER_MODS=linuxserver/mods:openssh-server-ssh-tunnel
     network_mode: service:vtep
   vxlan-sidecar-team1-web:
     image: ghcr.io/razelighter777/vxlan-sidecar

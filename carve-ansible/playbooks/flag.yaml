@@ -1,11 +1,8 @@
 ---
 - name: Generate flag using carve-api
   hosts: localhost
-  gather_facts: no
+  gather_facts: false
   vars:
-    api_host: "carve-api"
-    api_port: 8080
-    api_path: "/api/v1/internal/generate_flag"
     flag_check_name: "example_check"
     team_name: "example_team"
   tasks:

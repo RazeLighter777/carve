@@ -519,7 +519,8 @@ async fn main() -> std::io::Result<()> {
                     .service(
                         web::scope("/internal")
                             .guard(flag::validate_bearer_token_is_secret_key_env_var)
-                            .service(flag::generate_flag),
+                            .service(flag::generate_flag)
+                            .service(boxes::get_box)
                     ),
             )
     })

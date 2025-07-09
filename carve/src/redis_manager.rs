@@ -460,6 +460,26 @@ impl RedisManager {
         Ok(result)
     }
 
+    pub fn record_box_ip(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        box_name: &str,
+        ip_address: IpAddr,
+    ) -> Result<()> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+        let key = format!("{}:{}:{}:ip_address", competition_name, team_name, box_name);
+        let _: () = redis::cmd("SET")
+            .arg(&key)
+            .arg(ip_address.to_string())
+            .query(&mut conn)
+            .context("Failed to record box IP address")?;
+        Ok(())
+    }
+
     // Write SSH keypair for a box. Returns true if written, false if key exists.
     pub fn write_ssh_keypair(
         &self,

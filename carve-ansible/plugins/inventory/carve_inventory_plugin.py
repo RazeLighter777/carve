@@ -24,7 +24,6 @@ from ansible.errors import AnsibleError, AnsibleParserError
 import yaml
 import redis
 import traceback
-import dns.resolver
 
 
 class InventoryModule(BaseInventoryPlugin):
@@ -48,10 +47,15 @@ class InventoryModule(BaseInventoryPlugin):
                 data = yaml.safe_load(f)
                 # get the correct competition entry from the list
                 competition = next((comp for comp in data.get('competitions', []) if comp['name'] == self.competition_name), None)
+                # try the second type (helm chart)
+                if not competition:
+                    print("helm chart detected, using competition entry")
+                    competition = data.get('competition')
                 if not competition:
                     raise AnsibleParserError(f"Competition {self.competition_name} not found in inventory file {self.path_to_inventory}")
                 # get the redis connection details from the competition entry
-                redis_host = competition.get('redis', {}).get('host', 'localhost')
+                #redis_host = competition.get('redis', {}).get('host', 'localhost')
+                redis_host = "localhost"
                 redis_port = competition.get('redis', {}).get('port', 6379)
                 redis_db = competition.get('redis', {}).get('db', 0)
                 self.redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=redis_db)
@@ -80,19 +84,16 @@ class InventoryModule(BaseInventoryPlugin):
                         except Exception as e:
                             continue
                         ip_address = None
-                        try:
-                            resolver = dns.resolver.Resolver()
-                            resolver.nameservers = ['127.0.0.1']
-                            result = resolver.resolve(hostname, 'A')
-                            if result:
-                                ip_address = result[0].to_text()
-                        except Exception as e:
+                        # get the IP address using the redis key {competition_name}:{team_name}:{box_name}:ip_address
+                        ip_address_key = f"{self.competition_name}:{team_name}:{box_name}:ip_address"
+                        ip_address = self.redis_client.get(ip_address_key)
+                        if not ip_address:
+                            print(f"    No IP address found for {hostname}, skipping")
                             continue
+                        ip_address = ip_address.decode()
                         print(f"    Adding host: {hostname} with user: {username}")
                         print("    team_name:", team_name)
                         print("    box_name:", box_name)
-                        # perform DNS resolution using the "vtep" service
-                        print("    DNS resolution result:", result)
                         self.inventory.add_host(hostname, group=box_name)
                         self.inventory.set_variable(hostname, 'ansible_ssh_extra_args', f'-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J {self.ssh_proxy}')
                         self.inventory.set_variable(hostname, 'ansible_host', ip_address)

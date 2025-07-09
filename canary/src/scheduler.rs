@@ -107,6 +107,12 @@ impl Scheduler {
                                     "Running check {} for team {} on box {} ({})",
                                     check.name, team.name, box_config.name, ip
                                 );
+                                //record the ip into the redis_manager
+                                if let Ok(_) = redis_manager.record_box_ip(&competition_name, &team.name, &box_config.name, ip) {
+                                    info!("Recorded IP {} for box {}.{}.{}.hack", ip, box_config.name, team.name, competition_name);
+                                } else {
+                                    error!("Failed to record IP {} for box {}.{}.{}.hack", ip, box_config.name, team.name, competition_name);
+                                }
 
                                 // Get current check state from Redis
                                 let (_, mut prev_failures,mut passing_boxes) = match redis_manager

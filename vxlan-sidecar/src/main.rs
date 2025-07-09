@@ -149,7 +149,7 @@ async fn main() -> std::io::Result<()> {
     // }
 
     // DNS resolution loop for vtep_host
-    let remote = competition.vtep_host.as_deref().unwrap_or("127.0.0.1");
+    let remote = competition.dns_host.as_deref().unwrap_or("127.0.0.1");
     let vtep_host = remote.to_string();
     let last_ip = Arc::new(Mutex::new(None::<IpAddr>));
     let last_ip_clone = last_ip.clone();

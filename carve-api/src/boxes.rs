@@ -9,10 +9,10 @@ use std::process::Stdio;
 use tokio::process::Command;
 
 // Helper function to resolve IP address using dig
-pub async fn resolve_box_ip(box_name: &str, vtep_host: &str) -> Option<String> {
+pub async fn resolve_box_ip(box_name: &str, dns_host: &str) -> Option<String> {
     let output = Command::new("dig")
         .arg(box_name)
-        .arg(format!("@{}", vtep_host))
+        .arg(format!("@{}", dns_host))
         .arg("+short")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -79,7 +79,7 @@ pub async fn get_boxes(
     let boxes: Vec<types::BoxInfo> = competition
         .boxes
         .iter()
-        .map(|box_config| types::BoxInfo {
+        .map(|box_config: &carve::config::Box| types::BoxInfo {
             name: format!(
                 "{}.{}.{}.hack",
                 box_config.name,
@@ -124,12 +124,12 @@ pub async fn get_box(
     }
 
     // Resolve IP address using dig if vtep_host is configured
-    let ip_address = if let Some(ref vtep_host) = competition.vtep_host {
-        resolve_box_ip(&query.name, vtep_host)
+    let ip_address = if let Some(ref dns_host) = competition.dns_host {
+        resolve_box_ip(&query.name, dns_host)
             .await
-            .unwrap_or_else(|| "0.0.0.0".to_string()) // Fallback if resolution fails
+            .unwrap_or_else(|| "Unset".to_string()) // Fallback if resolution fails
     } else {
-        "192.168.1.100".to_string() // Fallback if no vtep_host configured
+        "DNS Misconfiguration".to_string() // Fallback if no dns_host configured
     };
 
     let response = types::BoxDetailResponse {

@@ -12,3 +12,5 @@ tags:
     - ctf
     - collection
 repository: "https://www.github.com/razelighter777/carve"
+build_ignore:
+  - ".venv/"
