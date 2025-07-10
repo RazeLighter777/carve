@@ -346,10 +346,8 @@ pub async fn register(
     // Check if the user is already logged in
     if let Some(username) = session.get::<String>("username").unwrap_or(None) {
         if !username.is_empty() {
-            // User is already logged in, redirect to home
-            return Ok(HttpResponse::Found()
-                .append_header(("Location", "/"))
-                .finish());
+            // User is already logged in clear the session
+            session.purge();
         }
     }
     let mut team_name = None;
@@ -389,7 +387,7 @@ pub async fn register(
                 Ok(_) => {
                     // redirect to login page with success message
                     Ok(HttpResponse::Found()
-                        .append_header(("Location", "/login?success=registered"))
+                        .append_header(("Location", "/login?message=registered"))
                         .finish())
                 }
                 Err(e) => {
