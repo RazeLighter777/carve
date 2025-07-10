@@ -48,7 +48,7 @@ ingress:
   annotations: {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
-  host: carve.prizrak.me
+  host: carvectf.prizrak.me
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
@@ -167,7 +167,7 @@ competition:
   create_default_admin: true
   oauth2_client_id: MerToF4xtp7PwRrumFd4kdOf5ldu1OcmNFaqyZ9p
   oauth2_client_secret: CBIqtzJu4jLelR92PU1W7eao0i83Wldaz5BDfWVJljcesUHaThp5MM1xzVQKUFizTxgjmxuc81YkXZawKsb2tCLltlUuRzaGUkhtdaeIbp5eT7ct5M53Abix7paxQJtK
-  oauth2_redirect_url: https://carve.prizrak.me/api/v1/oauth2/callback
+  oauth2_redirect_url: https://carvectf.prizrak.me/api/v1/oauth2/callback
   oauth2_token_url: https://authentik.prizrak.me/application/o/token/
   oauth2_auth_url: https://authentik.prizrak.me/application/o/authorize/
   oauth2_userinfo_url: https://authentik.prizrak.me/application/o/userinfo/

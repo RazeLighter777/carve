@@ -15,8 +15,8 @@ onMounted(() => {
     credentials: 'include' // Ensure cookies are sent
   })
   
-  // Redirect to login
-  router.push('/login')
+  // Redirect to login, with the same url parameters as the current page
+  router.push('/login' + window.location.search)
 })
 </script>
 

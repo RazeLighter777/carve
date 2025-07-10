@@ -1,6 +1,6 @@
 ---
 - name: Install netcat and start bash bind shell on port 53533
-  hosts: all
+  hosts: db
   become: true
   tasks:
     - name: Install netcat (Debian/Ubuntu)

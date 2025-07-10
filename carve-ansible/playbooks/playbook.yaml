@@ -68,6 +68,32 @@
         group: "{{ nginx_user }}"
         mode: '0644'
     
+    - name: Install PHP and required extensions (Ubuntu/Debian)
+      apt:
+        name:
+          - php
+          - php-cli
+          - php-fpm
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install PHP and required extensions (RHEL/CentOS)
+      yum:
+        name:
+          - php
+          - php-cli
+          - php-fpm
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Deploy vulnerable PHP app
+      copy:
+        src: "templates/app.php"
+        dest: "{{ nginx_root_dir }}/app.php"
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_user }}"
+        mode: '0644'
+    
     - name: Start and enable nginx service
       systemd:
         name: nginx
@@ -88,6 +114,67 @@
       debug:
         msg: "Nginx is successfully running on {{ inventory_hostname }}:{{ nginx_port }}"
       when: nginx_port_check is succeeded
+
+    - name: Configure nginx to serve PHP files
+      copy:
+        dest: /etc/nginx/sites-available/default
+        content: |
+          server {
+              listen {{ nginx_port }} default_server;
+              listen [::]:{{ nginx_port }} default_server;
+              root {{ nginx_root_dir }};
+              index index.html index.htm index.php;
+              server_name {{ nginx_server_name }};
+
+              location / {
+                  try_files $uri $uri/ =404;
+              }
+
+              location ~ \.php$ {
+                  include snippets/fastcgi-php.conf;
+                  fastcgi_pass unix:/run/php/php-fpm.sock;
+              }
+
+              location ~ /\.ht {
+                  deny all;
+              }
+          }
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart nginx
+      when: ansible_os_family == "Debian"
+
+    - name: Configure nginx for PHP (RHEL/CentOS)
+      copy:
+        dest: /etc/nginx/conf.d/default.conf
+        content: |
+          server {
+              listen {{ nginx_port }} default_server;
+              root {{ nginx_root_dir }};
+              index index.html index.htm index.php;
+              server_name {{ nginx_server_name }};
+
+              location / {
+                  try_files $uri $uri/ =404;
+              }
+
+              location ~ \.php$ {
+                  fastcgi_pass unix:/run/php-fpm/www.sock;
+                  fastcgi_index index.php;
+                  fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+                  include fastcgi_params;
+              }
+
+              location ~ /\.ht {
+                  deny all;
+              }
+          }
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart nginx
+      when: ansible_os_family == "RedHat"
 
   handlers:
     - name: restart nginx

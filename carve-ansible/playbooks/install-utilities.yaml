@@ -1,0 +1,31 @@
+---
+- name: Install basic utilities for CTF and system administration
+  hosts: all
+  become: true
+  tasks:
+    - name: Install utilities on Debian/Ubuntu
+      apt:
+        name:
+          - nmap
+          - john
+          - curl
+          - wget
+          - net-tools
+          - htop
+          - unzip
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install utilities on RedHat/CentOS
+      yum:
+        name:
+          - nmap
+          - john
+          - curl
+          - wget
+          - net-tools
+          - htop
+          - unzip
+        state: present
+      when: ansible_os_family == "RedHat"

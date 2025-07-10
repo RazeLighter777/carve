@@ -153,9 +153,9 @@ async fn get_score(
                         scores.push(carve::redis_manager::ScoreEvent {
                             team_id,
                             score_event_type: check.name.clone(),
-                            box_name: event.box_name.clone(),
                             timestamp,
-                            message: event.message,
+                            messages: event.messages,
+                            occurrences: event.occurrences,
                         });
                     }
                 }

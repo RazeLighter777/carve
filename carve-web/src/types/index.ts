@@ -100,8 +100,8 @@ export interface ScoreboardEntry {
   team_id: number;
   score_event_type: string;
   timestamp: string;
-  message: string;
-  box_name: string;
+  messages: string[];
+  occurrences: number;
 }
 
 export interface OAuthRedirectResponse {

@@ -64,7 +64,7 @@ spec:
             - name: SSH_PORT
               value: "2222"
             - name: PASSWORD_ACCESS
-              value: "1"
+              value: "true"
             - name: USER_NAME
               value: {{ .Values.opensshServer.userName | default "carve" | quote }}
             - name: USER_PASSWORD

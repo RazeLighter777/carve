@@ -17,7 +17,7 @@ const submit = async () => {
   loading.value = true
   try {
     await apiService.switchTeam(code.value.trim())
-    window.location.href = '/logout' // Redirect to logout after joining
+    window.location.href = '/logout?message=team_switched' // Redirect to logout after joining
   } catch (e: any) {
     error.value = e?.response?.data?.error || 'Failed to join team. Please check your code.'
   } finally {

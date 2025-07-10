@@ -143,14 +143,15 @@ export default defineComponent({
                 } else {
                     // For regular checks, use yellow if partial
                     const check = checkStatus.value.checks.find(c => c.name === name);
+                    console.log('check:', check);
                     if (!check) return 'gray';
-                    if (check.passing === true) return 'green';
-                    if (check.passing === false) {
-                        // Check for partial pass
-                        if (check.success_fraction && Array.isArray(check.success_fraction)) {
-                            const [num, denom] = check.success_fraction;
-                            if (num > 0 && num < denom) return 'yellow';
+                    else if (check.passing === true) {
+                        if (check.success_fraction[0] == check.success_fraction[1]) {
+                            return 'green';
+                        } else if (check.success_fraction[0] > 0) {
+                            return 'yellow'; // Partial success
                         }
+                    } else if (check.passing === false) {
                         return 'red';
                     }
                     return 'gray';

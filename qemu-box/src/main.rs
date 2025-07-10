@@ -283,6 +283,7 @@ impl TaskManager {
                 "vxlan-sidecar-{}-{}:4789",
                 env_config.team_name, env_config.box_name
             );
+            println!("Resolving VXLAN sidecar address: {}", vxlan_sidecar_addr);
 
             match vxlan_sidecar_addr.to_socket_addrs() {
                 Ok(addrs) => {

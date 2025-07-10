@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use log::{error, info};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -44,14 +44,14 @@ impl Scheduler {
                     let time_to_next_check = interval - (now % interval);
                     let check_timestamp = now + time_to_next_check;
                     sleep(Duration::from_secs(time_to_next_check as u64)).await;
-                    
-                    let mut check_frac_map: HashMap<String, (u64, u64)> = HashMap::new();
-                    let mut messages = Vec::new();
+
+
                     // Process the check for all applicable boxes and teams
                     for team in &teams {
-                        // check frac map should be cleared for each team so checks are independent
-                        check_frac_map.clear();
+                        let mut messages = Vec::new();
+                        let mut passing_boxes = Vec::new();
                         messages.clear();
+                        passing_boxes.clear();
                         for box_config in &boxes {
                             // Create an empty HashMap to use as a fallback
                             let empty_selector: HashMap<String, String> = HashMap::new();
@@ -99,6 +99,11 @@ impl Scheduler {
                                             "Box {}.{}.{}.hack has no dns entry (yet), skipping",
                                             box_config.name, team.name, competition_name
                                         );
+                                        messages.push(format!(
+                                            "Box {}.{}.{}.hack has no dns entry (yet), skipping",
+                                            box_config.name, team.name, competition_name
+                                        ));
+
                                         continue;
                                     }
                                 };
@@ -108,26 +113,22 @@ impl Scheduler {
                                     check.name, team.name, box_config.name, ip
                                 );
                                 //record the ip into the redis_manager
-                                if let Ok(_) = redis_manager.record_box_ip(&competition_name, &team.name, &box_config.name, ip) {
-                                    info!("Recorded IP {} for box {}.{}.{}.hack", ip, box_config.name, team.name, competition_name);
+                                if let Ok(_) = redis_manager.record_box_ip(
+                                    &competition_name,
+                                    &team.name,
+                                    &box_config.name,
+                                    ip,
+                                ) {
+                                    info!(
+                                        "Recorded IP {} for box {}.{}.{}.hack",
+                                        ip, box_config.name, team.name, competition_name
+                                    );
                                 } else {
-                                    error!("Failed to record IP {} for box {}.{}.{}.hack", ip, box_config.name, team.name, competition_name);
+                                    error!(
+                                        "Failed to record IP {} for box {}.{}.{}.hack",
+                                        ip, box_config.name, team.name, competition_name
+                                    );
                                 }
-
-                                // Get current check state from Redis
-                                let (_, mut prev_failures,mut passing_boxes) = match redis_manager
-                                    .get_check_current_state(
-                                        &competition_name,
-                                        &team.name,
-                                        &check.name,
-                                    ) {
-                                    Ok(Some(state)) => (
-                                        state.success,
-                                        state.number_of_failures,
-                                        state.passing_boxes,
-                                    ),
-                                    _ => (true, 0, Vec::new()), // Default: passing, 0 failures, 0 successful checks out of 1
-                                };
 
                                 // Get box credentials for template substitution
                                 let (username, password) = match redis_manager.read_box_credentials(
@@ -156,52 +157,11 @@ impl Scheduler {
                                     }
                                 };
 
-                                // Perform the check
-                                let success_closure = |frac : (u64, u64)| {
-                                    (frac.0 + 1, frac.1 + 1)
-                                };
-                                let failure_closure = |frac : (u64, u64)| {
-                                    (frac.0, frac.1 + 1)
-                                };
                                 // push the message to the messages vector
                                 match perform_check(&ip.to_string(), &templated_spec).await {
                                     Ok(message) => {
                                         messages.push(message.clone());
-                                        // Set state: passing, failures=0
-                                        if !passing_boxes.contains(&box_config.name) {
-                                            passing_boxes.push(box_config.name.clone());
-                                        }
-                                        if let Err(e) = redis_manager.set_check_current_state(
-                                            &competition_name,
-                                            &team.name,
-                                            &check.name,
-                                            true,
-                                            0,
-                                            messages.clone(),
-                                            success_closure(*check_frac_map
-                                                .entry(box_config.name.clone())
-                                                .or_insert((0, 0))),
-                                            passing_boxes
-                                        ) {
-                                            error!("Failed to set check state: {}", e);
-                                        }
-                                        if let Err(e) = redis_manager.record_sucessful_check_result(
-                                            &competition_name,
-                                            &check.name,
-                                            chrono::DateTime::<Utc>::from_timestamp(
-                                                check_timestamp,
-                                                0,
-                                            )
-                                            .expect("Invalid timestamp"),
-                                            competition
-                                                .clone()
-                                                .get_team_id_from_name(&team.name)
-                                                .expect("Team not found"),
-                                            &box_config.name,
-                                            &message,
-                                        ) {
-                                            error!("Failed to record check result: {}", e);
-                                        }
+                                        passing_boxes.push(box_config.name.clone());
                                     }
                                     Err(e) => {
                                         // Set state: failing, failures+1
@@ -210,31 +170,73 @@ impl Scheduler {
                                             passing_boxes.retain(|b| b != &box_config.name);
                                         }
                                         messages.push(format!("{}", e));
-                                        prev_failures += 1;
-                                        if let Err(err) = redis_manager.set_check_current_state(
-                                            &competition_name,
-                                            &team.name,
-                                            &check.name,
-                                            //if one check is successful, the check is still considered passing
-                                        check_frac_map.entry(box_config.name.clone())
-                                                .or_insert((0, 0)).0 > 0,
-                                            prev_failures,
-                                            messages.clone(),
-                                            failure_closure(*check_frac_map
-                                                .entry(box_config.name.clone())
-                                                .or_insert((0, 0))),
-                                            passing_boxes.clone(),
-                                        ) {
-                                            error!("Failed to set check state: {}", err);
-                                        }
-                                        error!(
-                                            "Check failed for {} on {}: {}",
-                                            team.name, box_config.name, e
-                                        );
                                     }
                                 }
                             }
                         }
+                        if passing_boxes.is_empty() {
+                            info!(
+                                "No passing boxes for check {} on team {}",
+                                check.name, team.name
+                            );
+                            continue;
+                        } 
+                        if let Err(e) = redis_manager.record_sucessful_check_result(
+                                &competition_name,
+                                &check.name,
+                                DateTime::from_timestamp(check_timestamp, 0).expect("Failed to create DateTime"),
+                                competition.get_team_id_from_name(&team.name).expect("Team not found"),
+                                messages.clone(),
+                                passing_boxes.len() as u64,
+                        ) {
+                            error!("Failed to record successful check result: {}", e);
+                        } else {
+                            info!(
+                                "Recorded successful check result for {} on team {}",
+                                check.name, team.name
+                            );
+                            // get current state of the check so we can get the previous number of failures.
+                            let mut prev_failures = 0;
+                            if let Ok(Some(current_state)) = redis_manager.get_check_current_state(
+                                &competition_name,
+                                &team.name,
+                                check.name.as_str(),
+                            ) {
+                                prev_failures = current_state.number_of_failures;
+                                info!(
+                                    "Current state for check {} on team {}: {:?}",
+                                    check.name, team.name, current_state
+                                );
+                            } else {
+                                error!(
+                                    "Failed to get current state for check {} on team {}",
+                                    check.name, team.name
+                                );
+                            }
+                            // set the current state for the check
+                            if let Err(e) = redis_manager.set_check_current_state(
+                                &competition_name,
+                                &team.name,
+                                check.name.as_str(),
+                                passing_boxes.len() > 0,
+                                if passing_boxes.len() > 0 {
+                                    0 // no failures if passing
+                                } else {
+                                    prev_failures + 1 // increment failures if not passing
+                                },
+                                messages.clone(),
+                                (passing_boxes.len() as u64, messages.len() as u64),
+                                passing_boxes.clone(),
+                            ) {
+                                error!("Failed to set check state: {}", e);
+                            } else {
+                                info!(
+                                    "Set check state for {} on team {} to true",
+                                    check.name, team.name
+                                );
+                            }
+                        }
+
                     }
                 }
             });

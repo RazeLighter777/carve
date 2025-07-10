@@ -32,13 +32,13 @@ competitions:
         hostname: "db"
         cores: 4
         ram_mb: 4096
-        backing_image: "nbd://qemu-nbd-ubuntu:10809"
+        backing_image: "nbd://qemu-nbd-debian:10809"
       - name: auth
         labels: auth
         hostname: "auth"
         cores: 1
         ram_mb: 1024
-        backing_image: "nbd://qemu-nbd-ubuntu:10809"
+        backing_image: "nbd://qemu-nbd-debian:10809"
     teams:
       # List of competing teams
       - name: team1

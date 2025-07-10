@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { apiService } from '@/services/api'
 import { cookieUtils } from '@/utils/cookies'
 import type { CompetitionState, User, Team } from '@/types'
-import { UserGroupIcon, TrophyIcon, ChartBarIcon } from '@heroicons/vue/24/outline'
+import { UserGroupIcon, CubeTransparentIcon, ChartBarIcon } from '@heroicons/vue/24/outline'
 import CompetitionStatus from '@/components/CompetitionStatus.vue'
 
 const loading = ref(true)
@@ -97,9 +97,26 @@ const switchTeam = async () => {
             {{ competition?.name || 'CARVE Competition' }}
           </h1>
           <p class="text-lg text-gray-600 mb-6">
-            Welcome to the cybersecurity competition platform
+            Welcome to {{ competition?.name || 'CARVE Competition' }}!
           </p>
-          
+
+          <!-- Game Explanation -->
+          <div class="mb-6 text-base text-gray-700 text-left mx-auto">
+            <p class="mb-2">
+              This is a Capture The Flag (CTF) competition where you can test your skills in cybersecurity.
+              Hack into other teams' boxes, defend your own, and find hidden flags to score points.
+            </p>
+            <p class="mb-2">
+              Once the competition starts, you can access your private network and servers for the game on the <RouterLink to="/boxes" class="text-primary-600 underline">/boxes</RouterLink> page.
+            </p>
+            <p class="mb-2">
+              Score points by keeping your services online and by locating hidden flags on your boxes. You can submit flags and see your service status at the <RouterLink to="/compete" class="text-primary-600 underline">/compete</RouterLink> page.
+            </p>
+            <p class="mb-2">
+              Each team receives a <span class="font-mono">/24</span> subnet with identical machines. You can find other teams' boxes using DNS records in the format <span class="font-mono">&lt;box name&gt;.&lt;team name&gt;.{{ (competition?.name || 'carve').toLowerCase() }}.hack.</span> Or you can get their IP addresses directly by visiting the boxes page and selecting the team in the drop down menu.
+            </p>
+          </div>
+
           <CompetitionStatus :competition="competition"/>
         </div>
       </div>
@@ -188,13 +205,13 @@ const switchTeam = async () => {
         <h2 class="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <RouterLink 
-            to="/leaderboard" 
+            to="/boxes" 
             class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-white transition-colors"
           >
-            <TrophyIcon class="h-8 w-8 text-black mr-3" />
+            <CubeTransparentIcon class="h-8 w-8 text-black mr-3" />
             <div>
-              <div class="font-medium text-gray-900">Leaderboard</div>
-              <div class="text-sm text-gray-600">View team rankings</div>
+              <div class="font-medium text-gray-900">Boxes</div>
+              <div class="text-sm text-gray-600">Log into your boxes and hack the other teams!</div>
             </div>
           </RouterLink>
           

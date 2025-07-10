@@ -9,6 +9,7 @@ import { IdentitySources } from '@/types'
 const route = useRoute()
 const loading = ref(false)
 const error = ref('')
+const message = ref('')
 const providerName = import.meta.env.VITE_OIDC_PROVIDER_NAME || ref('Sign-In with OIDC')
 const passwordLoading = ref(false)
 const identitySources = ref<IdentitySources[]>([])
@@ -30,6 +31,11 @@ const errorMessages: Record<string, string> = {
   invalid_credentials: 'Invalid username or password. Please try again.'
 }
 
+const messages: Record<string, string> = {
+  team_switched: 'You have successfully switched teams. Please log in again.',
+  registered: 'You have successfully registered. Please log in to continue.',
+}
+
 const showPasswordForm = ref(false)
 
 onMounted(async () => {
@@ -37,6 +43,11 @@ onMounted(async () => {
   const errorParam = route.query.error as string
   if (errorParam && errorMessages[errorParam]) {
     error.value = errorMessages[errorParam]
+  }
+  // Check for success message in query params
+  const messageParam = route.query.message as string
+  if (messageParam && messages[messageParam]) {
+    message.value = messages[messageParam]
   }
   try {
     const sourcesResp: IdentitySourcesResponse = await apiService.getIdentitySources()
@@ -112,6 +123,22 @@ const handlePasswordLogin = async () => {
               </h3>
               <div class="mt-2 text-sm text-red-700">
                 {{ error }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Success message -->
+        <div v-if="route.query.message" class="rounded-md bg-green-50 p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <ExclamationTriangleIcon class="h-5 w-5 text-green-400" />
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-green-800">
+                Success
+              </h3>
+              <div class="mt-2 text-sm text-green-700">
+                {{ message }}
               </div>
             </div>
           </div>

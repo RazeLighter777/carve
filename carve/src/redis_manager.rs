@@ -41,11 +41,11 @@ pub enum QemuCommands {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ScoreEvent {
-    pub message: String, // Message describing the event, e.g., "ICMP check passed", "Flag check successful"
+    pub messages: Vec<String>, // Messages describing the event, e.g., "ICMP check passed", "Flag check successful"
     pub timestamp: DateTime<chrono::Utc>,
     pub team_id: u64,
     pub score_event_type: String, // e.g., "icmp_check_1" "flag_check_1"
-    pub box_name: String,         // Name of the box where the event occurred
+    pub occurrences: u64, // Number of times this event has occurred in this tick.
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -355,8 +355,8 @@ impl RedisManager {
         check_name: &str,
         timestamp: DateTime<chrono::Utc>,
         team_id: u64,
-        box_name: &str,
-        message: &str,
+        messages: Vec<String>,
+        occurances: u64,
     ) -> Result<String> {
         let key = format!("{}:{}:{}", competition_name, team_id, check_name);
         // Only record if competition is Active
@@ -369,22 +369,27 @@ impl RedisManager {
             .client
             .get_connection()
             .context("Failed to connect to Redis")?;
-        let event = ScoreEvent {
-            message: message.to_string(),
+        let mut event = ScoreEvent {
+            messages: messages,
             timestamp,
             team_id, // This can be set to a specific team ID if needed
             score_event_type: check_name.to_string(), // e.g., "icmp_check_1"
-            box_name: box_name.to_string(), // Name of the box where the event occurred
+            occurrences: 0, // Number of times this event has occurred in this tick
         };
-        let value =
-            serde_yaml::to_string(&event).context("Failed to serialize score event to YAML")?;
         let timestamp_seconds = timestamp.timestamp();
-        let _: () = redis::cmd("ZADD")
-            .arg(&key)
-            .arg(timestamp_seconds)
-            .arg(&value)
-            .query(&mut conn)
-            .context("Failed to record successful check result")?;
+        // TERRIBLE HACK. basically creates duplicate events to allow multi-box scoring.
+        for i in 0..occurances {
+            // Record the event in a sorted set with the timestamp as the score
+            event.occurrences = i + 1; // Increment occurrences for each event
+            let value =
+                serde_yaml::to_string(&event).context("Failed to serialize score event to YAML")?;
+            let _: () = redis::cmd("ZADD")
+                .arg(&key)
+                .arg(timestamp_seconds)
+                .arg(&value)
+                .query(&mut conn)
+                .context("Failed to record successful check result")?;
+        }
         Ok(key)
     }
 
@@ -1157,8 +1162,8 @@ impl RedisManager {
                 &flag_check.name,
                 timestamp,
                 team_id,
-                &flag_check.box_name,
-                &event_message,
+                vec![event_message.clone()],
+                1, // 1 occurrence for this flag redemption
             )?;
             // set the current state of the flag check to true
             self.set_check_current_state(
