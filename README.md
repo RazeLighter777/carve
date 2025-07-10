@@ -37,11 +37,11 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 - **qemu-box:** Runs VMs, exposes them via VNC.
 - **carve-dnsmasq:** DNS and DHCP server for VM boxes.
 - **carve-api:** API gateway for CARVE services.
-- **carve-ansible:** Integrates Ansible for VM provisioning and challenge deployment.
+- **qemu-ndb:** Serves qemu disks over the network to maximize storage efficiency. 
 ## ⚠️ Requirements
-Works only on linux and WSL. You need docker or any OCI container platform. Cilium in native-routing mode is the only tested CNI. 
+Works only on linux and WSL. You need docker or k8s. Cilium in native-routing mode is the only tested CNI. 
 
-Cilium tunnel mode does NOT work due to a bug in how they handle nested VXLANS. 
+Cilium tunnel mode does NOT work for multi node setups due to a bug in how they handle nested VXLANS. 
 
 **The K8S Helm chart is highly recommended over the docker compose. The helm chart makes configuration much less verbose because it parses the competitions.yaml (under the competitions yaml key) and makes the containers automatically with the right environment variables. The docker compose is for testing/evaluation purposes only**
 ### For testing / non-production:
@@ -61,31 +61,37 @@ At least a three node K8S setup EACH with:
    ```
 
 2. **Configure the platform:**
-## Docker
-   - Edit `docker-compose.yaml` to set your OIDC credentials (optional) and `SECRET_KEY`
-   - Edit `competition.yaml` to define your competition (docs coming soon).
-## K8S
-   - Edit charts/carve/values.yaml (this contains the same schema competition.yaml under the competition key)
-## Docker
-3. **Build and run with Docker Compose:**
+- K8S : edit your values.yaml file in charts/carve. competition.yaml is mapped to the competition section.
+- docker (only for testing, not recommended): edit docker-compose.yaml and competition.yaml files. Make sure they match. 
+3. **Run:**
+  K8S:
+   ```
+   cd charts/carve
+   helm install carve -f values.yaml .
+   ```
+   or docker compose : 
    ```bash
    docker compose build
    docker compose up
    ```
    You can read the default admin and password (set to generate and print on the first run, if configured) using
    ```bash
-   docker compose logs carve-api
+   kubectl get pods -n <namespace you installed the chart to, probably "default">
+   kubectl logs -n <namespace> <carve api pod>
    ```
-## Kubernetes
-3. ```bash
-   cd charts/carve
-   helm 
-5. **Run Ansible Playbooks:**
+   or docker compose:
+  ```bash
+  docker compose logs carve-api
+  ```
+4. **Run Ansible Playbooks:**
    - Install the carve ansible plugin https://galaxy.ansible.com/ui/repo/published/razelighter777/carve_ansible/
    - Configure the carve_inventory.yaml file (see carve-ansible/carve_inventory.yaml for example)
+   - Forward the redis port from the redis container / pod (k8s) and the ssh port from the openssh container / container in the network pod (k8s) to localhost if running in k8s.
+   - Install a public ssh key on the ssh instance.
    - Run your playbooks. 
-6. **Access the frontend:**
-   - Open a new terminal, go to the `carve-web` directory, and run:
+5. **Access the frontend:**
+   - K8S: Make sure you have an ingress controller installed and it will configure it automatically at the hostname inside the values.yaml at the ingress.host field. Then just go to the site.
+   - Docker: Open a new terminal, go to the `carve-web` directory, and run:
      ```bash
      npm install
      npm run dev
@@ -93,14 +99,13 @@ At least a three node K8S setup EACH with:
    - The frontend will be available at the address shown in the terminal output (typically http://localhost:5173).
 
 7. **Start the Competition:**
-   - Log in as an admin user (your OIDC account must be in the admin group).
+   - Log in as an admin user (your OIDC account must be in the admin group if you are using OIDC, otherwise you can use the other default admin user `admin`)
    - In the web UI, click "Start Competition" to begin.
-
 
 
 ## Notes
 
-- **Persistence:** Redis is used for all data storage. By default, persistence is disabled for testing. AOF and backup configuration will be added soon.
+- **Persistence:** Redis is used for all data storage.
 - **Authentication:** OIDC and local user/password supported. OIDC is only tested with authentik right now, may or may not work with other applications.
 - **Challenges:** Only a few dummy challenges are included. Add more by creating Ansible playbooks.
 - **Competition Automation:** Future updates will improve Ansible integration for automatic and modular playbook creation.
