@@ -45,198 +45,222 @@ impl Scheduler {
                     let check_timestamp = now + time_to_next_check;
                     sleep(Duration::from_secs(time_to_next_check as u64)).await;
 
+                    // Set timeout to 80% of interval
+                    let team_timeout = Duration::from_secs((check.interval as f64 * 0.8) as u64);
+                    let mut handles = Vec::new();
 
-                    // Process the check for all applicable boxes and teams
                     for team in &teams {
-                        let mut messages = Vec::new();
-                        let mut passing_boxes = Vec::new();
-                        messages.clear();
-                        passing_boxes.clear();
-                        for box_config in &boxes {
-                            // Create an empty HashMap to use as a fallback
-                            let empty_selector: HashMap<String, String> = HashMap::new();
-
-                            // Check if this box matches the label selector
-                            let label_selector = check
-                                .label_selector
-                                .as_ref()
-                                .or(check.label_selector_alt.as_ref())
-                                .unwrap_or(&empty_selector);
-
-                            // If label selector is empty, apply to all boxes
-                            // Otherwise, check if box labels match
-                            let should_check = label_selector.is_empty()
-                                || match label_selector.get("") {
-                                    Some(label) => box_config.labels == *label,
-                                    None => false,
-                                };
-
-                            if should_check {
-                                let hostname = format!(
-                                    "{}.{}.{}.hack",
-                                    box_config.name, team.name, competition_name
-                                );
-                                // launch dig with cmd to resolve the hostname to an IP address with the vtep's DNS server
-                                let ip = match std::process::Command::new("dig")
-                                    .arg(&hostname)
-                                    .arg("@127.0.0.1")
-                                    .arg("+short")
-                                    .output()
-                                {
-                                    Ok(output) if output.status.success() => {
-                                        String::from_utf8_lossy(&output.stdout).trim().to_string()
-                                    }
-                                    _ => {
-                                        error!("Failed to resolve hostname: {}", hostname);
-                                        continue;
-                                    }
-                                };
-                                // check if we got a valid IP address
-                                let ip = match ip.parse::<std::net::IpAddr>() {
-                                    Ok(ip) => ip,
-                                    Err(_) => {
-                                        println!(
-                                            "Box {}.{}.{}.hack has no dns entry (yet), skipping",
+                        let team = team.clone();
+                        let boxes = boxes.clone();
+                        let check = check.clone();
+                        let competition = competition.clone();
+                        let redis_manager = redis_manager.clone();
+                        let competition_name = competition_name.clone();
+                        let check_timestamp = check_timestamp;
+                        let handle = tokio::spawn(async move {
+                            use tokio::task::JoinSet;
+                            let mut set = JoinSet::new();
+                            for box_config in &boxes {
+                                let box_config = box_config.clone();
+                                let check = check.clone();
+                                let team = team.clone();
+                                let redis_manager = redis_manager.clone();
+                                let competition_name = competition_name.clone();
+                                set.spawn(async move {
+                                    let empty_selector: HashMap<String, String> = HashMap::new();
+                                    let label_selector = check
+                                        .label_selector
+                                        .as_ref()
+                                        .or(check.label_selector_alt.as_ref())
+                                        .unwrap_or(&empty_selector);
+                                    let should_check = label_selector.is_empty()
+                                        || match label_selector.get("") {
+                                            Some(label) => box_config.labels == *label,
+                                            None => false,
+                                        };
+                                    if should_check {
+                                        let hostname = format!(
+                                            "{}.{}.{}.hack",
                                             box_config.name, team.name, competition_name
                                         );
-                                        messages.push(format!(
-                                            "Box {}.{}.{}.hack has no dns entry (yet), skipping",
-                                            box_config.name, team.name, competition_name
-                                        ));
+                                        // launch dig with cmd to resolve the hostname to an IP address with the vtep's DNS server
+                                        let ip = match std::process::Command::new("dig")
+                                            .arg(&hostname)
+                                            .arg("@127.0.0.1")
+                                            .arg("+short")
+                                            .output()
+                                        {
+                                            Ok(output) if output.status.success() => {
+                                                String::from_utf8_lossy(&output.stdout).trim().to_string()
+                                            }
+                                            _ => {
+                                                error!("Failed to resolve hostname: {}", hostname);
+                                                return (None, None);
+                                            }
+                                        };
+                                        // check if we got a valid IP address
+                                        let ip = match ip.parse::<std::net::IpAddr>() {
+                                            Ok(ip) => ip,
+                                            Err(_) => {
+                                                let msg = format!(
+                                                    "Box {}.{}.{}.hack has no dns entry (yet), skipping",
+                                                    box_config.name, team.name, competition_name
+                                                );
+                                                println!("{}", msg);
+                                                return (Some(msg), None);
+                                            }
+                                        };
 
-                                        continue;
+                                        info!(
+                                            "Running check {} for team {} on box {} ({})",
+                                            check.name, team.name, box_config.name, ip
+                                        );
+                                        //record the ip into the redis_manager
+                                        if let Ok(_) = redis_manager.record_box_ip(
+                                            &competition_name,
+                                            &team.name,
+                                            &box_config.name,
+                                            ip,
+                                        ) {
+                                            info!(
+                                                "Recorded IP {} for box {}.{}.{}.hack",
+                                                ip, box_config.name, team.name, competition_name
+                                            );
+                                        } else {
+                                            error!(
+                                                "Failed to record IP {} for box {}.{}.{}.hack",
+                                                ip, box_config.name, team.name, competition_name
+                                            );
+                                        }
+
+                                        // Get box credentials for template substitution
+                                        let (username, password) = match redis_manager.read_box_credentials(
+                                            &competition_name,
+                                            &team.name,
+                                            &box_config.name,
+                                        ) {
+                                            Ok(Some((u, p))) => (u, p),
+                                            _ => ("".to_string(), "".to_string()), // Default empty if not found
+                                        };
+
+                                        // Apply Jinja template substitution to check spec
+                                        let templated_spec = match apply_template_substitution(
+                                            &check.spec,
+                                            &team.name,
+                                            &box_config.name,
+                                            &competition_name,
+                                            &ip.to_string(),
+                                            &username,
+                                            &password,
+                                        ) {
+                                            Ok(spec) => spec,
+                                            Err(e) => {
+                                                error!("Failed to apply template substitution: {}", e);
+                                                return (Some(format!("Failed to apply template: {}", e)), None);
+                                            }
+                                        };
+
+                                        // push the message to the messages vector
+                                        match perform_check(&ip.to_string(), &templated_spec).await {
+                                            Ok(message) => {
+                                                return (Some(message), Some(box_config.name.clone()));
+                                            }
+                                            Err(e) => {
+                                                return (Some(format!("{}", e)), None);
+                                            }
+                                        }
                                     }
-                                };
-
+                                    (None, None)
+                                });
+                            }
+                            let mut messages = Vec::new();
+                            let mut passing_boxes = Vec::new();
+                            while let Some(res) = set.join_next().await {
+                                if let Ok((msg_opt, passing_opt)) = res {
+                                    if let Some(msg) = msg_opt {
+                                        messages.push(msg);
+                                    }
+                                    if let Some(box_name) = passing_opt {
+                                        passing_boxes.push(box_name);
+                                    }
+                                }
+                            }
+                            if passing_boxes.is_empty() {
                                 info!(
-                                    "Running check {} for team {} on box {} ({})",
-                                    check.name, team.name, box_config.name, ip
+                                    "No passing boxes for check {} on team {}",
+                                    check.name, team.name
                                 );
-                                //record the ip into the redis_manager
-                                if let Ok(_) = redis_manager.record_box_ip(
+                                return;
+                            }
+                            if let Err(e) = redis_manager.record_sucessful_check_result(
+                                    &competition_name,
+                                    &check.name,
+                                    DateTime::from_timestamp(check_timestamp, 0).expect("Failed to create DateTime"),
+                                    competition.get_team_id_from_name(&team.name).expect("Team not found"),
+                                    messages.clone(),
+                                    passing_boxes.len() as u64,
+                            ) {
+                                error!("Failed to record successful check result: {}", e);
+                            } else {
+                                info!(
+                                    "Recorded successful check result for {} on team {}",
+                                    check.name, team.name
+                                );
+                                // get current state of the check so we can get the previous number of failures.
+                                let mut prev_failures = 0;
+                                if let Ok(Some(current_state)) = redis_manager.get_check_current_state(
                                     &competition_name,
                                     &team.name,
-                                    &box_config.name,
-                                    ip,
+                                    check.name.as_str(),
                                 ) {
+                                    prev_failures = current_state.number_of_failures;
                                     info!(
-                                        "Recorded IP {} for box {}.{}.{}.hack",
-                                        ip, box_config.name, team.name, competition_name
+                                        "Current state for check {} on team {}: {:?}",
+                                        check.name, team.name, current_state
                                     );
                                 } else {
                                     error!(
-                                        "Failed to record IP {} for box {}.{}.{}.hack",
-                                        ip, box_config.name, team.name, competition_name
+                                        "Failed to get current state for check {} on team {}",
+                                        check.name, team.name
                                     );
                                 }
-
-                                // Get box credentials for template substitution
-                                let (username, password) = match redis_manager.read_box_credentials(
+                                // set the current state for the check
+                                if let Err(e) = redis_manager.set_check_current_state(
                                     &competition_name,
                                     &team.name,
-                                    &box_config.name,
+                                    check.name.as_str(),
+                                    passing_boxes.len() > 0,
+                                    if passing_boxes.len() > 0 {
+                                        0 // no failures if passing
+                                    } else {
+                                        prev_failures + 1 // increment failures if not passing
+                                    },
+                                    messages.clone(),
+                                    (passing_boxes.len() as u64, messages.len() as u64),
+                                    passing_boxes.clone(),
                                 ) {
-                                    Ok(Some((u, p))) => (u, p),
-                                    _ => ("".to_string(), "".to_string()), // Default empty if not found
-                                };
-
-                                // Apply Jinja template substitution to check spec
-                                let templated_spec = match apply_template_substitution(
-                                    &check.spec,
-                                    &team.name,
-                                    &box_config.name,
-                                    &competition_name,
-                                    &ip.to_string(),
-                                    &username,
-                                    &password,
-                                ) {
-                                    Ok(spec) => spec,
-                                    Err(e) => {
-                                        error!("Failed to apply template substitution: {}", e);
-                                        continue;
-                                    }
-                                };
-
-                                // push the message to the messages vector
-                                match perform_check(&ip.to_string(), &templated_spec).await {
-                                    Ok(message) => {
-                                        messages.push(message.clone());
-                                        passing_boxes.push(box_config.name.clone());
-                                    }
-                                    Err(e) => {
-                                        // Set state: failing, failures+1
-                                        // remove box from passing boxes if it was previously passing
-                                        if passing_boxes.contains(&box_config.name) {
-                                            passing_boxes.retain(|b| b != &box_config.name);
-                                        }
-                                        messages.push(format!("{}", e));
-                                    }
+                                    error!("Failed to set check state: {}", e);
+                                } else {
+                                    info!(
+                                        "Set check state for {} on team {} to true",
+                                        check.name, team.name
+                                    );
                                 }
                             }
-                        }
-                        if passing_boxes.is_empty() {
-                            info!(
-                                "No passing boxes for check {} on team {}",
-                                check.name, team.name
-                            );
-                            continue;
-                        } 
-                        if let Err(e) = redis_manager.record_sucessful_check_result(
-                                &competition_name,
-                                &check.name,
-                                DateTime::from_timestamp(check_timestamp, 0).expect("Failed to create DateTime"),
-                                competition.get_team_id_from_name(&team.name).expect("Team not found"),
-                                messages.clone(),
-                                passing_boxes.len() as u64,
-                        ) {
-                            error!("Failed to record successful check result: {}", e);
-                        } else {
-                            info!(
-                                "Recorded successful check result for {} on team {}",
-                                check.name, team.name
-                            );
-                            // get current state of the check so we can get the previous number of failures.
-                            let mut prev_failures = 0;
-                            if let Ok(Some(current_state)) = redis_manager.get_check_current_state(
-                                &competition_name,
-                                &team.name,
-                                check.name.as_str(),
-                            ) {
-                                prev_failures = current_state.number_of_failures;
-                                info!(
-                                    "Current state for check {} on team {}: {:?}",
-                                    check.name, team.name, current_state
-                                );
-                            } else {
-                                error!(
-                                    "Failed to get current state for check {} on team {}",
-                                    check.name, team.name
-                                );
-                            }
-                            // set the current state for the check
-                            if let Err(e) = redis_manager.set_check_current_state(
-                                &competition_name,
-                                &team.name,
-                                check.name.as_str(),
-                                passing_boxes.len() > 0,
-                                if passing_boxes.len() > 0 {
-                                    0 // no failures if passing
-                                } else {
-                                    prev_failures + 1 // increment failures if not passing
-                                },
-                                messages.clone(),
-                                (passing_boxes.len() as u64, messages.len() as u64),
-                                passing_boxes.clone(),
-                            ) {
-                                error!("Failed to set check state: {}", e);
-                            } else {
-                                info!(
-                                    "Set check state for {} on team {} to true",
-                                    check.name, team.name
-                                );
-                            }
-                        }
+                        });
+                        handles.push(handle);
+                    }
 
+                    // Wait for all team tasks to finish, aborting those that take too long
+                    for handle in handles {
+                        match tokio::time::timeout(team_timeout, handle).await {
+                            Ok(res) => {
+                                let _ = res;
+                            }
+                            Err(_) => {
+                                error!("Team check task timed out and could not be aborted (handle moved)");
+                            }
+                        }
                     }
                 }
             });
@@ -276,6 +300,10 @@ fn apply_template_substitution(
                 url,
                 code: http_spec.code,
                 regex,
+                method: http_spec.method.clone(),
+                forms: http_spec.forms.as_ref().map(|f| {
+                    apply_template_to_string(f, &template_context).unwrap_or_default()
+                }),
             }))
         }
         CheckSpec::Icmp(icmp_spec) => {
@@ -302,6 +330,12 @@ fn apply_template_substitution(
                 password,
                 key_path,
             }))
+        }
+        CheckSpec::Nix(nix_spec) => {
+            // Apply templating to Nix check script
+            let script = apply_template_to_string(&nix_spec.script, &template_context)?;
+
+            Ok(CheckSpec::Nix(carve::config::NixCheckSpec { script }))
         }
     }
 }

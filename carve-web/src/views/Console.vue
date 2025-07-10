@@ -5,6 +5,7 @@ import { computed, ref, onMounted, nextTick } from 'vue'
 import RFB from '@novnc/novnc/lib/rfb.js'
 import { apiService } from '@/services/api'
 import Dialog from '@/components/Dialog.vue'
+import type { AxiosError } from 'axios'
 
 const route = useRoute()
 const boxName = computed(() => route.params.box as string || '')
@@ -102,8 +103,8 @@ function restoreBox() {
     try {
       await apiService.sendBoxRestore({ boxName: `${boxName.value}.${teamName.value}.${competitionName.value}.hack` })
       status('Box restore requested')
-    } catch (e) {
-      status('Failed to request box restore')
+    } catch (e : AxiosError | any) {
+      status('Failed to request box restore: ' + e?.response?.data?.error || 'Unknown error')
     }
   })
 }

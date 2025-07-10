@@ -105,47 +105,47 @@ images:
   vtep:
     repository: ghcr.io/razelighter777/vtep
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   vxlanSidecar:
     repository: ghcr.io/razelighter777/vxlan-sidecar
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   qemuBox:
     repository: ghcr.io/razelighter777/qemu-box
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   canary:
     repository: ghcr.io/razelighter777/canary
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   carveWeb:
     repository: ghcr.io/razelighter777/web
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   redis:
     repository: redis
     tag: "7-alpine"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   carveDnsmasq:
     repository: ghcr.io/razelighter777/carve-dnsmasq
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   carveApi:
     repository: ghcr.io/razelighter777/carve-api
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   carveNovncNginx:
     repository: ghcr.io/razelighter777/carve-novnc-nginx
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   opensshServer:
     repository: lscr.io/linuxserver/openssh-server
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   qemuNbd:
     repository: ghcr.io/razelighter777/qemu-nbd
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 competition:
   secret_key: 82eb0275e23e5f043e85762e798fd9d61b1040ecdba15d001eb52f416e08ef3e
   name: "CarveCTF"
@@ -157,6 +157,7 @@ competition:
     db: 0
   dns_host: "carve-network-dns"
   vtep_host: "carve-network-vtep"
+  restore_cooldown: 3600 # Cooldown period for restoring boxes in seconds
   admin_group: "booktok-users"
   duration: 3600
   oidc_provider_name: "Authentik"
@@ -193,7 +194,7 @@ competition:
     - name: team3
   checks:
     - name: http-example
-      description: "Checks that all boxes with the 'http' label are running a web server."
+      description: "Checks that the web box is running a web server on port 80"
       interval: 15
       points: 5
       labelSelector:
@@ -203,6 +204,7 @@ competition:
         url: /index.html
         code: 200
         regex: "{{ team_name }}"
+        method: Get
     - name: icmp-example
       description: "Checks that all boxes are reachable via ICMP (ping)."
       labelSelector: {}
@@ -212,19 +214,29 @@ competition:
         type: icmp
         code: 0
     - name: ssh-example
-      description: "Checks that box named 'web' is reachable via SSH on port 22."
+      description: "Checks that all boxes are reachable via SSH on port 22."
       interval: 60
-      points: 10
-      labelSelector:
-        "": http
+      points: 5
+      labelSelector: {}
       spec:
         type: ssh
         port: 22
         username: "{{ username }}"
         password: "{{ password }}"
+    - name: ip-ping-webpage
+      description: Checks that your network diagnostic tool (allows ping) is working.
+      interval: 30
+      points: 10
+      spec:
+        type: http
+        url: /app.php
+        code: 200
+        method: Post
+        forms: "ip={{ ip }}"
+        regex: "bytes from {{ ip }}"
   flag_checks:
     - name: test-flag-check
-      description: "Checks for a specific flag in the /tmp directory of the 'web' box."
+      description: "The flag is easy. It's in one of the user's home directories on 'web'."
       points: 25
       attempts: 3
       box_name: web
@@ -260,7 +272,7 @@ redis:
   image:
     repository: redis
     tag: "7-alpine"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   service:
     port: 6379
   persistence:

@@ -284,6 +284,61 @@ impl RedisManager {
         Ok(())
     }
 
+    pub fn create_cooldown(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        box_name: &str,
+        cooldown_seconds: u64,
+    ) -> Result<()> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+
+        // the key name
+        let key = format!("{}:{}:{}:cooldown", competition_name, team_name, box_name);
+
+        // Set the cooldown with an expiration time
+        let _: () = redis::cmd("SET")
+            .arg(&key)
+            .arg("active")
+            .arg("EX")
+            .arg(cooldown_seconds)
+            .query(&mut conn)
+            .context("Failed to create cooldown")?;
+
+        Ok(())
+    }
+    
+    pub fn is_cooldown_ready(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        box_name: &str) -> Option<i64> {
+        // check if key is expiring, and if it is return time left with TTL
+        let mut conn = match self.client.get_connection() {
+            Ok(conn) => conn,
+            Err(_) => return None, // Return None if connection fails
+        };
+        // the key name
+        let key = format!("{}:{}:{}:cooldown", competition_name, team_name, box_name);
+        // Check if the cooldown key exists
+        let ttl: i64 = redis::cmd("TTL")
+            .arg(&key)
+            .query(&mut conn)
+            .context("Failed to check cooldown TTL").ok()?;
+        // redis returns -2 if the key does not exist, -1 if it exists but has no expiration
+        if ttl == -2 {
+            return None; // Cooldown does not exist
+        } else if ttl == -1 {
+            return Some(0); // Cooldown exists but has no expiration
+        }
+        // If the key exists, return the remaining TTL
+        Some(ttl) // Return the remaining TTL in seconds
+    }
+
+
     pub fn create_vxlan_fdb_entry(
         &self,
         competition_name: &str,

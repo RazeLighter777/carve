@@ -1,18 +1,37 @@
 use anyhow::{Context, Result};
 use regex::Regex;
 use ssh2::Session;
-use std::net::TcpStream;
 use std::time::Duration;
+use std::{net::TcpStream, os::unix::fs::PermissionsExt};
 
-use carve::config::{CheckSpec, HttpCheckSpec, IcmpCheckSpec, SshCheckSpec};
+use carve::config::{CheckSpec, HttpCheckSpec, HttpMethods, IcmpCheckSpec, SshCheckSpec};
 
 pub async fn perform_http_check(hostname: &str, spec: &HttpCheckSpec) -> Result<String> {
     let client = reqwest::Client::new();
     let url = format!("http://{}{}", hostname, spec.url);
 
     let response = client
-        .get(&url)
+        .request(
+            match spec.method {
+                HttpMethods::Get => reqwest::Method::GET,
+                HttpMethods::Post => reqwest::Method::POST,
+                HttpMethods::Put => reqwest::Method::PUT,
+                HttpMethods::Delete => reqwest::Method::DELETE,
+            },
+            url.clone(),
+        )
         .timeout(Duration::from_secs(5))
+        .header("Content-Type", if spec.method == HttpMethods::Post {
+            "application/x-www-form-urlencoded"
+        } else {
+            "application/json"
+        })
+        .body(
+            spec.forms
+                .as_ref()
+                .map(|forms| forms.clone())
+                .unwrap_or_default(),
+        )
         .send()
         .await
         .context("Failed to send HTTP request")?;
@@ -40,6 +59,35 @@ pub async fn perform_http_check(hostname: &str, spec: &HttpCheckSpec) -> Result<
     }
 
     Ok(format!("HTTP check successful: {}", url))
+}
+
+pub fn perform_nix_check(hostname: &str, spec: &carve::config::NixCheckSpec) -> Result<String> {
+    //Write the script to a temporary file
+    let temp_script_path = std::env::temp_dir().join("nix_check_script.sh");
+    std::fs::write(&temp_script_path, &spec.script)
+        .context("Failed to write Nix check script to temporary file")?;
+    // Make the script executable
+    std::fs::set_permissions(&temp_script_path, std::fs::Permissions::from_mode(0o755))
+        .context("Failed to set permissions on Nix check script")?;
+    // Execute the script
+    let output = std::process::Command::new(&temp_script_path)
+        .arg(hostname)
+        .output()
+        .context("Failed to execute Nix check script")?;
+    // Clean up the temporary file
+    std::fs::remove_file(temp_script_path)
+        .context("Failed to remove temporary Nix check script file")?;
+    if output.status.success() {
+        Ok(format!(
+            "Nix check successful: {}",
+            String::from_utf8_lossy(&output.stdout)
+        ))
+    } else {
+        Err(anyhow::anyhow!(
+            "Nix check failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
 }
 
 pub fn perform_icmp_check(hostname: &str, spec: &IcmpCheckSpec) -> Result<String> {
@@ -99,5 +147,6 @@ pub async fn perform_check(hostname: &str, check_spec: &CheckSpec) -> Result<Str
         CheckSpec::Http(spec) => perform_http_check(hostname, spec).await,
         CheckSpec::Icmp(spec) => perform_icmp_check(hostname, spec),
         CheckSpec::Ssh(spec) => perform_ssh_check(hostname, spec),
+        CheckSpec::Nix(spec) => perform_nix_check(hostname, spec),
     }
 }

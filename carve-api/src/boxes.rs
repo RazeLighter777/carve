@@ -221,11 +221,26 @@ pub async fn send_box_restore(
             "error": "You must be logged in to access this box"
         })));
     }
+
+    // Check if restore cooldown is set
+    if let Some(cooldown) = redis.is_cooldown_ready(&competition.name, team_name, box_type) {
+        return Ok(HttpResponse::TooManyRequests().json(serde_json::json!({
+            "error": format!("Restore command is on cooldown. Please wait {} seconds.", cooldown)
+        })));
+    }
+
     // Send command to Redis
     match redis.send_qemu_event(&competition.name, team_name, box_type, command) {
-        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
+        Ok(_) => {
+            // Set cooldown for the restore command
+            if let Err(_) = redis.create_cooldown(&competition.name, team_name, box_type, competition.restore_cooldown.unwrap_or(10)) {
+                return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Failed to set restore cooldown"
+                })));
+            }
+            Ok(HttpResponse::Ok().json(serde_json::json!({
             "status": "Command sent successfully"
-        }))),
+        }))) },
         Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "Failed to send command"
         }))),

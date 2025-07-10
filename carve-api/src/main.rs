@@ -109,6 +109,8 @@ async fn get_score(
                     url: String::new(),
                     code: 200,
                     regex: String::new(),
+                    forms: None, // Placeholder, since FlagCheck doesn't have forms
+                    method: carve::config::HttpMethods::Get, // Default method
                 }), // Placeholder, since FlagCheck doesn't have a spec
             }]
         } else {
@@ -129,6 +131,8 @@ async fn get_score(
                 url: String::new(),
                 code: 200,
                 regex: String::new(),
+                forms: None, // Placeholder
+                method: carve::config::HttpMethods::Get, // Default method
             }), // Placeholder
         }));
         all

@@ -27,11 +27,21 @@ pub struct Team {
     pub name: String,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, PartialOrd)]
+pub enum HttpMethods {
+    Get,
+    Post,
+    Put,
+    Delete,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HttpCheckSpec {
     pub url: String,
     pub code: u16,
     pub regex: String,
+    pub method: HttpMethods, // HTTP method to use for the check
+    pub forms : Option<String>, // Optional forms to submit with the request
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -62,6 +72,11 @@ pub struct SshCheckSpec {
     pub key_path: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct NixCheckSpec {
+    pub script: String,
+}
+
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
 pub enum RegistrationType {
     OidcOnly,
@@ -78,6 +93,8 @@ pub enum CheckSpec {
     Icmp(IcmpCheckSpec),
     #[serde(rename = "ssh")]
     Ssh(SshCheckSpec),
+    #[serde(rename = "nix")]
+    Nix(NixCheckSpec), // Assuming NixCheckSpec is defined elsewhere
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -111,6 +128,7 @@ pub struct Competition {
     pub identity_sources: Vec<IdentitySources>,
     pub create_default_admin: bool, // Create default admin user
     pub dns_upstream_service : Option<String>, // DNS upstream service for VTEP and carve-novnc-nginx
+    pub restore_cooldown: Option<u64>, // Cooldown period for restoring boxes
 }
 
 #[derive(Debug, Deserialize, Clone)]

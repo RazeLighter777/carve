@@ -15,6 +15,7 @@ competitions:
     duration: 3600  # Competition duration in seconds (1 hour)
     oidc_provider_name: Authentik  # OIDC provider name for authentication
     registration_type: Join  # Registration type OidcOnly means it just pulls the groups from the OIDC provider
+    restore_cooldown: 3600  # Cooldown period for restoring boxes in seconds
     identity_sources:
       - "OIDC"
       - "LocalUserPassword"
@@ -57,7 +58,8 @@ competitions:
           url: /index.html
           code: 200        # Expected HTTP status code
           regex: "{{ team_name }}"  # Expect the team name to be in the response body
-      
+          method: Get      # HTTP method to use (GET, POST, etc.)
+
       # ICMP check example (ping)
       - name: icmp-example
         description: "Checks that all boxes are reachable via ICMP (ping)."
