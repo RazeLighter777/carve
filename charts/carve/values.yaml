@@ -159,7 +159,7 @@ competition:
   vtep_host: "carve-network-vtep"
   restore_cooldown: 3600 # Cooldown period for restoring boxes in seconds
   admin_group: "booktok-users"
-  duration: 3600
+  duration: 360000
   oidc_provider_name: "Authentik"
   registration_type: "Join"
   identity_sources:

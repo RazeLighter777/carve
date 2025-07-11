@@ -45,6 +45,7 @@ server { \
             .get_box_console_code(&competition.name, &team.name)
             .expect("Failed to get team console password");
         for b in &competition.boxes {
+            // removed bullshit cloudflare headers
             nginx_config += &format!(
                 "location /novnc/{}/{}-{} {{ \
                    resolver {} valid=10s; \
@@ -58,6 +59,12 @@ server { \
                    proxy_set_header Host $host; \
                    proxy_set_header X-Real-IP $remote_addr; \
                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+                   proxy_set_header X-Forwarded-Proto $scheme; \
+                   proxy_set_header Cf-Connecting-Ip ""; \
+                   proxy_set_header Cf-Pseudo-IPv4 ""; \
+                   proxy_set_header Cf-Connecting-Ipv6 ""; \
+                   proxy_set_header X-Original-Forwarded-For ""; \
+
                }}\n",
                 console_password,
                 team.name,
