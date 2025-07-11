@@ -197,7 +197,6 @@ impl Scheduler {
                                     &check.name,
                                     DateTime::from_timestamp(check_timestamp, 0).expect("Failed to create DateTime"),
                                     competition.get_team_id_from_name(&team.name).expect("Team not found"),
-                                    messages.clone(),
                                     passing_boxes.len() as u64,
                             ) {
                                 error!("Failed to record successful check result: {}", e);

@@ -96,13 +96,6 @@ export interface LeaderboardEntry {
   rank: number;
 }
 
-export interface ScoreboardEntry {
-  team_id: number;
-  score_event_type: string;
-  timestamp: string;
-  messages: string[];
-  occurrences: number;
-}
 
 export interface OAuthRedirectResponse {
   redirectUrl: string;
@@ -158,12 +151,12 @@ export interface BoxSnapshotQuery {
 
 
 // Rust: pub(crate) struct ScoreAtGivenTimeQuery
-export interface ScoreAtGivenTimeQuery {
+export interface ScoreAtGivenTimesQuery {
   teamId: number;
   scoringCheck?: string;
-  atTime: string; // ISO8601 string
+  atTimes: string[]; // ISO8601 strings
 }
 
-export interface ScoreAtGivenTimeResponse {
-  score: number;
+export interface ScoresAtGivenTimeResponse {
+  scores: number[];
 }

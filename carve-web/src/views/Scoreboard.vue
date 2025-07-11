@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { apiService } from '@/services/api'
-import { type CheckResponse, type TeamCheckStatusResponse, type ScoreboardEntry, type Team } from '@/types'
+import { type CheckResponse, type TeamCheckStatusResponse, type Team } from '@/types'
 import { ChartBarIcon, FunnelIcon, ArrowPathIcon, TrophyIcon } from '@heroicons/vue/24/outline'
 import { Line } from 'vue-chartjs'
 import {
@@ -28,14 +28,44 @@ ChartJS.register(
 )
 
 const loading = ref(true)
-const scoreboard = ref<ScoreboardEntry[]>([])
 const teams = ref<Team[]>([])
 const checks = ref<CheckResponse>({ checks: [], flag_checks: [] })
 const selectedTeamCheckStatus = ref<TeamCheckStatusResponse>({  checks: [], flag_checks: [] })
 const allTeamsCheckStatus = ref<Record<number, TeamCheckStatusResponse>>({})
 const error = ref('')
 const lastUpdated = ref<Date>()
-
+const filteredScoreboard = computed(() => {
+  // Filter scoreboard based on selected team and check
+  if (selectedTeam.value && selectedTeamId.value !== null) {
+    return selectedTeamCheckStatus.value.checks.filter(check => !selectedCheck.value || check.name === selectedCheck.value)
+      .concat(
+        selectedTeamCheckStatus.value.flag_checks
+          .filter(flag => flag.name === selectedCheck.value)
+          .map(flag => ({
+            failed_for: 0,
+            message: [],
+            success_fraction: flag.passing ? [1, 1] : [0, 1],
+            passing_boxes: [],
+            ...flag
+          }))
+      )
+  } else {
+    const result: Array<any> = []
+    Object.entries(allTeamsCheckStatus.value).forEach(([teamId, status]) => {
+      status.checks
+        .filter(check => !selectedCheck.value || check.name === selectedCheck.value)
+        .forEach(check => {
+          result.push({ ...check, team_id: Number(teamId) })
+        })
+      status.flag_checks
+        .filter(flag => !selectedCheck.value || flag.name === selectedCheck.value)
+        .forEach(flag => {
+          result.push({ ...flag, team_id: Number(teamId) })
+        })
+    })
+    return result
+  }
+})
 // Competition status
 const competition = ref<CompetitionState | null>(null)
 const competitionLoading = ref(true)
@@ -64,21 +94,6 @@ const allCheckNames = computed(() => {
   ]
 })
 
-const filteredScoreboard = computed(() => {
-  let filtered = scoreboard.value
-
-  if (selectedTeam.value) {
-    filtered = filtered.filter(entry => entry.team_id === selectedTeamId.value)
-  }
-
-  if (selectedCheck.value) {
-    filtered = filtered.filter(entry => entry.score_event_type === selectedCheck.value)
-  }
-
-  // Sort by timestamp (newest first)
-  return filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-})
-
 const getStartTime = () => {
   // Return a Date object for UTC now minus selectedTime (in seconds)
   const now = new Date()
@@ -90,13 +105,11 @@ const loadData = async () => {
     loading.value = true
     error.value = ''
 
-    const [scoreboardData, teamsData, checksData] = await Promise.all([
-      apiService.getScoreboard(selectedTeam.value, selectedCheck.value, getStartTime()),
+    const [teamsData, checksData] = await Promise.all([
       apiService.getTeams(),
       apiService.getChecks(),
     ])
 
-    scoreboard.value = scoreboardData
     teams.value = teamsData
     checks.value = checksData
 
@@ -163,105 +176,63 @@ const checkPointsMap = computed(() => {
   return map
 })
 
-const lineData = computed(() => {
-  // Group by team, accumulate points over time
-  const teamMap = new Map<number, { label: string, data: Array<{ x: string, y: number }> }>()
-  // Get all unique timestamps sorted
-  const allTimestamps = Array.from(new Set(scoreboard.value.map(e => e.timestamp))).sort()
-  let teamsToShow = teams.value
-  if (selectedTeam.value && selectedTeamId.value !== null) {
-    teamsToShow = teams.value.filter(team => team.id === selectedTeamId.value)
-  }
-  // Calculate the starting point (Y-intercept) for each team using scoreAt
-  const startTime = getStartTime()
-  const startTimeISO = startTime.toISOString()
-  const checkName = selectedCheck.value || undefined
-  // We'll need to fetch the starting score for each team synchronously before building the graph
-  // This requires making async calls, so we need to cache the results in a ref
-  // We'll use a ref to store the starting scores
-  // This block will only run once per filter change
-  // We'll use a watcher below to update it
-  return {
-    labels: allTimestamps.map(ts => new Date(ts).toLocaleTimeString()),
-    datasets: Array.from(teamMap.values()).map((series, idx) => ({
-      label: series.label,
-      data: series.data.map(d => d.y),
-      fill: false,
-      borderColor: `hsl(${(idx * 60) % 360}, 70%, 50%)`,
-      tension: 0.2,
-      pointRadius: 0 // Hide points on the graph
-    }))
-  }
-})
+const NUM_DATAPOINTS = 100
 
-// Add a ref to store the starting scores for each team
-const startingScores = ref<Record<number, number>>({})
+const getEvenlySpacedTimes = () => {
+  const start = getStartTime().getTime()
+  const end = new Date().getTime()
+  const step = (end - start) / (NUM_DATAPOINTS - 1)
+  return Array.from({ length: NUM_DATAPOINTS }, (_, i) => new Date(start + i * step).toISOString())
+}
 
-// Watch for changes in filters and fetch starting scores
-watch([
-  () => selectedTeam.value,
-  () => selectedCheck.value,
-  () => selectedTime.value,
-  () => teams.value.length,
-], async () => {
-  // For each team, fetch the starting score at the start time
-  const startTime = getStartTime()
-  const checkName = selectedCheck.value || undefined
-  const teamIds = selectedTeam.value && selectedTeamId.value !== null
-    ? [selectedTeamId.value]
-    : teams.value.map(t => t.id)
-  const scores: Record<number, number> = {}
-  await Promise.all(teamIds.map(async teamId => {
+const patchedLineData = ref<{ labels: string[]; datasets: Array<{ label: string; data: number[]; fill: boolean; borderColor: string; tension: number; pointRadius: number }> }>({ labels: [], datasets: [] })
+
+const updatePatchedLineData = async () => {
+  if (!teams.value.length) {
+    patchedLineData.value = { labels: [], datasets: [] }
+    return
+  }
+  const times = getEvenlySpacedTimes()
+  const teamsToShow = selectedTeam.value && selectedTeamId.value !== null
+    ? teams.value.filter(team => team.id === selectedTeamId.value)
+    : teams.value
+  const datasets: Array<{ label: string; data: number[]; fill: boolean; borderColor: string; tension: number; pointRadius: number }> = []
+  for (let idx = 0; idx < teamsToShow.length; idx++) {
+    const team = teamsToShow[idx]
     try {
       const query = {
-        teamId,
-        scoringCheck: checkName,
-        atTime: startTime.toISOString(),
+        teamId: team.id,
+        scoringCheck: selectedCheck.value || undefined,
+        atTimes: times
       }
-      const resp = await apiService.scoreAt(query)
-      scores[teamId] = resp.score || 0
-    } catch {
-      scores[teamId] = 0
+      const res = await apiService.scoresAt(query)
+      datasets.push({
+        label: team.name,
+        data: res.scores,
+        fill: false,
+        borderColor: `hsl(${(idx * 60) % 360}, 70%, 50%)`,
+        tension: 0.2,
+        pointRadius: 0
+      })
+    } catch (e) {
+      // skip team on error
     }
-  }))
-  startingScores.value = scores
-}, { immediate: true })
+  }
+  patchedLineData.value = {
+    labels: times.map(ts => new Date(ts).toLocaleTimeString()),
+    datasets
+  }
+}
 
-// Patch the lineData computed to use the startingScores
-const patchedLineData = computed(() => {
-  // Group by team, accumulate points over time
-  const teamMap = new Map<number, { label: string, data: Array<{ x: string, y: number }> }>()
-  // Get all unique timestamps sorted
-  const allTimestamps = Array.from(new Set(scoreboard.value.map(e => e.timestamp))).sort()
-  let teamsToShow = teams.value
-  if (selectedTeam.value && selectedTeamId.value !== null) {
-    teamsToShow = teams.value.filter(team => team.id === selectedTeamId.value)
-  }
-  teamsToShow.forEach(team => {
-    let total = startingScores.value[team.id] || 0
-    const pointsByTime: Array<{ x: string, y: number }> = []
-    allTimestamps.forEach(ts => {
-      // Sum all points for this team up to this timestamp, but only for events after the start time
-      const events = scoreboard.value.filter(e => e.team_id === team.id && e.timestamp <= ts && new Date(e.timestamp) >= getStartTime()).filter(e => e.score_event_type === selectedCheck.value || !selectedCheck.value)
-      total = (startingScores.value[team.id] || 0) + events.reduce((sum, e) => sum + (checkPointsMap.value.get(e.score_event_type) || 0), 0)
-      pointsByTime.push({ x: ts, y: total })
-    })
-    teamMap.set(team.id, { label: team.name, data: pointsByTime })
-  })
-  return {
-    labels: allTimestamps.map(ts => new Date(ts).toLocaleTimeString()),
-    datasets: Array.from(teamMap.values()).map((series, idx) => ({
-      label: series.label,
-      data: series.data.map(d => d.y),
-      fill: false,
-      borderColor: `hsl(${(idx * 60) % 360}, 70%, 50%)`,
-      tension: 0.2,
-      pointRadius: 0 // Hide points on the graph
-    }))
-  }
+watch([teams, selectedTeam, selectedCheck, selectedTime], () => {
+  updatePatchedLineData()
 })
-// Use patchedLineData in your chart
 
+onMounted(() => {
+  loadData().then(() => updatePatchedLineData())
+  loadLeaderboard()
+  loadCompetition()
+})
 // Add filtered computed properties for check status
 const filteredChecks = computed(() => {
   if (selectedTeam.value) {
@@ -571,7 +542,7 @@ const lineOptions = {
     </div>
 
     <!-- Loading state -->
-    <div v-if="loading && !scoreboard.length" class="flex justify-center items-center min-h-96">
+    <div v-if="loading" class="flex justify-center items-center min-h-96">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-300"></div>
     </div>
 

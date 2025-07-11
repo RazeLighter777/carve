@@ -4,7 +4,6 @@ import type {
   User, 
   Team, 
   LeaderboardEntry, 
-  ScoreboardEntry, 
   OAuthRedirectResponse, 
   Box,
   GenerateTeamCodeResponse,
@@ -18,8 +17,8 @@ import type {
   IdentitySourcesResponse,
   BoxRestoreQuery,
   BoxSnapshotQuery,
-  ScoreAtGivenTimeResponse,
-  ScoreAtGivenTimeQuery
+  ScoresAtGivenTimeResponse,
+  ScoreAtGivenTimesQuery
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 const api = axios.create({
@@ -81,19 +80,8 @@ export const apiService = {
     return response.data.teams || [];
   },
 
-  // Scoreboard
-  async getScoreboard(teamId?: string, boxId?: string, startDate?: Date, endDate?: Date): Promise<ScoreboardEntry[]> {
-    const params = new URLSearchParams();
-    if (teamId) params.append('teamId', teamId);
-    if (boxId) params.append('scoringCheck', boxId);
-    if (startDate) params.append('startDate', startDate.toISOString());
-    if (endDate) params.append('endDate', endDate.toISOString());
-
-    const response = await api.get(`competition/score?${params.toString()}`);
-    return response.data || [];
-  },
-  async scoreAt(query : ScoreAtGivenTimeQuery): Promise<ScoreAtGivenTimeResponse> {
-    const response = await api.get<ScoreAtGivenTimeResponse>(`competition/scoreat`, { params: query });
+  async scoresAt(query : ScoreAtGivenTimesQuery): Promise<ScoresAtGivenTimeResponse> {
+    const response = await api.post<ScoresAtGivenTimeResponse>(`competition/scoresat`, query);
     return response.data;
   },
 

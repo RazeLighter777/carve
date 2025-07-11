@@ -2,15 +2,15 @@ use actix_cors::Cors;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::cookie::Key;
 use actix_web::middleware::{self};
+use actix_web::post;
 use actix_web::{
     get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result as ActixResult,
 };
-use carve::config::{Check, CheckSpec, FlagCheck, HttpCheckSpec};
+use carve::config::{Check, FlagCheck};
 use carve::{
     config::{AppConfig, Competition},
     redis_manager::RedisManager,
 };
-use chrono::Utc;
 use env_logger::Env;
 use oauth2::basic::*;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
@@ -41,147 +41,16 @@ async fn get_competition(
     }
 }
 
-#[get("/score")]
-async fn get_score(
-    query: web::Query<types::ScoreQuery>,
-    competition: web::Data<Competition>,
-    redis: web::Data<RedisManager>,
-) -> ActixResult<impl Responder> {
-    let end_time = query
-        .end_date
-        .unwrap_or_else(|| match redis.get_competition_state(&competition.name) {
-            Ok(state) => match state.end_time {
-                Some(end) => end,
-                None => Utc::now(),
-            },
-            Err(_) => Utc::now(),
-        })
-        .timestamp();
-    let start_time = query
-        .start_date
-        .unwrap_or_else(|| match redis.get_competition_state(&competition.name) {
-            Ok(state) => match state.start_time {
-                Some(start) => start,
-                None => Utc::now() - chrono::Duration::days(1),
-            },
-            Err(_) => Utc::now() - chrono::Duration::days(1),
-        })
-        .timestamp();
-    let mut scores = Vec::new();
-
-    // If team_id is specified, filter by team
-    let teams_to_check: Vec<_> = if let Some(team_id) = query.team_id {
-        if team_id as usize > competition.teams.len() || team_id == 0 {
-            return Ok(HttpResponse::NotFound().json(serde_json::json!({
-                "error": "Team not found"
-            })));
-        }
-        vec![(
-            team_id,
-            competition.teams[team_id as usize - 1].name.clone(),
-        )]
-    } else {
-        competition
-            .teams
-            .iter()
-            .enumerate()
-            .map(|(i, team)| (i as u64 + 1, team.name.clone()))
-            .collect()
-    };
-
-    // If scoring_check is specified, filter by check or flag check
-    let checks_to_check: Vec<_> = if let Some(ref check_name) = query.scoring_check {
-        if let Some(check) = competition.checks.iter().find(|c| c.name == *check_name) {
-            vec![check.clone()]
-        } else if let Some(flag_check) = competition
-            .flag_checks
-            .iter()
-            .find(|c| c.name == *check_name)
-        {
-            vec![Check {
-                name: flag_check.name.clone(),
-                description: flag_check.description.clone(),
-                interval: 0, // or a sensible default
-                points: flag_check.points as u32,
-                label_selector: None,
-                label_selector_alt: None,
-                spec: CheckSpec::Http(HttpCheckSpec {
-                    url: String::new(),
-                    code: 200,
-                    regex: String::new(),
-                    forms: None, // Placeholder, since FlagCheck doesn't have forms
-                    method: carve::config::HttpMethods::Get, // Default method
-                }), // Placeholder, since FlagCheck doesn't have a spec
-            }]
-        } else {
-            return Ok(HttpResponse::NotFound().json(serde_json::json!({
-                "error": "Scoring check not found"
-            })));
-        }
-    } else {
-        let mut all = competition.checks.clone();
-        all.extend(competition.flag_checks.iter().map(|flag| Check {
-            name: flag.name.clone(),
-            description: flag.description.clone(),
-            interval: 0, // or a sensible default
-            points: flag.points as u32,
-            label_selector: None,
-            label_selector_alt: None,
-            spec: CheckSpec::Http(HttpCheckSpec {
-                url: String::new(),
-                code: 200,
-                regex: String::new(),
-                forms: None, // Placeholder
-                method: carve::config::HttpMethods::Get, // Default method
-            }), // Placeholder
-        }));
-        all
-    };
-
-    // Get score events from Redis
-    println!(
-        "Fetching score events for teams: {:?} and checks: {:?} at time range: {} to {}",
-        teams_to_check, checks_to_check, start_time, end_time
-    );
-    for (team_id, team_name) in teams_to_check {
-        for check in &checks_to_check {
-            match redis.get_team_score_check_events(
-                &competition.name,
-                competition.get_team_id_from_name(&team_name).unwrap_or(0),
-                &check.name,
-                start_time,
-                end_time,
-            ) {
-                Ok(events) => {
-                    for (event, timestamp) in events {
-                        scores.push(carve::redis_manager::ScoreEvent {
-                            team_id,
-                            score_event_type: check.name.clone(),
-                            timestamp,
-                            messages: event.messages,
-                            occurrences: event.occurrences,
-                        });
-                    }
-                }
-                Err(_) => {
-                    // Continue even if Redis query fails for this team/check combination
-                }
-            }
-        }
-    }
-
-    Ok(HttpResponse::Ok().json(scores))
-}
 
 //returns the score at a given point in time filtered by check
-#[get("/scoreat")]
-async fn get_score_at_given_time(
-    query: web::Query<types::ScoreAtGivenTimeQuery>,
+#[post("/scoresat")]
+async fn get_scores_at_given_time(
+    query: web::Json<types::ScoresAtGivenTimesQuery>,
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
     let team_id = query.team_id;
-    let at_time = query.at_time.timestamp();
+    let at_times = query.at_times.iter().map(|dt| dt.timestamp()).collect::<Vec<_>>();
 
     // Validate team
     if team_id == 0 || team_id as usize > competition.teams.len() {
@@ -207,29 +76,30 @@ async fn get_score_at_given_time(
         all
     };
 
-    let mut total_score = 0i64;
+    let mut total_score = vec![0i64; at_times.len()];
 
     for check_name in checks_to_check {
         // For each check, get the score for this team up to at_time
-        match redis.get_number_of_successful_checks_at_time(
+        match redis.get_number_of_successful_checks_at_times(
             &competition.name,
             team_id,
             &check_name,
-            at_time,
+            at_times.clone(),
         ) {
-            Ok(score) => total_score += score * competition
-                .checks
-                .iter()
-                .find(|c| c.name == check_name)
-                .map_or(0, |c| c.points as i64),
+            Ok(scores) => 
+            {
+                for (i, score) in scores.iter().enumerate() {
+                    total_score[i] += score;
+                }
+            }
             Err(_) => {
                 // Continue even if Redis query fails for this check
             }
         }
     }
 
-    Ok(HttpResponse::Ok().json(types::ScoreAtGivenTimeResponse {
-        score: total_score,
+    Ok(HttpResponse::Ok().json(types::ScoresAtGivenTimeResponse {
+        scores: total_score,
     }))
 }
 
@@ -480,7 +350,6 @@ async fn main() -> std::io::Result<()> {
                         web::scope("/competition")
                             .guard(auth::validate_session)
                             .service(get_competition)
-                            .service(get_score)
                             .service(get_leaderboard)
                             .service(get_boxes)
                             .service(get_box)
@@ -495,7 +364,7 @@ async fn main() -> std::io::Result<()> {
                             .service(teams::get_team_check_status)
                             .service(submit_flag)
                             .service(boxes::send_box_restore)
-                            .service(get_score_at_given_time)
+                            .service(get_scores_at_given_time)
                     )
                     .service(
                         web::scope("/oauth2")

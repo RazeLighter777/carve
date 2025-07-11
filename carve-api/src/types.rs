@@ -154,30 +154,18 @@ pub(crate) struct BoxQuery {
 }
 
 #[derive(Deserialize)]
-pub(crate) struct ScoreQuery {
-    #[serde(rename = "teamId")]
-    pub(crate) team_id: Option<u64>,
-    #[serde(rename = "scoringCheck")]
-    pub(crate) scoring_check: Option<String>,
-    #[serde(rename = "startDate")]
-    pub(crate) start_date: Option<DateTime<Utc>>,
-    #[serde(rename = "endDate")]
-    pub(crate) end_date: Option<DateTime<Utc>>,
-}
-
-#[derive(Deserialize)]
-pub(crate) struct ScoreAtGivenTimeQuery {
+pub(crate) struct ScoresAtGivenTimesQuery {
     #[serde(rename = "teamId")]
     pub(crate) team_id: u64,
     #[serde(rename = "scoringCheck")]
     pub(crate) scoring_check: Option<String>,
-    #[serde(rename = "atTime")]
-    pub(crate) at_time: DateTime<Utc>,
+    #[serde(rename = "atTimes")]
+    pub(crate) at_times: Vec<DateTime<Utc>>,
 }
 
 #[derive(Serialize)]
-pub(crate) struct ScoreAtGivenTimeResponse {
-    pub(crate) score: i64,
+pub(crate) struct ScoresAtGivenTimeResponse {
+    pub(crate) scores: Vec<i64>,
 }
 
 #[derive(Deserialize)]

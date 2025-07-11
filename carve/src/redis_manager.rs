@@ -40,15 +40,6 @@ pub enum QemuCommands {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ScoreEvent {
-    pub messages: Vec<String>, // Messages describing the event, e.g., "ICMP check passed", "Flag check successful"
-    pub timestamp: DateTime<chrono::Utc>,
-    pub team_id: u64,
-    pub score_event_type: String, // e.g., "icmp_check_1" "flag_check_1"
-    pub occurrences: u64, // Number of times this event has occurred in this tick.
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CompetitionState {
     pub name: String,
     pub status: CompetitionStatus,
@@ -410,7 +401,6 @@ impl RedisManager {
         check_name: &str,
         timestamp: DateTime<chrono::Utc>,
         team_id: u64,
-        messages: Vec<String>,
         occurances: u64,
     ) -> Result<String> {
         let key = format!("{}:{}:{}", competition_name, team_id, check_name);
@@ -424,24 +414,12 @@ impl RedisManager {
             .client
             .get_connection()
             .context("Failed to connect to Redis")?;
-        let mut event = ScoreEvent {
-            messages: messages,
-            timestamp,
-            team_id, // This can be set to a specific team ID if needed
-            score_event_type: check_name.to_string(), // e.g., "icmp_check_1"
-            occurrences: 0, // Number of times this event has occurred in this tick
-        };
         let timestamp_seconds = timestamp.timestamp();
-        // TERRIBLE HACK. basically creates duplicate events to allow multi-box scoring.
         for i in 0..occurances {
-            // Record the event in a sorted set with the timestamp as the score
-            event.occurrences = i + 1; // Increment occurrences for each event
-            let value =
-                serde_yaml::to_string(&event).context("Failed to serialize score event to YAML")?;
             let _: () = redis::cmd("ZADD")
                 .arg(&key)
                 .arg(timestamp_seconds)
-                .arg(&value)
+                .arg(format!("{}:{}", timestamp_seconds, i))
                 .query(&mut conn)
                 .context("Failed to record successful check result")?;
         }
@@ -474,50 +452,6 @@ impl RedisManager {
         let score = score * check_points;
 
         Ok(score)
-    }
-    //returns an array of team score events for a given check for a given time range
-    pub fn get_team_score_check_events(
-        &self,
-        competition_name: &str,
-        team_id: u64,
-        check_name: &str,
-        time_start: i64,
-        time_end: i64,
-    ) -> Result<Vec<(ScoreEvent, chrono::DateTime<chrono::Utc>)>> {
-        let mut conn = self
-            .client
-            .get_connection()
-            .context("Failed to connect to Redis")?;
-        // the key name
-        let key = format!("{}:{}:{}", competition_name, team_id, check_name);
-        // Get the events for this team in this competition
-        let events: Vec<String> = redis::cmd("ZRANGEBYSCORE")
-            .arg(&key)
-            .arg(time_start)
-            .arg(time_end)
-            .arg("WITHSCORES")
-            .query(&mut conn)
-            .context("Failed to get team score check events")?;
-        let mut result = Vec::new();
-        for chunk in events.chunks(2) {
-            if chunk.len() == 2 {
-                let event: ScoreEvent = match serde_yaml::from_str(&chunk[0]) {
-                    Ok(ev) => ev,
-                    Err(e) => {
-                        return Err(anyhow::anyhow!(
-                            "Failed to deserialize ScoreEvent: {} (raw: {})",
-                            e,
-                            chunk[0]
-                        ));
-                    }
-                };
-                let timestamp = chunk[1].parse::<i64>().expect("Failed to parse timestamp");
-                let dt = chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp, 0)
-                    .expect("Failed to convert timestamp to DateTime");
-                result.push((event, dt));
-            }
-        }
-        Ok(result)
     }
 
     pub fn record_box_ip(
@@ -1217,7 +1151,6 @@ impl RedisManager {
                 &flag_check.name,
                 timestamp,
                 team_id,
-                vec![event_message.clone()],
                 1, // 1 occurrence for this flag redemption
             )?;
             // set the current state of the flag check to true
@@ -1377,5 +1310,26 @@ impl RedisManager {
             .context("Failed to get team score by check at time")?;
         // Try to get the check points from the check or flag_check (not available here, so just return count)
         Ok(count)
+    }
+    pub fn get_number_of_successful_checks_at_times(
+        &self,
+        competition_name: &str,
+        team_id: u64,
+        check_name: &str,
+        timestamps: impl IntoIterator<Item = i64> + Clone,
+    ) -> Result<Vec<i64>> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+        // the key name
+        let key = format!("{}:{}:{}", competition_name, team_id, check_name);
+        // Get the number of events for this team/check at each timestamp
+        Ok(redis::transaction(&mut conn, &[key.clone()], |con, pipe| {
+            for timestamp in timestamps.clone() {
+                pipe.zcount(&key, "-inf", timestamp);
+            }
+            pipe.query(con)
+        })?)
     }
 }
