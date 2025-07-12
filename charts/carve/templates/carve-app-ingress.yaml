@@ -63,6 +63,20 @@ spec:
                 name: carve-novnc-nginx
                 port:
                   number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: carve-xtermjs-nginx
+  annotations:
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
+spec:
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
           - pathType: Prefix
             path: /xtermjs
             backend:
