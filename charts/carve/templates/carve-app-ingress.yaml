@@ -63,4 +63,11 @@ spec:
                 name: carve-novnc-nginx
                 port:
                   number: 80
+          - pathType: Prefix
+            path: /xtermjs
+            backend:
+              service:
+                name: carve-novnc-nginx
+                port:
+                  number: 80
 {{- end }}

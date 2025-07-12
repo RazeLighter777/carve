@@ -108,6 +108,7 @@ package_update: true
 package_upgrade: true
 runcmd:
     - [ systemctl, enable, --now, ssh ]
+    - [ systemctl, enable, --now, serial-getty@ttyS1 ]
 users:
   - name: {username}
     shell: /bin/bash

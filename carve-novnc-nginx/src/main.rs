@@ -47,12 +47,12 @@ server { \
         for b in &competition.boxes {
             // removed bullshit cloudflare headers
             nginx_config += &format!(
-                "location /novnc/{}/{}-{} {{ \
-                   resolver {} valid=10s; \
+                "location /novnc/{console_password}/{team_name}-{box_name} {{ \
+                   resolver {resolver_address} valid=10s; \
                    error_log /var/log/nginx/novnc.log notice; \
-                   proxy_pass http://vxlan-sidecar-{}-{}:5700; \
+                   proxy_pass http://vxlan-sidecar-{team_name}-{box_name}:5700; \
                    rewrite_log on; \
-                   rewrite ^/novnc/{}/{}-{}(/.*)?$ /$1 break; \
+                   rewrite ^/novnc/{console_password}/{team_name}-{box_name}(/.*)?$ /$1 break; \
                    proxy_http_version 1.1; \
                    proxy_set_header Upgrade $http_upgrade; \
                    proxy_set_header Connection $connection_upgrade; \
@@ -65,15 +65,34 @@ server { \
                    proxy_set_header Cf-Connecting-Ipv6 \"\"; \
                    proxy_set_header X-Original-Forwarded-For \"\"; \
                }}\n",
-                console_password,
-                team.name,
-                b.name,
-                resolver_address,
-                team.name,
-                b.name,
-                console_password,
-                team.name,
-                b.name
+                console_password = console_password,
+                team_name = team.name,
+                box_name = b.name,
+                resolver_address = resolver_address
+            );
+            nginx_config += &format!(
+                "location /xtermjs/{console_password}/{team_name}-{box_name} {{ \
+                   resolver {resolver_address} valid=10s; \
+                   error_log /var/log/nginx/xtermjs.log notice; \
+                   proxy_pass http://vxlan-sidecar-{team_name}-{box_name}:9999; \
+                   rewrite_log on; \
+                   rewrite ^/xtermjs/{console_password}/{team_name}-{box_name}(/.*)?$ /$1 break; \
+                   proxy_http_version 1.1; \
+                   proxy_set_header Upgrade $http_upgrade; \
+                   proxy_set_header Connection $connection_upgrade; \
+                   proxy_set_header Host $host; \
+                   proxy_set_header X-Real-IP $remote_addr; \
+                   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+                   proxy_set_header X-Forwarded-Proto $scheme; \
+                   proxy_set_header Cf-Connecting-Ip \"\"; \
+                   proxy_set_header Cf-Pseudo-IPv4 \"\"; \
+                   proxy_set_header Cf-Connecting-Ipv6 \"\"; \
+                   proxy_set_header X-Original-Forwarded-For \"\"; \
+               }}\n",
+                console_password = console_password,
+                team_name = team.name,
+                box_name = b.name,
+                resolver_address = resolver_address
             );
         }
     }

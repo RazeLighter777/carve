@@ -16,6 +16,10 @@ export default defineConfig({
       '/novnc': {
         target: 'http://localhost:6080',
         ws: true,
+      },
+      '/xtermjs': {
+        target: 'http://localhost:6080',
+        ws: true,
       }
     },
     allowedHosts: [
