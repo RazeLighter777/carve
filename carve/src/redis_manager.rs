@@ -1,14 +1,17 @@
+use rand::{Rng, rng};
 use std::net::{IpAddr};
 
 use crate::config::{FlagCheck, RedisConfig};
 use crate::util;
 use anyhow::{Context, Result};
-use argon2::PasswordHasher;
-use argon2::{PasswordVerifier, password_hash::SaltString};
+use argon2::{
+    PasswordHasher,
+    PasswordVerifier, password_hash::SaltString,
+};
 use chrono::{DateTime, Utc};
-use rand::distr::{Distribution, SampleString};
-use redis::Client;
+use redis::{Client, Commands};
 use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum IdentitySources {
     LocalUserPassword,
@@ -159,10 +162,11 @@ impl RedisManager {
             return Ok(console_code);
         }
         // Generate a new console code
-        let console_code: String = rand::distr::Alphanumeric
-            .sample_iter(&mut rand::rng())
-            .take(32)
-            .map(char::from)
+        let console_code: String = (0..32)
+            .map(|_| {
+                let chars = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+                chars[rng().random_range(0..chars.len())] as char
+            })
             .collect();
         let _: () = redis::cmd("HSET")
             .arg(&key)
@@ -875,6 +879,71 @@ impl RedisManager {
         Ok(result)
     }
 
+    // Generate a new API key and store it in Redis
+    pub fn generate_api_key(&self) -> Result<String> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+
+        let api_keys_key = "carve:api_keys";
+
+        let mut rng = rng();
+        let api_key: String = (0..16)
+            .map(|_| format!("{:02x}", rng.random::<u8>()))
+            .collect();
+
+        let _: () = conn
+            .sadd(api_keys_key, &api_key)
+            .context("Failed to add API key to set")?;
+
+        Ok(api_key)
+    }
+
+    // Remove an API key from Redis
+    pub fn remove_api_key(&self, api_key: &str) -> Result<()> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+
+        let api_keys_key = "carve:api_keys";
+
+        let _: () = conn.srem(api_keys_key, api_key)
+            .context("Failed to remove API key from set")?;
+
+        Ok(())
+    }
+
+    // Check if an API key exists in Redis
+    pub fn check_api_key_exists(&self, api_key: &str) -> Result<bool> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+
+        let api_keys_key = "carve:api_keys";
+
+        let exists: bool = conn
+            .sismember(api_keys_key, api_key)
+            .context("Failed to check if API key exists")?;
+
+        Ok(exists)
+    }
+
+    // get api keys list
+    pub fn get_api_keys(&self) -> Result<Vec<String>> {
+        let mut conn = self
+            .client
+            .get_connection()
+            .context("Failed to connect to Redis")?;
+        let api_keys_key = "carve:api_keys";
+        let keys: Vec<String> = conn
+            .smembers(api_keys_key)
+            .context("Failed to get API keys")?;
+        Ok(keys)
+    }
+
     // get the global competition state atomically. If the state is not set, will insert a default state (Unstarted).
     pub fn get_competition_state(&self, competition_name: &str) -> Result<CompetitionState> {
         let mut conn = self
@@ -1103,9 +1172,12 @@ impl RedisManager {
         let value: String = format!(
             "{}{{{}}}",
             competition_name,
-            rand::distr::Alphabetic
-                .sample_string(&mut rand::rng(), 8)
-                .to_lowercase()
+            (0..8)
+                .map(|_| {
+                    let chars = b"abcdefghijklmnopqrstuvwxyz";
+                    chars[rng().random_range(0..chars.len())] as char
+                })
+                .collect::<String>()
         );
         // Store the flag in Redis
         let _: () = redis::cmd("SADD")

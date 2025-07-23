@@ -24,6 +24,7 @@ mod users;
 
 pub use boxes::get_box;
 pub use boxes::get_box_default_creds;
+pub use boxes::get_box_creds_for_team;
 pub use boxes::get_boxes;
 use rand::distr::SampleString;
 
@@ -387,13 +388,18 @@ async fn main() -> std::io::Result<()> {
                             .service(admin::start_competition)
                             .service(admin::end_competition)
                             .service(admin::generate_join_code)
-                            .service(boxes::send_box_snapshot),
+                            .service(admin::create_api_key)
+                            .service(admin::get_api_keys)
+                            .service(admin::delete_api_key)
+                            .service(boxes::send_box_snapshot)
+                            .service(boxes::get_box_creds_for_team)
                     )
                     .service(
                         web::scope("/internal")
-                            .guard(flag::validate_bearer_token_is_secret_key_env_var)
+                            .guard(auth::validate_bearer_token)
                             .service(flag::generate_flag)
                             .service(boxes::get_box)
+                            .service(boxes::get_box_creds_for_team)
                     ),
             )
     })

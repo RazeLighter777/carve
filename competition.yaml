@@ -59,7 +59,19 @@ competitions:
           code: 200        # Expected HTTP status code
           regex: "{{ team_name }}"  # Expect the team name to be in the response body
           method: Get      # HTTP method to use (GET, POST, etc.)
-
+      - name: nix-mysql-example
+        description: "Checks that the MySQL server is running on the 'db' box."
+        interval: 30
+        points: 5
+        labelSelector:
+          "": db
+        spec:
+          type: nix
+          timeout: 3
+          packages:
+            - mariadb
+          script: |
+            mysql -u {{ username }} -p{{ password }} -h {{ ip_address }} -e "SHOW DATABASES;"
       # ICMP check example (ping)
       - name: icmp-example
         description: "Checks that all boxes are reachable via ICMP (ping)."

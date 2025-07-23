@@ -160,3 +160,28 @@ export interface ScoreAtGivenTimesQuery {
 export interface ScoresAtGivenTimeResponse {
   scores: number[];
 }
+
+// API Key management types
+export interface ApiKeyResponse {
+  api_key: string;
+}
+
+export interface ApiKeysListResponse {
+  api_keys: string[];
+}
+
+export interface DeleteApiKeyRequest {
+  api_key: string;
+}
+
+// Box credentials for team query
+export interface BoxCredsForTeamQuery {
+  name: string;
+  team: string;
+}
+
+export interface BoxCredentialsResponse {
+  name: string;
+  username: string;
+  password: string;
+}

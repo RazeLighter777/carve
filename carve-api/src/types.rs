@@ -151,6 +151,7 @@ pub(crate) struct BoxesQuery {
 #[derive(Deserialize)]
 pub(crate) struct BoxQuery {
     pub(crate) name: String,
+    pub(crate) team: Option<String>, // Optional team name for box-specific queries by admins
 }
 
 #[derive(Deserialize)]

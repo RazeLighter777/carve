@@ -155,6 +155,8 @@ services:
       - redis
       - carve-dnsmasq
     network_mode: service:vtep
+    environment:
+      - RUST_LOG=debug
   carve-web:
     image: ghcr.io/razelighter777/web
     build:

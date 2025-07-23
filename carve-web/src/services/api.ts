@@ -18,13 +18,34 @@ import type {
   BoxRestoreQuery,
   BoxSnapshotQuery,
   ScoresAtGivenTimeResponse,
-  ScoreAtGivenTimesQuery
+  ScoreAtGivenTimesQuery,
+  ApiKeyResponse,
+  ApiKeysListResponse,
+  DeleteApiKeyRequest,
+  BoxCredsForTeamQuery,
+  BoxCredentialsResponse
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   withCredentials: true,
 });
+
+// Create a separate API instance for bearer token authentication
+const bearerApi = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+});
+
+// Function to set bearer token for API requests
+export const setBearerToken = (token: string) => {
+  bearerApi.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+};
+
+// Function to clear bearer token
+export const clearBearerToken = () => {
+  delete bearerApi.defaults.headers.common['Authorization'];
+};
 
 // Request interceptor to handle auth
 api.interceptors.request.use((config) => {
@@ -121,6 +142,11 @@ export const apiService = {
     const response = await api.get<{username: string, password: string}>(`competition/box/creds?name=${boxId}`);
     return response.data || { username: '', password: '' };
   },
+
+  async getBoxCredsForTeam(query: BoxCredsForTeamQuery): Promise<BoxCredentialsResponse> {
+    const response = await api.get<BoxCredentialsResponse>(`admin/box/creds_for?name=${query.name}&team=${query.team}`);
+    return response.data;
+  },
   async switchTeam(code : string): Promise<void> {
     const userInfo = cookieUtils.getUserInfo();
     if (!userInfo?.username) {
@@ -166,6 +192,21 @@ export const apiService = {
       { params: { team_name: request.team_name } }
     );
     return response.data;
+  },
+
+  // API Key management (admin only)
+  async createApiKey(): Promise<ApiKeyResponse> {
+    const response = await api.post<ApiKeyResponse>('admin/api_keys');
+    return response.data;
+  },
+
+  async getApiKeys(): Promise<ApiKeysListResponse> {
+    const response = await api.get<ApiKeysListResponse>('admin/api_keys');
+    return response.data;
+  },
+
+  async deleteApiKey(request: DeleteApiKeyRequest): Promise<void> {
+    await api.delete('admin/api_keys', { data: request });
   },
 
   async getTeam(teamId: number): Promise<Team> {

@@ -75,6 +75,8 @@ pub struct SshCheckSpec {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct NixCheckSpec {
     pub script: String,
+    pub packages: Option<Vec<String>>, // Optional list of Nix packages to install
+    pub timeout: u64, // Timeout for the check in seconds
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq)]

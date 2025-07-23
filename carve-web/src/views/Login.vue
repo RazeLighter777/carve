@@ -5,6 +5,7 @@ import { apiService } from '@/services/api'
 import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import type { LoginUserQuery, IdentitySourcesResponse } from '@/types'
 import { IdentitySources } from '@/types'
+import Fire from '@/components/Fire.vue'
 
 const route = useRoute()
 const loading = ref(false)
@@ -94,8 +95,16 @@ const handlePasswordLogin = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8">
+  <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <!-- Left Fire -->
+    <div class="absolute left-0 top-1/2 transform -translate-y-1/2 z-0" style="width: 300px; height: 400px;">
+      <Fire />
+    </div>
+    <!-- Right Fire -->
+    <div class="absolute right-0 top-1/2 transform -translate-y-1/2 z-0" style="width: 300px; height: 400px;">
+      <Fire />
+    </div>
+    <div class="max-w-md w-full space-y-8 relative z-10">
       <div>
         <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-primary-100">
           <svg class="h-8 w-8 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">

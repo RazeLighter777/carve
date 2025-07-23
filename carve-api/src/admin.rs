@@ -1,10 +1,26 @@
 // Admin-related functionality for the Carve API
 
-use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
+use actix_web::{delete, get, post, web, HttpResponse, Responder, Result as ActixResult};
 use carve::config::Competition;
 use carve::redis_manager::RedisManager;
+use serde::{Deserialize, Serialize};
 
 use crate::types;
+
+#[derive(Deserialize)]
+pub struct DeleteApiKeyRequest {
+    pub api_key: String,
+}
+
+#[derive(Serialize)]
+pub struct ApiKeyResponse {
+    pub api_key: String,
+}
+
+#[derive(Serialize)]
+pub struct ApiKeysListResponse {
+    pub api_keys: Vec<String>,
+}
 
 #[get("/start_competition")]
 async fn start_competition(
@@ -55,6 +71,54 @@ pub async fn generate_join_code(
         }))),
         Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "Failed to generate join code"
+        }))),
+    }
+}
+
+/// Generate a new API key
+#[post("/api_keys")]
+pub async fn create_api_key(
+    redis: web::Data<RedisManager>,
+) -> ActixResult<impl Responder> {
+    match redis.generate_api_key() {
+        Ok(api_key) => Ok(HttpResponse::Ok().json(ApiKeyResponse { api_key })),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "Failed to generate API key"
+        }))),
+    }
+}
+
+/// Get all API keys
+#[get("/api_keys")]
+pub async fn get_api_keys(
+    redis: web::Data<RedisManager>,
+) -> ActixResult<impl Responder> {
+    match redis.get_api_keys() {
+        Ok(api_keys) => Ok(HttpResponse::Ok().json(ApiKeysListResponse { api_keys })),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "Failed to retrieve API keys"
+        }))),
+    }
+}
+
+/// Delete an API key
+#[delete("/api_keys")]
+pub async fn delete_api_key(
+    redis: web::Data<RedisManager>,
+    req: web::Json<DeleteApiKeyRequest>,
+) -> ActixResult<impl Responder> {
+    if req.api_key.is_empty() {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "API key cannot be empty"
+        })));
+    }
+
+    match redis.remove_api_key(&req.api_key) {
+        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "message": "API key deleted successfully"
+        }))),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "Failed to delete API key"
         }))),
     }
 }

@@ -16,7 +16,7 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 
 - **Microservice Architecture:** Modular services for scoring, networking, orchestration, everything you need to run a CTF at scale.
 - **Automatic Infrastructure Management**: Let CARVE handle the tedious work of making networks and virtual machines. Unlike many CTFs, carve gives players VMs (not containers) expanding the range of possibilities. And the network managed network is isolated, secure, and created automatically with the magic of VXLANs. 
-- **Performance** CARVE is built to maximize the capabilities of the underlying hardware. It scales horizontally, and uses QEMU backing images and snapshots to minimize disk space requirements.
+- **Performance** CARVE is built to maximize the capabilities of the underlying hardware. It scales horizontally, and uses QEMU backing images and snapshots to minimize disk space requirements. It feels snappy. 
 - **Virtual Networking:** Uses VXLANs and dnsmasq to create isolated, team-specific networks. All the networking is handled by CARVE, with no need for manual setup.
 - **Cloud-Init & Ansible:** VMs are provisioned with cloud-init for basic setup, then made vulnerable for the game with Ansible playbooks.
 - **Modern Frontend:** Built with TypeScript, Vue, and Tailwind CSS.
@@ -34,7 +34,7 @@ CARVE **DOES NOT** include the actual challenges and setup scripts to make a rea
 - **vxlan-sidecar:** Connects CARVE to the VTEP.
 - **redis:** In-memory database for persistence.
 - **carve-web:** Vue frontend for user interaction.
-- **qemu-box:** Runs VMs, exposes them via VNC.
+- **qemu-box:** Runs VMs, exposes them via VNC and a raw serial interface with websockets. 
 - **carve-dnsmasq:** DNS and DHCP server for VM boxes.
 - **carve-api:** API gateway for CARVE services.
 - **qemu-ndb:** Serves qemu disks over the network to maximize storage efficiency. 

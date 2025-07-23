@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use log::{error, info};
+use log::{error, info, debug};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::{Duration, sleep};
@@ -17,13 +17,43 @@ pub struct Scheduler {
 
 impl Scheduler {
     pub fn new(competition: Competition, redis_manager: Arc<RedisManager>) -> Self {
+        debug!("Creating new Scheduler for competition: {}", competition.name);
         Self {
             competition,
             redis_manager,
         }
     }
 
+    async fn preload_nix_checks(competition: &Competition) {
+        debug!("Preloading Nix checks for competition: {}", competition.name);
+        for check in &competition.checks {
+            if let carve::config::CheckSpec::Nix(nix_check) = &check.spec {
+                // Preload Nix checks by running nix-shell -p with all the packages
+                let default = vec!["nixpkgs".into()];
+                let packages = nix_check.packages.as_ref().unwrap_or(&default);
+                let output = tokio::process::Command::new("nix-shell")
+                    .arg("-p")
+                    .args(packages.iter().map(String::as_str))
+                    .output()
+                    .await;
+                match output {
+                    Ok(output) if output.status.success() => {
+                        info!("Preloaded Nix check {} with packages: {:?}", check.name, packages);
+                    }
+                    Ok(output) => {
+                        error!("Failed to preload Nix check {}: {}", check.name, String::from_utf8_lossy(&output.stderr));
+                    }
+                    Err(e) => {
+                        error!("Error preloading Nix check {}: {}", check.name, e);
+                    }
+                }
+            }
+        }
+    }
+
     pub async fn run(self) {
+        debug!("Starting scheduler run for competition: {}", self.competition.name);
+        Self::preload_nix_checks(&self.competition).await;
         let competition = self.competition.clone();
         let redis_manager = self.redis_manager.clone();
         for check in competition.clone().checks {
@@ -106,7 +136,7 @@ impl Scheduler {
                                                     "Box {}.{}.{}.hack has no dns entry (yet), skipping",
                                                     box_config.name, team.name, competition_name
                                                 );
-                                                println!("{}", msg);
+                                                info!("{}", msg);
                                                 return (Some(msg), None);
                                             }
                                         };
@@ -190,6 +220,7 @@ impl Scheduler {
                                     "No passing boxes for check {} on team {}",
                                     check.name, team.name
                                 );
+                                debug!("Messages for failed check: {:?}", messages);
                                 return;
                             }
                             if let Err(e) = redis_manager.record_sucessful_check_result(
@@ -329,12 +360,12 @@ fn apply_template_substitution(
                 password,
                 key_path,
             }))
-        }
+        }   
         CheckSpec::Nix(nix_spec) => {
             // Apply templating to Nix check script
             let script = apply_template_to_string(&nix_spec.script, &template_context)?;
-
-            Ok(CheckSpec::Nix(carve::config::NixCheckSpec { script }))
+            debug!("Nix script after templating: {}", script);
+            Ok(CheckSpec::Nix(carve::config::NixCheckSpec { script, packages: nix_spec.packages.clone(), timeout: nix_spec.timeout }))
         }
     }
 }

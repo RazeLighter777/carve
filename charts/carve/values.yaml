@@ -234,6 +234,19 @@ competition:
         method: Post
         forms: "ip={{ ip }}"
         regex: "bytes from {{ ip }}"
+    - name: nix-mysql-example
+      description: "Checks that the MySQL server is running on the 'db' box."
+      interval: 30
+      points: 5
+      labelSelector:
+        "": db
+      spec:
+        type: nix
+        timeout: 3
+        packages:
+          - mariadb
+        script: |
+          mysql -u {{ username }} -p{{ password }} -h $1 -e "SHOW DATABASES;"
   flag_checks:
     - name: test-flag-check
       description: "The flag is easy. It's in one of the user's home directories on 'web'."

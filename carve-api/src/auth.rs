@@ -35,6 +35,23 @@ pub fn validate_session(ctx: &GuardContext) -> bool {
     false
 }
 
+pub fn validate_bearer_token(ctx: &GuardContext) -> bool {
+    if let Some(auth_header) = ctx.head().headers().get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                // Get Redis manager from app data
+                if let Some(redis) = ctx.app_data::<web::Data<RedisManager>>() {
+                    // Check if the API key exists in Redis
+                    if let Ok(exists) = redis.check_api_key_exists(token) {
+                        return exists;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 #[get("/get_oauth2_redirect_url")]
 pub async fn get_oauth2_redirect_url(
     session: Session,

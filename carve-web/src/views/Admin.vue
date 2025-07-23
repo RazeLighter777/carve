@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import apiService from '@/services/api'
 import CompetitionStatus from '@/components/CompetitionStatus.vue'
-import type { Team } from '@/types'
+import type { Team, ApiKeysListResponse } from '@/types'
 
 const competition = ref<any>(null)
 const loading = ref(true)
@@ -19,6 +19,14 @@ const selectedBox = ref<string>('')
 const boxSnapshotLoading = ref(false)
 const boxSnapshotError = ref('')
 const boxSnapshotSuccess = ref('')
+
+// API Keys management
+const apiKeys = ref<string[]>([])
+const apiKeysLoading = ref(false)
+const apiKeysError = ref('')
+const creatingApiKey = ref(false)
+const deletingApiKey = ref<string | null>(null)
+const copiedApiKey = ref<string | null>(null)
 
 const fetchCompetition = async () => {
   loading.value = true
@@ -130,10 +138,74 @@ const snapshotAllBoxes = async () => {
   boxSnapshotLoading.value = false
 }
 
+const fetchApiKeys = async () => {
+  apiKeysLoading.value = true
+  apiKeysError.value = ''
+  try {
+    const response = await apiService.getApiKeys()
+    apiKeys.value = response.api_keys
+  } catch (e) {
+    apiKeysError.value = 'Failed to load API keys.'
+  }
+  apiKeysLoading.value = false
+}
+
+const createApiKey = async () => {
+  creatingApiKey.value = true
+  apiKeysError.value = ''
+  try {
+    await apiService.createApiKey()
+    await fetchApiKeys() // Refresh the list
+  } catch (e) {
+    apiKeysError.value = 'Failed to create API key.'
+  }
+  creatingApiKey.value = false
+}
+
+const copyApiKey = async (apiKey: string) => {
+  try {
+    await navigator.clipboard.writeText(apiKey)
+    copiedApiKey.value = apiKey
+    setTimeout(() => {
+      copiedApiKey.value = null
+    }, 2000)
+  } catch (e) {
+    // Fallback for browsers without clipboard API
+    const textArea = document.createElement('textarea')
+    textArea.value = apiKey
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textArea)
+    copiedApiKey.value = apiKey
+    setTimeout(() => {
+      copiedApiKey.value = null
+    }, 2000)
+  }
+}
+
+const deleteApiKey = async (apiKey: string) => {
+  if (!confirm(`Are you sure you want to delete this API key?\n\n${apiKey}\n\nThis action cannot be undone.`)) {
+    return
+  }
+  
+  deletingApiKey.value = apiKey
+  apiKeysError.value = ''
+  try {
+    await apiService.deleteApiKey({ api_key: apiKey })
+    await fetchApiKeys() // Refresh the list
+  } catch (e) {
+    apiKeysError.value = 'Failed to delete API key.'
+  }
+  deletingApiKey.value = null
+}
+
 onMounted(async () => {
   await fetchCompetition()
   await fetchTeams()
   await fetchBoxes()
+  await fetchApiKeys()
 })
 </script>
 
@@ -179,7 +251,105 @@ onMounted(async () => {
         <div v-if="boxSnapshotSuccess" class="text-green-600 text-center mt-2">{{ boxSnapshotSuccess }}</div>
         <div v-if="boxSnapshotError" class="text-red-600 text-center mt-2">{{ boxSnapshotError }}</div>
       </div>
+      
+      <!-- API Keys Management Section -->
+      <div class="mt-8 card p-6">
+        <h2 class="text-xl font-semibold mb-4">API Keys Management</h2>
+        
+        <div v-if="apiKeysLoading" class="text-center text-muted py-4">
+          Loading API keys...
+        </div>
+        
+        <div v-else>
+          <!-- API Keys Table -->
+          <div v-if="apiKeys.length > 0" class="mb-4">
+            <div class="bg-gray-50 rounded-lg overflow-hidden">
+              <table class="w-full">
+                <thead class="bg-gray-100">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">API Key</th>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr 
+                    v-for="(apiKey, index) in apiKeys" 
+                    :key="apiKey"
+                    class="border-t border-gray-200"
+                    :class="{ 'opacity-50': deletingApiKey === apiKey }"
+                  >
+                    <td class="px-4 py-3">
+                      <div class="relative inline-block">
+                        <code 
+                          class="font-mono text-sm bg-gray-100 px-2 py-1 rounded hover:bg-green-100 hover:text-green-700 transition-colors cursor-pointer group inline-block"
+                          @click="copyApiKey(apiKey)"
+                          :title="copiedApiKey === apiKey ? 'Copied!' : 'Click to copy'"
+                        >
+                          {{ apiKey }}
+                        </code>
+                        <span 
+                          v-if="copiedApiKey === apiKey"
+                          class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-green-600 text-white text-xs px-2 py-1 rounded shadow-lg"
+                        >
+                          Copied!
+                        </span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <button
+                        @click="deleteApiKey(apiKey)"
+                        :disabled="deletingApiKey === apiKey"
+                        class="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                      >
+                        {{ deletingApiKey === apiKey ? 'Deleting...' : 'Delete' }}
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <!-- No API Keys Message -->
+          <div v-else class="text-center text-gray-500 py-8">
+            <p class="mb-2">No API keys found.</p>
+            <p class="text-sm">Create your first API key using the button below.</p>
+          </div>
+          
+          <!-- Create API Key Button -->
+          <div class="flex justify-center">
+            <button 
+              @click="createApiKey" 
+              :disabled="creatingApiKey"
+              class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg v-if="!creatingApiKey" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+              </svg>
+              <svg v-else class="animate-spin w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ creatingApiKey ? 'Creating...' : 'Create New API Key' }}
+            </button>
+          </div>
+          
+          <!-- Error Message -->
+          <div v-if="apiKeysError" class="text-red-600 text-center mt-4">{{ apiKeysError }}</div>
+        </div>
+      </div>
+      
       <div v-if="error" class="text-error mt-4">{{ error }}</div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.transition-colors {
+  transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out;
+}
+
+.transition-opacity {
+  transition: opacity 0.2s ease-in-out;
+}
+</style>

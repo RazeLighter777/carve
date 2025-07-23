@@ -141,15 +141,14 @@ pub async fn get_box(
     Ok(HttpResponse::Ok().json(response))
 }
 
-#[get("box/creds")]
-pub async fn get_box_default_creds(
-    query: web::Query<types::BoxQuery>,
-    competition: web::Data<Competition>,
-    redis: web::Data<RedisManager>,
-    session: Session,
-) -> ActixResult<impl Responder> {
-    // ...existing code from main.rs...
-    let parts: Vec<&str> = query.name.split('.').collect();
+// Helper function to get box credentials
+async fn get_box_credentials_helper(
+    box_name: &str,
+    team_name: &str,
+    competition: &Competition,
+    redis: &RedisManager,
+) -> ActixResult<HttpResponse> {
+    let parts: Vec<&str> = box_name.split('.').collect();
     if parts.len() < 3 {
         return Ok(HttpResponse::NotFound().json(serde_json::json!({
             "error": "Creds not set"
@@ -157,26 +156,12 @@ pub async fn get_box_default_creds(
     }
 
     let box_type = parts[0];
-    let team_name = parts[1];
-
-    //verify the user belongs to the team
-    if let Some(session_team_name) = session.get::<String>("team_name")? {
-        if session_team_name != team_name {
-            return Ok(HttpResponse::Forbidden().json(serde_json::json!({
-                "error": "You do not have permission to access this box"
-            })));
-        }
-    } else {
-        return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "You must be logged in to access this box"
-        })));
-    }
 
     // Try to get credentials from Redis
     match redis.read_box_credentials(&competition.name, team_name, box_type) {
         Ok(Some((username, password))) => {
             let response = types::BoxCredentialsResponse {
-                name: query.name.clone(),
+                name: box_name.to_string(),
                 username,
                 password,
             };
@@ -189,6 +174,61 @@ pub async fn get_box_default_creds(
             "error": "Creds not set"
         }))),
     }
+}
+
+/// Get box credentials for the user's own team
+/// Requires session authentication and validates that the user belongs to the team
+#[get("box/creds")]
+pub async fn get_box_default_creds(
+    query: web::Query<types::BoxQuery>,
+    competition: web::Data<Competition>,
+    redis: web::Data<RedisManager>,
+    session: Session,
+) -> ActixResult<impl Responder> {
+    let parts: Vec<&str> = query.name.split('.').collect();
+    if parts.len() < 3 {
+        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Creds not set"
+        })));
+    }
+
+    let team_name = parts[1];
+
+    // Verify the user belongs to the team
+    if let Some(session_team_name) = session.get::<String>("team_name")? {
+        if session_team_name != team_name {
+            return Ok(HttpResponse::Forbidden().json(serde_json::json!({
+                "error": "You do not have permission to access this box"
+            })));
+        }
+    } else {
+        return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
+            "error": "You must be logged in to access this box"
+        })));
+    }
+
+    get_box_credentials_helper(&query.name, team_name, &competition, &redis).await
+}
+
+/// Get box credentials for a specific team (admin only)
+/// Requires admin authentication and uses the 'team' query parameter to specify the target team
+#[get("box/creds_for")]
+pub async fn get_box_creds_for_team(
+    query: web::Query<types::BoxQuery>,
+    competition: web::Data<Competition>,
+    redis: web::Data<RedisManager>,
+) -> ActixResult<impl Responder> {
+    // This route requires the team field to be specified
+    let team_name = match &query.team {
+        Some(team) => team,
+        None => {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "Team parameter is required for this endpoint"
+            })));
+        }
+    };
+
+    get_box_credentials_helper(&query.name, team_name, &competition, &redis).await
 }
 
 #[get("/box/restore")]
