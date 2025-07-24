@@ -13,7 +13,6 @@ Unlike most open-source CTF platforms out there, CARVE is designed to be easy to
 
 CARVE **DOES NOT** include the actual challenges and setup scripts to make a real competition. You'll need to write them yourself and keep them private until the competition is over, so you don't spoil your game.
 ## ✨ Features
-
 - **Microservice Architecture:** Modular services for scoring, networking, orchestration, everything you need to run a CTF at scale.
 - **Automatic Infrastructure Management**: Let CARVE handle the tedious work of making networks and virtual machines. Unlike many CTFs, carve gives players VMs (not containers) expanding the range of possibilities. And the network managed network is isolated, secure, and created automatically with the magic of VXLANs. 
 - **Performance** CARVE is built to maximize the capabilities of the underlying hardware. It scales horizontally, and uses QEMU backing images and snapshots to minimize disk space requirements. It feels snappy. 
