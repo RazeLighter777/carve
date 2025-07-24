@@ -60,6 +60,7 @@ At least a three node K8S setup EACH with:
    ```
 
 2. **Configure the platform:**
+   See [](https://github.com/RazeLighter777/carve/wiki/Configuration) for configuration
 - K8S : edit your values.yaml file in charts/carve. competition.yaml is mapped to the competition section.
 - docker (only for testing, not recommended): edit docker-compose.yaml and competition.yaml files. Make sure they match. 
 3. **Run:**
