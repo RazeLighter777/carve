@@ -19,7 +19,7 @@ struct AppState {
 #[get("/api/health")]
 async fn health_check(data: web::Data<AppState>) -> impl Responder {
     for (i, redis_manager) in data.redis_managers.iter().enumerate() {
-        if let Err(e) = redis_manager.health_check() {
+        if let Err(e) = redis_manager.health_check().await {
             error!("Redis connection {} failedthe health check: {}", i, e);
             return HttpResponse::InternalServerError()
                 .body(format!("Redis connection failed: {}", e));

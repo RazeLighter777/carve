@@ -4,7 +4,6 @@ use redis::Commands;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, ToSocketAddrs};
 use std::process::Command;
-use std::thread;
 use std::time::Duration;
 use anyhow::{Result, Context, bail};
 
@@ -188,7 +187,7 @@ impl NetworkManager {
 struct FdbManager;
 
 impl FdbManager {
-    fn update_fdb_entries(config: &AppConfig) -> Result<()> {
+    async fn update_fdb_entries(config: &AppConfig) -> Result<()> {
         for (comp_idx, competition) in config.competitions.iter().enumerate() {
             let redis_manager = RedisManager::new(&competition.redis)
                 .context("Failed to create Redis manager")?;
@@ -197,8 +196,8 @@ impl FdbManager {
                 let vxlan_name = format!("vxlan_{}_{}", comp_idx, team_idx);
                 let mac_address = Self::get_interface_mac(&vxlan_name)?;
                 
-                Self::publish_fdb_entry(&redis_manager, competition, &mac_address, team)?;
-                Self::update_bridge_fdb(&redis_manager, competition, team, &vxlan_name, &mac_address)?;
+                Self::publish_fdb_entry(&redis_manager, competition, &mac_address, team).await?;
+                Self::update_bridge_fdb(&redis_manager, competition, team, &vxlan_name, &mac_address).await?;
             }
         }
         Ok(())
@@ -215,7 +214,7 @@ impl FdbManager {
             .map(|s| s.trim().to_string())
     }
 
-    fn publish_fdb_entry(
+    async fn publish_fdb_entry(
         redis_manager: &RedisManager,
         competition: &carve::config::Competition,
         mac_address: &str,
@@ -228,13 +227,14 @@ impl FdbManager {
             .context("No addresses found")?;
 
         redis_manager.create_vxlan_fdb_entry(&competition.name, mac_address, addr.ip(), &team.name)
+            .await
             .context("Failed to create VXLAN FDB entry")?;
 
         println!("Published FDB entry for {}: {} -> {}", team.name, addr.ip(), mac_address);
         Ok(())
     }
 
-    fn update_bridge_fdb(
+    async fn update_bridge_fdb(
         redis_manager: &RedisManager,
         competition: &carve::config::Competition,
         team: &carve::config::Team,
@@ -242,6 +242,7 @@ impl FdbManager {
         our_mac: &str,
     ) -> Result<()> {
         let fdb_entries = redis_manager.get_domain_fdb_entries(&competition.name, &team.name)
+            .await
             .context("Failed to get FDB entries")?;
 
         for (mac, addr) in fdb_entries {
@@ -336,7 +337,7 @@ fn setup_competition_network(competition: &carve::config::Competition, comp_idx:
 }
 
 fn start_web_server() {
-    thread::spawn(|| {
+    tokio::spawn(async move {
         let sys = actix_rt::System::new();
         sys.block_on(async {
             if let Err(e) = HttpServer::new(|| App::new().service(health))
@@ -353,17 +354,17 @@ fn start_web_server() {
 }
 
 fn start_fdb_update_thread(config: AppConfig) {
-    thread::spawn(move || {
+    tokio::spawn(async move {
         loop {
-            if let Err(e) = FdbManager::update_fdb_entries(&config) {
+            if let Err(e) = FdbManager::update_fdb_entries(&config).await {
                 eprintln!("FDB update error: {}", e);
             }
-            thread::sleep(Duration::from_secs(5));
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
 }
 
-fn manage_competition_nat(config: &AppConfig) -> Result<()> {
+async fn manage_competition_nat(config: &AppConfig) -> Result<()> {
     let redis_manager = RedisManager::new(&config.competitions[0].redis)
         .context("Failed to create Redis manager")?;
     let network_manager = NetworkManager::new()?;
@@ -372,6 +373,7 @@ fn manage_competition_nat(config: &AppConfig) -> Result<()> {
     // Handle initial state
     let competition_name = &config.competitions[0].name;
     let current_state = redis_manager.get_competition_state(competition_name)
+        .await
         .context("Failed to get competition state")?;
 
     let should_enable_nat = matches!(current_state.status, CompetitionStatus::Unstarted);
@@ -388,13 +390,14 @@ fn manage_competition_nat(config: &AppConfig) -> Result<()> {
             }
             Err(e) => {
                 eprintln!("Error waiting for competition event: {}", e);
-                thread::sleep(Duration::from_secs(5));
+                tokio::time::sleep(Duration::from_secs(5)).await;
             }
         }
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let config = AppConfig::new().context("Failed to load config")?;
 
     // Setup network for each competition
@@ -408,7 +411,7 @@ fn main() -> Result<()> {
     start_fdb_update_thread(config.clone());
 
     // Manage NAT rules based on competition state
-    manage_competition_nat(&config)?;
+    manage_competition_nat(&config).await?;
 
     Ok(())
 }

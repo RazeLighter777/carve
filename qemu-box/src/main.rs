@@ -11,7 +11,6 @@ use std::{
     net::ToSocketAddrs,
     path::Path,
     process::Command,
-    thread,
     time::Duration,
 };
 
@@ -186,7 +185,7 @@ impl VmManager {
         let ram_mb = box_cfg.ram_mb.unwrap_or(1024);
 
         println!("Starting QEMU VM with {} cores, {} MB RAM", cores, ram_mb);
-        
+
         let status = Command::new("qemu-system-x86_64")
             .args([
                 "-enable-kvm",
@@ -249,65 +248,79 @@ impl TaskManager {
         let redis_mgr = self.redis_mgr.clone();
         let env_config = self.env_config.clone();
 
-        thread::spawn(move || loop {
-            match redis_mgr.wait_for_qemu_event(
-                &env_config.competition,
-                &env_config.team_name,
-                &env_config.box_name,
-                vec![QemuCommands::Snapshot, QemuCommands::Restore].into_iter(),
-            ) {
-                Ok(QemuCommands::Snapshot) => {
-                    println!("Received QEMU snapshot command");
-                    if let Err(e) =
-                        QemuMonitor::snapshot(&env_config.team_name, &env_config.box_name)
-                    {
-                        eprintln!("Failed to create snapshot: {}", e);
+        tokio::spawn(async move {
+            loop {
+                match redis_mgr
+                    .wait_for_qemu_event(
+                        &env_config.competition,
+                        &env_config.team_name,
+                        &env_config.box_name,
+                        vec![QemuCommands::Snapshot, QemuCommands::Restore].into_iter(),
+                    )
+                    .await
+                {
+                    Ok(QemuCommands::Snapshot) => {
+                        println!("Received QEMU snapshot command");
+                        if let Err(e) =
+                            QemuMonitor::snapshot(&env_config.team_name, &env_config.box_name)
+                        {
+                            eprintln!("Failed to create snapshot: {}", e);
+                        }
                     }
-                }
-                Ok(QemuCommands::Restore) => {
-                    println!("Received QEMU restore command");
-                    if let Err(e) =
-                        QemuMonitor::restore(&env_config.team_name, &env_config.box_name)
-                    {
-                        eprintln!("Failed to restore snapshot: {}", e);
+                    Ok(QemuCommands::Restore) => {
+                        println!("Received QEMU restore command");
+                        if let Err(e) =
+                            QemuMonitor::restore(&env_config.team_name, &env_config.box_name)
+                        {
+                            eprintln!("Failed to restore snapshot: {}", e);
+                        }
                     }
+                    _ => eprintln!("Error waiting for QEMU event"),
                 }
-                _ => eprintln!("Error waiting for QEMU event"),
             }
         });
     }
 
-    fn start_vxlan_updater(&self) {
+    async fn start_vxlan_updater(&self) {
         let redis_mgr = self.redis_mgr.clone();
         let env_config = self.env_config.clone();
         let mac_address = self.mac_address.clone();
 
-        thread::spawn(move || loop {
-            let vxlan_sidecar_addr = format!(
-                "vxlan-sidecar-{}-{}:4789",
-                env_config.team_name, env_config.box_name
-            );
-            println!("Resolving VXLAN sidecar address: {}", vxlan_sidecar_addr);
+        tokio::spawn(async move {
+            loop {
+                let vxlan_sidecar_addr = format!(
+                    "vxlan-sidecar-{}-{}:4789",
+                    env_config.team_name, env_config.box_name
+                );
+                println!("Resolving VXLAN sidecar address: {}", vxlan_sidecar_addr);
 
-            match vxlan_sidecar_addr.to_socket_addrs() {
-                Ok(addrs) => {
-                    for addr in addrs {
-                        if let Err(e) = redis_mgr.create_vxlan_fdb_entry(
-                            &env_config.competition,
-                            &mac_address,
-                            addr.ip(),
-                            &env_config.team_name,
-                        ) {
-                            eprintln!("Failed to create VXLAN FDB entry: {}", e);
-                        } else {
-                            println!("Created VXLAN FDB entry: {} -> {}", mac_address, addr.ip());
+                match vxlan_sidecar_addr.to_socket_addrs() {
+                    Ok(addrs) => {
+                        for addr in addrs {
+                            if let Err(e) = redis_mgr
+                                .create_vxlan_fdb_entry(
+                                    &env_config.competition,
+                                    &mac_address,
+                                    addr.ip(),
+                                    &env_config.team_name,
+                                )
+                                .await
+                            {
+                                eprintln!("Failed to create VXLAN FDB entry: {}", e);
+                            } else {
+                                println!(
+                                    "Created VXLAN FDB entry: {} -> {}",
+                                    mac_address,
+                                    addr.ip()
+                                );
+                            }
                         }
                     }
+                    Err(e) => eprintln!("Failed to resolve vxlan-sidecar service: {}", e),
                 }
-                Err(e) => eprintln!("Failed to resolve vxlan-sidecar service: {}", e),
-            }
 
-            thread::sleep(Duration::from_secs(5));
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
         });
     }
 }
@@ -360,7 +373,8 @@ async fn main() -> Result<()> {
         &env_config.competition,
         &env_config.team_name,
         &redis_mgr,
-    )?;
+    )
+    .await?;
 
     println!("SSH Private Key:\n{}", private_key);
     println!("SSH Public Key:\n{}", public_key);
@@ -375,7 +389,7 @@ async fn main() -> Result<()> {
 
     // Start background tasks
     let task_manager = TaskManager::new(env_config, redis_mgr, &mac_address);
-    task_manager.start_vxlan_updater();
+    task_manager.start_vxlan_updater().await;
     vm_manager.start_qemu(&disk_path, &cloud_init_iso, &mac_address)?;
     task_manager.start_qemu_event_listener();
 

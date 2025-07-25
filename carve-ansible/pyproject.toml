@@ -9,4 +9,5 @@ dependencies = [
     "dnspython>=2.7.0",
     "pyyaml>=6.0.2",
     "redis>=6.2.0",
+    "requests>=2.32.4",
 ]

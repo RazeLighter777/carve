@@ -4,8 +4,8 @@ __metaclass__ = type
 DOCUMENTATION = r'''
     name: carve_inventory_plugin
     plugin_type: inventory
-    short_description: Returns Ansible inventory competition.yaml, pulling ssh keys from Carve's redis database
-    description: Returns Ansible inventory from competition.yaml
+    short_description: Returns Ansible inventory from competition.yaml, pulling box information from Carve's API
+    description: Returns Ansible inventory from competition.yaml using Carve API calls
     options:
       path_to_inventory:
         description: Directory location of the inventory
@@ -28,7 +28,7 @@ DOCUMENTATION = r'''
 from ansible.plugins.inventory import BaseInventoryPlugin
 from ansible.errors import AnsibleError, AnsibleParserError
 import yaml
-import redis
+import requests
 import traceback
 
 
@@ -48,8 +48,17 @@ class InventoryModule(BaseInventoryPlugin):
         self.path_to_inventory = self.get_option('path_to_inventory')
         self.competition_name = self.get_option('competition_name')
         self.ssh_proxy = self.get_option('ssh_proxy')
-        self.inventory.set_variable("all", "secret_key", self.get_option('secret_key'))
-        self.inventory.set_variable("all", "api_host", self.get_option('api_host'))
+        self.api_host = self.get_option('api_host')
+        self.secret_key = self.get_option('secret_key')
+        self.inventory.set_variable("all", "secret_key", self.secret_key)
+        self.inventory.set_variable("all", "api_host", self.api_host)
+        
+        # Setup API headers
+        self.headers = {
+            'Authorization': f'Bearer {self.secret_key}',
+            'Content-Type': 'application/json'
+        }
+        
         try:
             with open(self.path_to_inventory) as f:
                 data = yaml.safe_load(f)
@@ -61,16 +70,8 @@ class InventoryModule(BaseInventoryPlugin):
                     competition = data.get('competition')
                 if not competition:
                     raise AnsibleParserError(f"Competition {self.competition_name} not found in inventory file {self.path_to_inventory}")
-                # get the redis connection details from the competition entry
-                #redis_host = competition.get('redis', {}).get('host', 'localhost')
-                redis_host = "localhost"
-                redis_port = competition.get('redis', {}).get('port', 6379)
-                redis_db = competition.get('redis', {}).get('db', 0)
-                self.redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=redis_db)
-                # iterate through boxes and teams. 
-                # key for the username / password can be found in the redis key {competition_name}:{team_name}:{box_name}:credentials
-                # value is seperated by a colon, e.g. "user:password"
-                # create group for each team and box type.
+                
+                # iterate through boxes and teams
                 # generated hostnames are {box_name}.{team_name}.{competition_name}.hack
                 for box in competition.get('boxes', []):
                     print(f"Processing box: {box}")
@@ -80,25 +81,27 @@ class InventoryModule(BaseInventoryPlugin):
                         print(f"  Processing team: {team}")
                         team_name = team['name']
                         hostname = f"{box_name}.{team_name}.{self.competition_name}.hack"
-                        username = None
-                        password = None
-                        try:
-                            credentials_key = f"{self.competition_name}:{team_name}:{box_name}:credentials"
-                            credentials = self.redis_client.get(credentials_key)
-                            if credentials:
-                                username, password = credentials.decode().split(':')
-                            else:
-                                continue
-                        except Exception as e:
+                        
+                        # Get box details (including IP) from API
+                        box_details = self._get_box_details(hostname)
+                        if not box_details:
+                            print(f"    No box details found for {hostname}, skipping")
                             continue
-                        ip_address = None
-                        # get the IP address using the redis key {competition_name}:{team_name}:{box_name}:ip_address
-                        ip_address_key = f"{self.competition_name}:{team_name}:{box_name}:ip_address"
-                        ip_address = self.redis_client.get(ip_address_key)
-                        if not ip_address:
+                        
+                        ip_address = box_details.get('ip_address')
+                        if not ip_address or ip_address in ['Unset', 'DNS Misconfiguration']:
                             print(f"    No IP address found for {hostname}, skipping")
                             continue
-                        ip_address = ip_address.decode()
+                        
+                        # Get box credentials from API
+                        credentials = self._get_box_credentials(hostname, team_name)
+                        if not credentials:
+                            print(f"    No credentials found for {hostname}, skipping")
+                            continue
+                        
+                        username = credentials.get('username')
+                        password = credentials.get('password')
+                        
                         print(f"    Adding host: {hostname} with user: {username}")
                         print("    team_name:", team_name)
                         print("    box_name:", box_name)
@@ -111,3 +114,38 @@ class InventoryModule(BaseInventoryPlugin):
         except Exception as e:
             traceback.print_exc()
             raise AnsibleParserError(f"Failed to parse inventory file {path}: {e}")
+    
+    def _get_box_details(self, box_name):
+        """Get box details including IP address from the API"""
+        try:
+            url = f"{self.api_host}/api/v1/internal/box"
+            params = {'name': box_name}
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"    Failed to get box details for {box_name}: HTTP {response.status_code}")
+                return None
+        except requests.RequestException as e:
+            print(f"    Error getting box details for {box_name}: {e}")
+            return None
+    
+    def _get_box_credentials(self, box_name, team_name):
+        """Get box credentials from the API"""
+        try:
+            url = f"{self.api_host}/api/v1/internal/box/creds_for"
+            params = {
+                'name': box_name,
+                'team': team_name
+            }
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"    Failed to get credentials for {box_name}: HTTP {response.status_code}")
+                return None
+        except requests.RequestException as e:
+            print(f"    Error getting credentials for {box_name}: {e}")
+            return None

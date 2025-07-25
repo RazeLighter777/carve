@@ -164,6 +164,7 @@ async fn main() -> std::io::Result<()> {
         loop {
             let new_fdb_entries: Vec<(String, String)> = redis_manager
                 .get_domain_fdb_entries(&competition_name, &team_name)
+                .await
                 .unwrap();
             for entry in new_fdb_entries {
                 let (mac, ip) = entry;

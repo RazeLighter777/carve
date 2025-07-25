@@ -23,7 +23,7 @@ pub async fn get_team(
     let team = &competition.teams[team_id - 1];
 
     // Get actual team members from Redis
-    let members = match redis.get_team_users(&competition.name, &team.name) {
+    let members = match redis.get_team_users(&competition.name, &team.name).await {
         Ok(users) => users
             .into_iter()
             .map(|user| types::TeamMember {
@@ -51,23 +51,26 @@ pub async fn get_teams(
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
     // ...existing code from main.rs...
-    let teams: Vec<types::TeamListEntry> = competition
+    let teams= futures::future::join_all(competition
         .teams
         .iter()
         .enumerate()
-        .map(|(idx, team)| types::TeamListEntry {
-            members: redis
+        .map(async |(idx, team)| {
+            let members = redis
                 .get_team_users(&competition.name, &team.name)
+                .await
                 .unwrap_or_default()
                 .into_iter()
                 .map(|user| types::TeamMember {
                     name: user.username,
                 })
-                .collect(),
-            id: idx as u64 + 1,
-            name: team.name.clone(),
-        })
-        .collect();
+                .collect();
+            types::TeamListEntry {
+                members,
+                id: idx as u64 + 1,
+                name: team.name.clone(),
+            }
+        })).await;
 
     let response = types::TeamsResponse { teams };
     Ok(HttpResponse::Ok().json(response))
@@ -84,10 +87,10 @@ pub async fn get_team_console_code(
 ) -> ActixResult<impl Responder> {
     if let Some(team_name) = session.get::<String>("team_name")? {
         // Check if competition is active
-        match redis.get_competition_state(&competition.name) {
+        match redis.get_competition_state(&competition.name).await {
             Ok(state) if state.status == carve::redis_manager::CompetitionStatus::Active => {
                 // Get the console code from Redis
-                match redis.get_box_console_code(&competition.name, &team_name) {
+                match redis.get_box_console_code(&competition.name, &team_name).await {
                     Ok(code) => Ok(HttpResponse::Ok().json(serde_json::json!({
                         "code": code
                     }))),
@@ -126,7 +129,7 @@ pub async fn get_team_check_status(
         };
         for check in competition.checks.iter() {
             if let Ok(Some(state)) =
-                redis.get_check_current_state(&competition.name, &team_name, &check.name)
+                redis.get_check_current_state(&competition.name, &team_name, &check.name).await
             {
                 response.checks.push(types::CheckStatusResponse {
                     name: check.name.clone(),
@@ -140,7 +143,7 @@ pub async fn get_team_check_status(
         }
         for flag_check in competition.flag_checks.iter() {
             if let Ok(Some(state)) =
-                redis.get_check_current_state(&competition.name, &team_name, &flag_check.name)
+                redis.get_check_current_state(&competition.name, &team_name, &flag_check.name).await
             {
                 response.flag_checks.push(types::FlagCheckStatusResponse {
                     name: flag_check.name.clone(),

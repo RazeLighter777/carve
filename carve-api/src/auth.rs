@@ -35,14 +35,14 @@ pub fn validate_session(ctx: &GuardContext) -> bool {
     false
 }
 
-pub fn validate_bearer_token(ctx: &GuardContext) -> bool {
+pub async fn validate_bearer_token(ctx: &GuardContext<'_>) -> bool {
     if let Some(auth_header) = ctx.head().headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 // Get Redis manager from app data
                 if let Some(redis) = ctx.app_data::<web::Data<RedisManager>>() {
                     // Check if the API key exists in Redis
-                    if let Ok(exists) = redis.check_api_key_exists(token) {
+                    if let Ok(exists) = redis.check_api_key_exists(token).await {
                         return exists;
                     }
                 }
@@ -175,6 +175,7 @@ async fn oauth2_callback(
                                 user_info["email"].as_str().unwrap_or("unknown").to_string();
                             let mut team_name: Option<String> = redis
                                 .get_user(&competition.name, &username)
+                                .await
                                 .unwrap_or(None)
                                 .and_then(|u| u.team_name);
                             let mut is_admin = false;
@@ -223,7 +224,7 @@ async fn oauth2_callback(
                             };
                             // call register_user in redis_manager
                             let register_result =
-                                redis.register_user(&competition.name, &user, team_name.as_deref());
+                                redis.register_user(&competition.name, &user, team_name.as_deref()).await;
                             match register_result {
                                 Ok(_) => {
                                     println!("User {} registered successfully", username);
@@ -310,7 +311,7 @@ pub async fn login(
     }
 
     // verify the username/password against redis
-    match redis.verify_user_local_password(&competition.name, &query.username, &query.password) {
+    match redis.verify_user_local_password(&competition.name, &query.username, &query.password).await {
         Ok(Some(user)) => {
             // create session with user info
             session.insert("username", user.username.clone())?;
@@ -372,6 +373,7 @@ pub async fn register(
     if let Some(join_code) = query.team_join_code {
         if let Ok(Some(team)) = redis
             .check_team_join_code(&competition.name, join_code)
+            .await
             .map_err(|e| {
                 println!("Error checking team join code: {:?}", e);
                 HttpResponse::Found()
@@ -383,7 +385,7 @@ pub async fn register(
         }
     }
     // Check if the username already exists
-    if let Ok(Some(_)) = redis.get_user(&competition.name, &query.username) {
+    if let Ok(Some(_)) = redis.get_user(&competition.name, &query.username).await {
         return Ok(HttpResponse::Found()
             .append_header(("Location", "/register?error=username_exists"))
             .finish());
@@ -397,10 +399,9 @@ pub async fn register(
         identity_sources: vec![carve::redis_manager::IdentitySources::LocalUserPassword],
     };
     // Register the user in Redis
-    match redis.register_user(&competition.name, &user, user.team_name.as_deref()) {
+    match redis.register_user(&competition.name, &user, user.team_name.as_deref()).await {
         Ok(_) => {
-            match redis.set_user_local_password(&competition.name, &query.username, &query.password)
-            {
+            match redis.set_user_local_password(&competition.name, &query.username, &query.password).await {
                 Ok(_) => {
                     // redirect to login page with success message
                     Ok(HttpResponse::Found()

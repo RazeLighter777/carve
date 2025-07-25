@@ -1,6 +1,7 @@
 use actix_cors::Cors;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::cookie::Key;
+use actix_web::guard::GuardContext;
 use actix_web::middleware::{self};
 use actix_web::post;
 use actix_web::{
@@ -27,6 +28,7 @@ pub use boxes::get_box_default_creds;
 pub use boxes::get_box_creds_for_team;
 pub use boxes::get_boxes;
 use rand::distr::SampleString;
+use tokio::runtime::Handle;
 
 // API Handlers
 #[get("/competition")]
@@ -34,7 +36,7 @@ async fn get_competition(
     competition: web::Data<Competition>,
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
-    match redis.get_competition_state(&competition.name) {
+    match redis.get_competition_state(&competition.name).await {
         Ok(state) => Ok(HttpResponse::Ok().json(state)),
         Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "Failed to retrieve competition state"
@@ -121,7 +123,7 @@ async fn get_leaderboard(
                 competition.get_team_id_from_name(&team.name).unwrap_or(0),
                 &check.name,
                 check.points as i64,
-            ) {
+            ).await {
                 Ok(score) => total_score += score,
                 Err(_) => {
                     // Continue even if Redis query fails for this check
@@ -135,7 +137,7 @@ async fn get_leaderboard(
                 competition.get_team_id_from_name(&team.name).unwrap_or(0),
                 &flag_check.name,
                 flag_check.points as i64,
-            ) {
+            ).await {
                 Ok(score) => total_score += score,
                 Err(_) => {
                     // Continue even if Redis query fails for this flag check
@@ -194,7 +196,7 @@ async fn submit_flag(
         }
     };
     // Get user and team name
-    let user = match redis.get_user(&competition.name, &username) {
+    let user = match redis.get_user(&competition.name, &username).await {
         Ok(Some(u)) => u,
         _ => {
             return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
@@ -224,7 +226,7 @@ async fn submit_flag(
         }
     };
     // Disallow flag submission if competition is not Active (fetch from Redis)
-    let state = match redis.get_competition_state(&competition.name) {
+    let state = match redis.get_competition_state(&competition.name).await {
         Ok(s) => s,
         Err(_) => {
             return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
@@ -244,7 +246,7 @@ async fn submit_flag(
         competition.get_team_id_from_name(team_name).unwrap_or(0),
         &query.flag,
         flag_check,
-    ) {
+    ).await {
         Ok(true) => Ok(HttpResponse::Ok().json(types::RedeemFlagResponse {
             success: true,
             message: "Flag accepted!".to_string(),
@@ -259,11 +261,11 @@ async fn submit_flag(
     }
 }
 
-pub fn generate_admin_user_if_not_exists(
+pub async fn generate_admin_user_if_not_exists(
     redis: &RedisManager,
     competition: &Competition,
 ) -> Result<(), String> {
-    if let Ok(users) = redis.get_all_users(&competition.name) {
+    if let Ok(users) = redis.get_all_users(&competition.name).await {
         if users.iter().any(|u| u.is_admin) {
             return Ok(());
         }
@@ -278,6 +280,7 @@ pub fn generate_admin_user_if_not_exists(
     };
     redis
         .register_user(&competition.name, &admin_user, None)
+        .await
         .expect("Failed to create admin user");
     println!("Admin user created: {}", admin_user.username);
     // generate a password for the admin user
@@ -289,6 +292,7 @@ pub fn generate_admin_user_if_not_exists(
     // Store the password in Redis
     redis
         .set_user_local_password(&competition.name, &admin_user.username, &password)
+        .await
         .expect("Failed to set admin user password");
 
     Ok(())
@@ -331,6 +335,7 @@ async fn main() -> std::io::Result<()> {
     // if the competition has create_default_admin set to true, generate an admin user
     if competition.create_default_admin {
         generate_admin_user_if_not_exists(&redis_manager, competition)
+            .await
             .expect("Failed to generate admin user");
     }
 
@@ -396,7 +401,10 @@ async fn main() -> std::io::Result<()> {
                     )
                     .service(
                         web::scope("/internal")
-                            .guard(auth::validate_bearer_token)
+                            .guard(|ctx: &GuardContext| {
+                                let tokio_handle = Handle::current();
+                                tokio_handle.block_on(auth::validate_bearer_token(ctx))
+                            })
                             .service(flag::generate_flag)
                             .service(boxes::get_box)
                             .service(boxes::get_box_creds_for_team)

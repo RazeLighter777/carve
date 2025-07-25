@@ -15,7 +15,7 @@ pub async fn get_user(
     // ...existing code from main.rs...
     let username = query.username.clone();
     // Get user from Redis
-    match redis.get_user(&competition.name, &username) {
+    match redis.get_user(&competition.name, &username).await {
         Ok(Some(user)) => {
             let team_id = if let Some(ref team_name) = user.team_name {
                 competition
@@ -58,7 +58,7 @@ pub async fn switch_team(
             })));
         }
         // call redis manager's check_team_join_code to get team id (if the code is valid)
-        let team_name = match redis.check_team_join_code(&competition.name, query.team_join_code) {
+        let team_name = match redis.check_team_join_code(&competition.name, query.team_join_code).await {
             Ok(Some(id)) => id,
             Ok(None) => {
                 return Ok(HttpResponse::NotFound().json(serde_json::json!({
@@ -89,7 +89,7 @@ pub async fn switch_team(
                 identity_sources: vec![],
             },
             Some(&team_name),
-        ) {
+        ).await {
             Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
                 "message": "Switched team successfully",
                 "team_name": team_name,
@@ -122,7 +122,7 @@ pub async fn generate_join_code(
         })));
     }
     // generate a join code for the team
-    match redis.generate_team_join_code(&competition.name, &team_name) {
+    match redis.generate_team_join_code(&competition.name, &team_name).await {
         Ok(join_code) => Ok(HttpResponse::Ok().json(serde_json::json!({
             "code": join_code,
         }))),

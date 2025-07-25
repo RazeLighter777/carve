@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 carve = { path = "../carve" }
+tokio = { version = "1.46.1", features = ["full"] }
 
 
 [[bin]]

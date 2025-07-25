@@ -14,7 +14,7 @@ pub struct CloudInit {
 }
 
 impl CloudInit {
-    pub fn generate_default(
+    pub async fn generate_default(
         box_name: &str,
         competition: &str,
         team_name: &str,
@@ -52,7 +52,7 @@ ethernets:
         );
         // SSH keypair
         let (private_ssh_key, public_ssh_key) =
-            match redis_mgr.read_ssh_keypair(competition, team_name, box_name)? {
+            match redis_mgr.read_ssh_keypair(competition, team_name, box_name).await? {
                 Some(key) => (
                     key.clone(),
                     PrivateKey::from_openssh(&key)?.public_key().to_openssh()?,
@@ -71,7 +71,7 @@ ethernets:
         // password
         // Username/password
         let (username, password) =
-            match redis_mgr.read_box_credentials(competition, team_name, box_name)? {
+            match redis_mgr.read_box_credentials(competition, team_name, box_name).await? {
                 Some((u, p)) => (u, p),
                 None => {
                     let username = team_name;
@@ -86,7 +86,7 @@ ethernets:
                         box_name,
                         username,
                         &password,
-                    )?;
+                    ).await?;
                     (username.to_owned(), password)
                 }
             };

@@ -9,12 +9,14 @@ anyhow = "1.0"
 config = { version = "0.13", features = ["yaml"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
-redis = "0.31.0"
+redis = { version = "0.31.0", features = ["tokio-comp"] }
 chrono = { version = "0.4.41", features = ["serde"] }
 rand = "0.9.1"
 argon2 = { version = "0.5.3", features = ["std"] }
 getrandom = "0.3.3"
 regex = "1.11.1"
+tokio = { version = "1.46.1", features = ["full"] }
+futures-util = "0.3.31"
 
 [lib]
 name = "carve"

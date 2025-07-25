@@ -151,7 +151,7 @@ impl Scheduler {
                                             &team.name,
                                             &box_config.name,
                                             ip,
-                                        ) {
+                                        ).await {
                                             info!(
                                                 "Recorded IP {} for box {}.{}.{}.hack",
                                                 ip, box_config.name, team.name, competition_name
@@ -168,7 +168,7 @@ impl Scheduler {
                                             &competition_name,
                                             &team.name,
                                             &box_config.name,
-                                        ) {
+                                        ).await {
                                             Ok(Some((u, p))) => (u, p),
                                             _ => ("".to_string(), "".to_string()), // Default empty if not found
                                         };
@@ -229,7 +229,7 @@ impl Scheduler {
                                     DateTime::from_timestamp(check_timestamp, 0).expect("Failed to create DateTime"),
                                     competition.get_team_id_from_name(&team.name).expect("Team not found"),
                                     passing_boxes.len() as u64,
-                            ) {
+                            ).await {
                                 error!("Failed to record successful check result: {}", e);
                             } else {
                                 info!(
@@ -242,7 +242,7 @@ impl Scheduler {
                                     &competition_name,
                                     &team.name,
                                     check.name.as_str(),
-                                ) {
+                                ).await {
                                     prev_failures = current_state.number_of_failures;
                                     info!(
                                         "Current state for check {} on team {}: {:?}",
@@ -268,7 +268,7 @@ impl Scheduler {
                                     messages.clone(),
                                     (passing_boxes.len() as u64, messages.len() as u64),
                                     passing_boxes.clone(),
-                                ) {
+                                ).await {
                                     error!("Failed to set check state: {}", e);
                                 } else {
                                     info!(

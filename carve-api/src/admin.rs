@@ -29,7 +29,7 @@ async fn start_competition(
 ) -> ActixResult<impl Responder> {
     let competition_name = &competition.name;
     let duration = competition.duration;
-    match redis.start_competition(competition_name, duration) {
+    match redis.start_competition(competition_name, duration).await {
         Ok(_) => Ok(HttpResponse::Ok().body("Competition started")),
         Err(e) => {
             Ok(HttpResponse::InternalServerError()
@@ -44,7 +44,7 @@ async fn end_competition(
     competition: web::Data<Competition>,
 ) -> ActixResult<impl Responder> {
     let competition_name = &competition.name;
-    match redis.end_competition(competition_name) {
+    match redis.end_competition(competition_name).await {
         Ok(_) => Ok(HttpResponse::Ok().body("Competition stopped")),
         Err(e) => {
             Ok(HttpResponse::InternalServerError()
@@ -65,7 +65,7 @@ pub async fn generate_join_code(
         })));
     }
     // generate a join code for the team
-    match redis.generate_team_join_code(&competition.name, &query.team_name) {
+    match redis.generate_team_join_code(&competition.name, &query.team_name).await {
         Ok(join_code) => Ok(HttpResponse::Ok().json(serde_json::json!({
             "code": join_code,
         }))),
@@ -80,7 +80,7 @@ pub async fn generate_join_code(
 pub async fn create_api_key(
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
-    match redis.generate_api_key() {
+    match redis.generate_api_key().await {
         Ok(api_key) => Ok(HttpResponse::Ok().json(ApiKeyResponse { api_key })),
         Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "Failed to generate API key"
@@ -93,7 +93,7 @@ pub async fn create_api_key(
 pub async fn get_api_keys(
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
-    match redis.get_api_keys() {
+    match redis.get_api_keys().await {
         Ok(api_keys) => Ok(HttpResponse::Ok().json(ApiKeysListResponse { api_keys })),
         Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "Failed to retrieve API keys"
@@ -113,7 +113,7 @@ pub async fn delete_api_key(
         })));
     }
 
-    match redis.remove_api_key(&req.api_key) {
+    match redis.remove_api_key(&req.api_key).await {
         Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
             "message": "API key deleted successfully"
         }))),

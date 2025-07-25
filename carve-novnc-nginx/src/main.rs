@@ -2,7 +2,8 @@ use std::process::exit;
 
 use carve::{config::AppConfig, redis_manager};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let config = AppConfig::new().expect("Failed to load configuration");
     let competition = &config.competitions[0];
     let redis_manager =
@@ -43,6 +44,7 @@ server { \
         // get the teams console password from redis
         let console_password = redis_manager
             .get_box_console_code(&competition.name, &team.name)
+            .await
             .expect("Failed to get team console password");
         for b in &competition.boxes {
             // removed bullshit cloudflare headers
