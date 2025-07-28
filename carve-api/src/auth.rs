@@ -3,6 +3,7 @@ use std::error::Error;
 use crate::types;
 use actix_session::{Session, SessionExt};
 use actix_web::cookie::Cookie;
+use actix_web::body::MessageBody;
 use actix_web::guard::GuardContext;
 use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
 use carve::config::Competition;
@@ -35,21 +36,28 @@ pub fn validate_session(ctx: &GuardContext) -> bool {
     false
 }
 
-pub async fn validate_bearer_token(ctx: &GuardContext<'_>) -> bool {
-    if let Some(auth_header) = ctx.head().headers().get("Authorization") {
+pub async fn validate_bearer_token(
+    req: actix_web::dev::ServiceRequest,
+    next : actix_web::middleware::Next<impl MessageBody>,
+) -> Result<actix_web::dev::ServiceResponse<impl MessageBody>, actix_web::Error> {
+    if let Some(auth_header) = req.headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 // Get Redis manager from app data
-                if let Some(redis) = ctx.app_data::<web::Data<RedisManager>>() {
+                if let Some(redis) = req.app_data::<web::Data<RedisManager>>() {
                     // Check if the API key exists in Redis
                     if let Ok(exists) = redis.check_api_key_exists(token).await {
-                        return exists;
+                        return if exists {
+                            next.call(req).await
+                        } else {
+                            Err(actix_web::error::ErrorUnauthorized("Invalid API key"))
+                        };
                     }
                 }
             }
         }
     }
-    false
+    Err(actix_web::error::ErrorUnauthorized("Missing or invalid Authorization header"))
 }
 
 #[get("/get_oauth2_redirect_url")]

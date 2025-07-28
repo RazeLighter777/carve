@@ -1,7 +1,6 @@
 use actix_cors::Cors;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::cookie::Key;
-use actix_web::guard::GuardContext;
 use actix_web::middleware::{self};
 use actix_web::post;
 use actix_web::{
@@ -28,7 +27,6 @@ pub use boxes::get_box_default_creds;
 pub use boxes::get_box_creds_for_team;
 pub use boxes::get_boxes;
 use rand::distr::SampleString;
-use tokio::runtime::Handle;
 
 // API Handlers
 #[get("/competition")]
@@ -401,10 +399,7 @@ async fn main() -> std::io::Result<()> {
                     )
                     .service(
                         web::scope("/internal")
-                            .guard(|ctx: &GuardContext| {
-                                let tokio_handle = Handle::current();
-                                tokio_handle.block_on(auth::validate_bearer_token(ctx))
-                            })
+                            .wrap(middleware::from_fn(auth::validate_bearer_token))
                             .service(flag::generate_flag)
                             .service(boxes::get_box)
                             .service(boxes::get_box_creds_for_team)
