@@ -1,15 +1,12 @@
 use rand::{Rng, rng};
-use std::net::{IpAddr};
+use std::net::IpAddr;
 
 use crate::config::{FlagCheck, RedisConfig};
 use crate::util;
-use futures_util::StreamExt;
 use anyhow::{Context, Result};
-use argon2::{
-    PasswordHasher,
-    PasswordVerifier, password_hash::SaltString,
-};
+use argon2::PasswordVerifier;
 use chrono::{DateTime, Utc};
+use futures_util::StreamExt;
 use redis::Client;
 use serde::{Deserialize, Serialize};
 
@@ -57,7 +54,7 @@ pub struct CheckCurrentState {
     pub number_of_failures: u64,
     pub message: Vec<String>,
     pub success_fraction: (u64, u64), // fraction of successful checks over total checks
-    pub passing_boxes : Vec<String>, // List of boxes that passed the check
+    pub passing_boxes: Vec<String>,   // List of boxes that passed the check
 }
 
 impl User {
@@ -110,38 +107,129 @@ pub struct RedisManager {
 }
 
 impl RedisManager {
+    // Helper to get Redis connection
+    async fn get_connection(&self) -> Result<redis::aio::MultiplexedConnection> {
+        self.client
+            .get_multiplexed_tokio_connection()
+            .await
+            .context("Failed to connect to Redis")
+    }
+
+    // Key helpers
+    fn competition_key(&self, competition_name: &str, suffix: &str) -> String {
+        format!("{}:{}", competition_name, suffix)
+    }
+    fn team_key(&self, competition_name: &str, team_name: &str, suffix: &str) -> String {
+        format!("{}:{}:{}", competition_name, team_name, suffix)
+    }
+    fn box_key(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        box_name: &str,
+        suffix: &str,
+    ) -> String {
+        format!("{}:{}:{}:{}", competition_name, team_name, box_name, suffix)
+    }
+
+    // Redis command helpers
+    async fn redis_hset<K: redis::ToRedisArgs, F: redis::ToRedisArgs, V: redis::ToRedisArgs>(
+        &self,
+        key: K,
+        field: F,
+        value: V,
+    ) -> Result<()> {
+        let mut conn = self.get_connection().await?;
+        redis::cmd("HSET")
+            .arg(key)
+            .arg(field)
+            .arg(value)
+            .query_async(&mut conn)
+            .await
+            .context("Failed to execute HSET")
+    }
+    async fn redis_hget<K: redis::ToRedisArgs, F: redis::ToRedisArgs, T: redis::FromRedisValue>(
+        &self,
+        key: K,
+        field: F,
+    ) -> Result<Option<T>> {
+        let mut conn = self.get_connection().await?;
+        redis::cmd("HGET")
+            .arg(key)
+            .arg(field)
+            .query_async(&mut conn)
+            .await
+            .context("Failed to execute HGET")
+    }
+    async fn redis_sadd<K: redis::ToRedisArgs, V: redis::ToRedisArgs>(
+        &self,
+        key: K,
+        value: V,
+    ) -> Result<()> {
+        let mut conn = self.get_connection().await?;
+        redis::cmd("SADD")
+            .arg(key)
+            .arg(value)
+            .query_async(&mut conn)
+            .await
+            .context("Failed to execute SADD")
+    }
+
+    // Random generation helpers
+    fn generate_hex_string(length: usize) -> String {
+        let mut rng = rng();
+        (0..length)
+            .map(|_| format!("{:02x}", rng.random::<u8>()))
+            .collect()
+    }
+
+    fn generate_alphanumeric_string(length: usize) -> String {
+        let chars = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let mut rng = rng();
+        (0..length)
+            .map(|_| chars[rng.random_range(0..chars.len())] as char)
+            .collect()
+    }
+
+    fn generate_lowercase_string(length: usize) -> String {
+        let chars = b"abcdefghijklmnopqrstuvwxyz";
+        let mut rng = rng();
+        (0..length)
+            .map(|_| chars[rng.random_range(0..chars.len())] as char)
+            .collect()
+    }
+
+    // Serialization helpers
+    fn serialize_to_yaml<T: serde::Serialize>(value: &T) -> Result<String> {
+        serde_yaml::to_string(value).context("Failed to serialize to YAML")
+    }
+    fn deserialize_from_yaml<T: for<'de> serde::Deserialize<'de>>(yaml: &str) -> Result<T> {
+        serde_yaml::from_str(yaml).context("Failed to deserialize from YAML")
+    }
     pub fn new(config: &RedisConfig) -> Result<Self> {
         let redis_url = format!("redis://{}:{}/{}", config.host, config.port, config.db);
         let client = Client::open(redis_url).context("Failed to create Redis client")?;
         Ok(Self { client })
     }
 
-    pub async fn generate_team_join_code(&self, competition_name: &str, team_name: &str) -> Result<u64> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
+    pub async fn generate_team_join_code(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+    ) -> Result<u64> {
+        let mut conn = self.get_connection().await?;
+        let join_code: u64 = rand::random::<u64>() % 1_000_000_000;
+        let key = self.competition_key(competition_name, "team_join_codes");
 
-        // Generate a unique join code (u64)
-        let join_code: u64 = rand::random::<u64>() % 1_000_000_000; // 9-digit code
-        // Store the team name with the join code
-        let key = format!("{}:team_join_codes", competition_name);
-        let _: () = redis::cmd("HSET")
+        self.redis_hset(&key, join_code, team_name).await?;
+
+        redis::cmd("HEXPIRE")
             .arg(&key)
-            .arg(join_code)
-            .arg(team_name)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to store team join code")?;
-        // set an expiration time for the join code (optional, e.g., 24 hours)
-        let _: () = redis::cmd("HEXPIRE")
-            .arg(&key)
-            .arg(86400) // 24 hours in seconds
+            .arg(86400)
             .arg("FIELDS")
             .arg(1)
             .arg(join_code)
-            .query_async(&mut conn)
+            .query_async::<()>(&mut conn)
             .await
             .context("Failed to set expiration for team join code")?;
         Ok(join_code)
@@ -150,38 +238,19 @@ impl RedisManager {
     // and is passed to novnc proxy in the url path.
     // This is a 32 character alphanumeric code.
     // if the code already exists, it will return the existing code.
-    pub async fn get_box_console_code(&self, competition_name: &str, team_name: &str) -> Result<String> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-        // Check if the console code already exists
-        let key = format!("{}:box_console_codes", competition_name);
-        if let Some(console_code) = redis::cmd("HGET")
-            .arg(&key)
-            .arg(team_name)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to get box console code")?
-        {
+    pub async fn get_box_console_code(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+    ) -> Result<String> {
+        let key = self.competition_key(competition_name, "box_console_codes");
+
+        if let Some(console_code) = self.redis_hget::<_, _, String>(&key, team_name).await? {
             return Ok(console_code);
         }
-        // Generate a new console code
-        let console_code: String = (0..32)
-            .map(|_| {
-                let chars = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-                chars[rng().random_range(0..chars.len())] as char
-            })
-            .collect();
-        let _: () = redis::cmd("HSET")
-            .arg(&key)
-            .arg(team_name)
-            .arg(&console_code)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to store box console code")?;
 
+        let console_code = Self::generate_alphanumeric_string(32);
+        self.redis_hset(&key, team_name, &console_code).await?;
         Ok(console_code)
     }
 
@@ -190,30 +259,12 @@ impl RedisManager {
         competition_name: &str,
         join_code: u64,
     ) -> Result<Option<String>> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-
-        // Check if the join code exists
-        let key = format!("{}:team_join_codes", competition_name);
-        let team_name: Option<String> = redis::cmd("HGET")
-            .arg(&key)
-            .arg(join_code)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to check team join code")?;
-
-        Ok(team_name)
+        let key = self.competition_key(competition_name, "team_join_codes");
+        self.redis_hget(&key, join_code).await
     }
 
     pub async fn health_check(&self) -> Result<()> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
+        let mut conn = self.get_connection().await?;
         redis::cmd("PING")
             .query_async::<String>(&mut conn)
             .await
@@ -230,14 +281,17 @@ impl RedisManager {
         box_name: &str,
         events: impl Iterator<Item = QemuCommands> + Clone,
     ) -> Result<QemuCommands> {
-
         // the key name
         let key = format!("{}:{}:{}:events", competition_name, team_name, box_name);
 
         // Subscribe to the key for events
-        let (mut sink, mut stream) = self.client.get_async_pubsub().await.context("Failed to get Redis pubsub connection")?.split();
-        sink
-            .subscribe(&key)
+        let (mut sink, mut stream) = self
+            .client
+            .get_async_pubsub()
+            .await
+            .context("Failed to get Redis pubsub connection")?
+            .split();
+        sink.subscribe(&key)
             .await
             .context("Failed to subscribe to Redis channel")?;
 
@@ -248,7 +302,10 @@ impl RedisManager {
                 .await
                 .context("Failed to receive message from Redis")?;
             // check if the message is a valid QEMU command
-            if let Ok(command) = serde_yaml::from_str::<QemuCommands>(&msg.get_payload::<String>().context("Failed to get payload from Redis message")?) {
+            if let Ok(command) = serde_yaml::from_str::<QemuCommands>(
+                &msg.get_payload::<String>()
+                    .context("Failed to get payload from Redis message")?,
+            ) {
                 if events.clone().any(|e| e == command) {
                     return Ok(command);
                 }
@@ -313,12 +370,13 @@ impl RedisManager {
 
         Ok(())
     }
-    
+
     pub async fn is_cooldown_ready(
         &self,
         competition_name: &str,
         team_name: &str,
-        box_name: &str) -> Option<i64> {
+        box_name: &str,
+    ) -> Option<i64> {
         // check if key is expiring, and if it is return time left with TTL
         let mut conn = match self.client.get_multiplexed_tokio_connection().await {
             Ok(conn) => conn,
@@ -331,7 +389,8 @@ impl RedisManager {
             .arg(&key)
             .query_async(&mut conn)
             .await
-            .context("Failed to check cooldown TTL").ok()?;
+            .context("Failed to check cooldown TTL")
+            .ok()?;
         // redis returns -2 if the key does not exist, -1 if it exists but has no expiration
         if ttl == -2 {
             return None; // Cooldown does not exist
@@ -342,44 +401,28 @@ impl RedisManager {
         Some(ttl) // Return the remaining TTL in seconds
     }
 
-
     pub async fn create_vxlan_fdb_entry(
         &self,
         competition_name: &str,
         mac_address: &str,
         ip_address: IpAddr,
-        domain: &str
+        domain: &str,
     ) -> Result<()> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-
-        // the key name
+        let mut conn = self.get_connection().await?;
         let key = format!("{}:vxlan_fdb:{}", competition_name, domain);
-        
-        // Create a unique identifier for the entry
 
-        // Store the FDB entry as a hash with overlay address and MAC address
-        let _: () = redis::cmd("HSET")
+        self.redis_hset(&key, mac_address, ip_address.to_string())
+            .await?;
+
+        redis::cmd("HEXPIRE")
             .arg(&key)
-            .arg(&mac_address)
-            .arg(ip_address.to_string())
-            .query_async(&mut conn)
-            .await
-            .context("Failed to create VXLAN FDB entry")?;
-        //expire the entry every 10 seconds
-        let _: () = redis::cmd("HEXPIRE")
-            .arg(&key)
-            .arg(20) // 20 seconds
+            .arg(20)
             .arg("FIELDS")
             .arg(1)
             .arg(mac_address)
-            .query_async(&mut conn)
+            .query_async::<()>(&mut conn)
             .await
             .context("Failed to set expiration for VXLAN FDB entry")?;
-
         Ok(())
     }
 
@@ -388,29 +431,19 @@ impl RedisManager {
         competition_name: &str,
         domain: &str,
     ) -> Result<Vec<(String, String)>> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-
-        // the key name
+        let mut conn = self.get_connection().await?;
         let key = format!("{}:vxlan_fdb:{}", competition_name, domain);
 
-        // Get all FDB entries for the team
         let entries: Vec<String> = redis::cmd("HGETALL")
             .arg(&key)
             .query_async(&mut conn)
             .await
             .context("Failed to get VXLAN FDB entries")?;
-        //use chunks to parse the entries
-        let mut result = Vec::new();
-        for chunk in entries.chunks(2) {
-                let overlay_address = chunk[0].to_string();
-                let mac_address = chunk[1].to_string();
-                result.push((overlay_address, mac_address));
-        }
-        Ok(result)
+
+        Ok(entries
+            .chunks(2)
+            .map(|chunk| (chunk[0].to_string(), chunk[1].to_string()))
+            .collect())
     }
 
     pub async fn record_sucessful_check_result(
@@ -483,19 +516,51 @@ impl RedisManager {
         box_name: &str,
         ip_address: IpAddr,
     ) -> Result<()> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-        let key = format!("{}:{}:{}:ip_address", competition_name, team_name, box_name);
-        let _: () = redis::cmd("SET")
+        let key = self.box_key(competition_name, team_name, box_name, "ip_address");
+        let mut conn = self.get_connection().await?;
+        redis::cmd("SET")
             .arg(&key)
             .arg(ip_address.to_string())
+            .query_async::<()>(&mut conn)
+            .await
+            .context("Failed to record box IP address")
+    }
+
+    // Helper method for box data operations
+    async fn write_box_data(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        box_name: &str,
+        suffix: &str,
+        data: &str,
+    ) -> Result<bool> {
+        let mut conn = self.get_connection().await?;
+        let key = self.box_key(competition_name, team_name, box_name, suffix);
+        let res: Option<String> = redis::cmd("SET")
+            .arg(&key)
+            .arg(data)
+            .arg("NX")
             .query_async(&mut conn)
             .await
-            .context("Failed to record box IP address")?;
-        Ok(())
+            .with_context(|| format!("Failed to write box {}", suffix))?;
+        Ok(res.is_some())
+    }
+
+    async fn read_box_data(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+        box_name: &str,
+        suffix: &str,
+    ) -> Result<Option<String>> {
+        let mut conn = self.get_connection().await?;
+        let key = self.box_key(competition_name, team_name, box_name, suffix);
+        redis::cmd("GET")
+            .arg(&key)
+            .query_async(&mut conn)
+            .await
+            .with_context(|| format!("Failed to read box {}", suffix))
     }
 
     // Write SSH keypair for a box. Returns true if written, false if key exists.
@@ -506,24 +571,14 @@ impl RedisManager {
         box_name: &str,
         private_key: &str,
     ) -> Result<bool> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-        let key = format!(
-            "{}:{}:{}:ssh_keypair",
-            competition_name, team_name, box_name
-        );
-        // NX: Only set if not exists
-        let res: Option<String> = redis::cmd("SET")
-            .arg(&key)
-            .arg(private_key)
-            .arg("NX")
-            .query_async(&mut conn)
-            .await
-            .context("Failed to write SSH keypair")?;
-        Ok(res.is_some())
+        self.write_box_data(
+            competition_name,
+            team_name,
+            box_name,
+            "ssh_keypair",
+            private_key,
+        )
+        .await
     }
 
     // Read SSH keypair for a box. Returns None if not found.
@@ -533,21 +588,8 @@ impl RedisManager {
         team_name: &str,
         box_name: &str,
     ) -> Result<Option<String>> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
+        self.read_box_data(competition_name, team_name, box_name, "ssh_keypair")
             .await
-            .context("Failed to connect to Redis")?;
-        let key = format!(
-            "{}:{}:{}:ssh_keypair",
-            competition_name, team_name, box_name
-        );
-        let val: Option<String> = redis::cmd("GET")
-            .arg(&key)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to read SSH keypair")?;
-        Ok(val)
     }
 
     // Write username/password for a box. Returns true if written, false if key exists.
@@ -559,24 +601,9 @@ impl RedisManager {
         username: &str,
         password: &str,
     ) -> Result<bool> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-        let key = format!(
-            "{}:{}:{}:credentials",
-            competition_name, team_name, box_name
-        );
         let value = format!("{}:{}", username, password);
-        let res: Option<String> = redis::cmd("SET")
-            .arg(&key)
-            .arg(value)
-            .arg("NX")
-            .query_async(&mut conn)
+        self.write_box_data(competition_name, team_name, box_name, "credentials", &value)
             .await
-            .context("Failed to write box credentials")?;
-        Ok(res.is_some())
     }
 
     // Read username/password for a box. Returns None if not found.
@@ -586,22 +613,11 @@ impl RedisManager {
         team_name: &str,
         box_name: &str,
     ) -> Result<Option<(String, String)>> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-        let key = format!(
-            "{}:{}:{}:credentials",
-            competition_name, team_name, box_name
-        );
-        let val: Option<String> = redis::cmd("GET")
-            .arg(&key)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to read box credentials")?;
-        if let Some(s) = val {
-            let mut parts = s.splitn(2, ':');
+        if let Some(val) = self
+            .read_box_data(competition_name, team_name, box_name, "credentials")
+            .await?
+        {
+            let mut parts = val.splitn(2, ':');
             if let (Some(username), Some(password)) = (parts.next(), parts.next()) {
                 return Ok(Some((username.to_string(), password.to_string())));
             }
@@ -653,198 +669,102 @@ impl RedisManager {
         user: &User,
         team_name: Option<&str>,
     ) -> Result<()> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-        // Validate user fields
-        if util::validate_user_fields(user).is_err() {
-            return Err(anyhow::anyhow!("Invalid user fields"));
-        }
-        // Keys for Redis operations
-        let users_key = format!("{}:users", competition_name);
-        let users_data_key = format!("{}:user_data", competition_name);
+        util::validate_user_fields(user)
+            .map_err(|e| anyhow::anyhow!("Invalid user fields: {}", e))?;
+        let users_key = self.competition_key(competition_name, "users");
+        let users_data_key = self.competition_key(competition_name, "user_data");
 
-        // Check if user already exists in the competition
-        let user_exists: bool = redis::cmd("SISMEMBER")
-            .arg(&users_key)
-            .arg(&user.username)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to check if user exists")?;
-
-        if user_exists {
-            let existing_user_data_str: String = redis::cmd("HGET")
-                .arg(&users_data_key)
-                .arg(&user.username)
-                .query_async(&mut conn)
-                .await
-                .context("Failed to get existing user data")?;
-            let existing_user = User::from_redis_format(&existing_user_data_str)
+        let mut updated_user = if let Some(existing_user_data) = self
+            .redis_hget::<_, _, String>(&users_data_key, &user.username)
+            .await?
+        {
+            let mut existing_user = User::from_redis_format(&existing_user_data)
                 .context("Failed to deserialize existing user data")?;
-            // User exists, need to find their current team and move them if a new team is provided
-            if team_name.is_some() {
-                let pattern = format!("{}:*:users", competition_name);
-                let team_keys: Vec<String> = redis::cmd("KEYS")
-                    .arg(&pattern)
-                    .query_async(&mut conn)
-                    .await
-                    .context("Failed to get team keys")?;
-                for team_key in team_keys {
-                    let is_member: bool = redis::cmd("SISMEMBER")
-                        .arg(&team_key)
-                        .arg(&user.username)
-                        .query_async(&mut conn)
-                        .await
-                        .context("Failed to check team membership")?;
-                    if is_member {
-                        // Remove user from old team
-                        let _: () = redis::cmd("SREM")
-                            .arg(&team_key)
-                            .arg(&user.username)
-                            .query_async(&mut conn)
-                            .await
-                            .context("Failed to remove user from old team")?;
-                        break;
-                    }
+            for new_source in &user.identity_sources {
+                if !existing_user.identity_sources.contains(new_source) {
+                    existing_user.identity_sources.push(new_source.clone());
                 }
             }
-            // Update <competition_name>:user_data field
-            // Make sure new identity_sources are included, make sure to not overwrite existing ones or add duplicates
-
-            // Add new identity source if not already present
-            let mut updated_user = existing_user.clone();
-            for new_identity_source in user.identity_sources.clone() {
-                if !updated_user.identity_sources.contains(&new_identity_source) {
-                    updated_user.identity_sources.push(new_identity_source);
-                }
-            }
-            // update email and team name
-            updated_user.email = user.email.clone();
-            updated_user.team_name = user.team_name.clone();
-            // write the updated user data back to Redis
-            let user_data = updated_user.to_redis_format();
-            let _: () = redis::cmd("HSET")
-                .arg(&users_data_key)
-                .arg(&user.username)
-                .arg(&user_data)
-                .query_async(&mut conn)
-                .await
-                .context("Failed to update user data")?;
+            existing_user.email = user.email.clone();
+            existing_user.team_name = user.team_name.clone();
+            existing_user
         } else {
-            // New user, add to global users set
-            let _: () = redis::cmd("SADD")
-                .arg(&users_key)
-                .arg(&user.username)
-                .query_async(&mut conn)
-                .await
-                .context("Failed to add user to global users set")?;
-            // Serialize user data
-            let user_data = user.to_redis_format();
-            // Store user data in <competition_name>:user_data hash
-            let _: () = redis::cmd("HSET")
-                .arg(&users_data_key)
-                .arg(&user.username)
-                .arg(&user_data)
-                .query_async(&mut conn)
-                .await
-                .context("Failed to store user data")?;
-        }
+            self.redis_sadd(&users_key, &user.username).await?;
+            user.clone()
+        };
 
-        // Add user to the new team if provided
         if let Some(team_name) = team_name {
-            let new_team_users_key = format!("{}:{}:users", competition_name, team_name);
-            let _: () = redis::cmd("SADD")
-                .arg(&new_team_users_key)
-                .arg(&user.username)
-                .query_async(&mut conn)
-                .await
-                .context("Failed to add user to new team")?;
+            self.move_user_to_team(competition_name, &user.username, team_name)
+                .await?;
+            updated_user.team_name = Some(team_name.to_string());
         }
 
+        self.redis_hset(
+            &users_data_key,
+            &user.username,
+            updated_user.to_redis_format(),
+        )
+        .await?;
         Ok(())
     }
 
-    // Set a local user password for a user. This is used for local authentication.
-    // the password is hashed with argon2i and stored in Redis competition_name:users:password_hashes where the key is the username and the value is the hashed password.
-    // The user will be re-registered with the new identity source LocalUserPassword, copying all other existing identity sources and user data.
-    // the method will fail if the user does not exist.
+    async fn move_user_to_team(
+        &self,
+        competition_name: &str,
+        username: &str,
+        new_team: &str,
+    ) -> Result<()> {
+        let mut conn = self.get_connection().await?;
+        let pattern = format!("{}:*:users", competition_name);
+        let team_keys: Vec<String> = redis::cmd("KEYS")
+            .arg(&pattern)
+            .query_async(&mut conn)
+            .await?;
+        for team_key in team_keys {
+            let _: () = redis::cmd("SREM")
+                .arg(&team_key)
+                .arg(username)
+                .query_async(&mut conn)
+                .await?;
+        }
+        let new_team_key = self.team_key(competition_name, new_team, "users");
+        self.redis_sadd(&new_team_key, username).await?;
+        Ok(())
+    }
+
+    // Set a local user password using argon2i hashing
     pub async fn set_user_local_password(
         &self,
         competition_name: &str,
         username: &str,
         password: &str,
     ) -> Result<()> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-        // Validate username and password
-        if util::validate_password(password).is_err() {
-            return Err(anyhow::anyhow!("Invalid password format"));
-        }
-        // Key for storing user password hashes
-        let password_hashes_key = format!("{}:users:password_hashes", competition_name);
-        let user_key = format!("{}:users", competition_name);
-        // Check if the user exists
-        let user_exists: bool = redis::cmd("SISMEMBER")
-            .arg(&user_key)
-            .arg(username)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to check if user exists")?;
-
-        if !user_exists {
-            return Err(anyhow::anyhow!("User does not exist"));
-        }
-        let hasher = argon2::Argon2::default();
-        // Hash the password using argon2i
-        let mut rng = argon2::password_hash::rand_core::OsRng;
-        let hashed_password = hasher
-            .hash_password(password.as_bytes(), &SaltString::generate(&mut rng))
+        use argon2::{Argon2, PasswordHasher};
+        use argon2::password_hash::{rand_core::OsRng, SaltString};
+        
+        let password_hashes_key = self.competition_key(competition_name, "users:password_hashes");
+        
+        // Generate a salt and hash the password
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+        let password_hash = argon2
+            .hash_password(password.as_bytes(), &salt)
             .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?
             .to_string();
-
-        // Store the hashed password in Redis
-        let _: () = redis::cmd("HSET")
-            .arg(&password_hashes_key)
-            .arg(username)
-            .arg(hashed_password)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to store user password hash")?;
-
+            
+        self.redis_hset(&password_hashes_key, username, password_hash).await?;
+        
         // Re-register the user with the new identity source LocalUserPassword
-        let user_data_key = format!("{}:user_data", competition_name);
-        let user_data_str: String = redis::cmd("HGET")
-            .arg(&user_data_key)
-            .arg(username)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to get user data")?;
-
-        if let Some(mut user) = User::from_redis_format(&user_data_str) {
-            // Add LocalUserPassword identity source if not already present
-            if !user
-                .identity_sources
-                .contains(&IdentitySources::LocalUserPassword)
-            {
-                user.identity_sources
-                    .push(IdentitySources::LocalUserPassword);
-                // Update the user data in Redis
-                let updated_user_data = user.to_redis_format();
-                let _: () = redis::cmd("HSET")
-                    .arg(&user_data_key)
-                    .arg(username)
-                    .arg(updated_user_data)
-                    .query_async(&mut conn)
-                    .await
-                    .context("Failed to update user data with new identity source")?;
+        let user_data_key = self.competition_key(competition_name, "user_data");
+        if let Some(user_data_str) = self.redis_hget::<_, _, String>(&user_data_key, username).await? {
+            if let Some(mut user) = User::from_redis_format(&user_data_str) {
+                if !user.identity_sources.contains(&IdentitySources::LocalUserPassword) {
+                    user.identity_sources.push(IdentitySources::LocalUserPassword);
+                    self.redis_hset(&user_data_key, username, user.to_redis_format()).await?;
+                }
             }
         }
-
+        
         Ok(())
     }
 
@@ -856,52 +776,38 @@ impl RedisManager {
         username: &str,
         password: &str,
     ) -> Result<Option<User>> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
+        let password_hashes_key = self.competition_key(competition_name, "users:password_hashes");
 
-        // Key for storing user password hashes
-        let password_hashes_key = format!("{}:users:password_hashes", competition_name);
-
-        // Get the hashed password for the user
-        let hashed_password: Option<String> = redis::cmd("HGET")
-            .arg(&password_hashes_key)
-            .arg(username)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to get user password hash")?;
-
-        if let Some(hashed_password) = hashed_password {
-            // Verify the password using argon2i
+        if let Some(hashed_password) = self
+            .redis_hget::<_, _, String>(&password_hashes_key, username)
+            .await?
+        {
             let hashed_password = argon2::password_hash::PasswordHash::new(&hashed_password)
                 .map_err(|e| anyhow::anyhow!("Failed to parse hashed password: {}", e))?;
             let hasher = argon2::Argon2::default();
+
             if hasher
                 .verify_password(password.as_bytes(), &hashed_password)
                 .is_ok()
             {
-                // Password is valid, get the user data
-                let user_data_key = format!("{}:user_data", competition_name);
-                let user_data_str: String = redis::cmd("HGET")
-                    .arg(&user_data_key)
-                    .arg(username)
-                    .query_async(&mut conn)
-                    .await
-                    .context("Failed to get user data")?;
-
-                if let Some(user) = User::from_redis_format(&user_data_str) {
-                    return Ok(Some(user));
+                let user_data_key = self.competition_key(competition_name, "user_data");
+                if let Some(user_data_str) = self
+                    .redis_hget::<_, _, String>(&user_data_key, username)
+                    .await?
+                {
+                    return Ok(User::from_redis_format(&user_data_str));
                 }
             }
         }
-
-        Ok(None) // Invalid username/password combination
+        Ok(None)
     }
 
     // Get all users for a team
-    pub async fn get_team_users(&self, competition_name: &str, team_name: &str) -> Result<Vec<User>> {
+    pub async fn get_team_users(
+        &self,
+        competition_name: &str,
+        team_name: &str,
+    ) -> Result<Vec<User>> {
         let mut conn = self
             .client
             .get_multiplexed_tokio_connection()
@@ -928,83 +834,42 @@ impl RedisManager {
 
     // Generate a new API key and store it in Redis
     pub async fn generate_api_key(&self) -> Result<String> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-
-        let api_keys_key = "carve:api_keys";
-
-        let mut rng = rng();
-        let api_key: String = (0..16)
-            .map(|_| format!("{:02x}", rng.random::<u8>()))
-            .collect();
-
-        let _: () = redis::cmd("SADD")
-            .arg(api_keys_key)
-            .arg(&api_key)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to add API key to set")?;
-
+        let api_key = Self::generate_hex_string(16);
+        self.redis_sadd("carve:api_keys", &api_key).await?;
         Ok(api_key)
     }
 
     // Remove an API key from Redis
     pub async fn remove_api_key(&self, api_key: &str) -> Result<()> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-
-        let api_keys_key = "carve:api_keys";
-
-        let _: () = redis::cmd("SREM")
-            .arg(api_keys_key)
+        let mut conn = self.get_connection().await?;
+        redis::cmd("SREM")
+            .arg("carve:api_keys")
             .arg(api_key)
             .query_async(&mut conn)
             .await
-            .context("Failed to remove API key from set")?;
-
-        Ok(())
+            .context("Failed to remove API key")
     }
 
     // Check if an API key exists in Redis
     pub async fn check_api_key_exists(&self, api_key: &str) -> Result<bool> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-
-        let api_keys_key = "carve:api_keys";
-
+        let mut conn = self.get_connection().await?;
         let exists: bool = redis::cmd("SISMEMBER")
-            .arg(api_keys_key)
+            .arg("carve:api_keys")
             .arg(api_key)
             .query_async(&mut conn)
             .await
-            .context("Failed to check if API key exists")?;
-
+            .context("Failed to check API key existence")?;
         Ok(exists)
     }
 
     // get api keys list
     pub async fn get_api_keys(&self) -> Result<Vec<String>> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-        let api_keys_key = "carve:api_keys";
-        let keys: Vec<String> = redis::cmd("SMEMBERS")
-            .arg(api_keys_key)
+        let mut conn = self.get_connection().await?;
+        redis::cmd("SMEMBERS")
+            .arg("carve:api_keys")
             .query_async(&mut conn)
             .await
-            .context("Failed to get API keys")?;
-        Ok(keys)
+            .context("Failed to get API keys")
     }
 
     // get the global competition state atomically. If the state is not set, will insert a default state (Unstarted).
@@ -1093,7 +958,11 @@ impl RedisManager {
     }
 
     //starts the copmetition. Returns an error if the competition is already started or finished.
-    pub async fn start_competition(&self, competition_name: &str, duration: Option<u64>) -> Result<()> {
+    pub async fn start_competition(
+        &self,
+        competition_name: &str,
+        duration: Option<u64>,
+    ) -> Result<()> {
         let mut conn = self
             .client
             .get_multiplexed_tokio_connection()
@@ -1232,35 +1101,16 @@ impl RedisManager {
         team_name: &str,
         flag_check_name: &str,
     ) -> Result<String> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-
-        // Key for storing flags
         let key = format!(
             "{}:{}:{}:flags",
             competition_name, team_name, flag_check_name
         );
-        // Generate a new flag in the format "<competition_name>{random 8 lowercase alphabetic characters}"
-        let value: String = format!(
+        let value = format!(
             "{}{{{}}}",
             competition_name,
-            (0..8)
-                .map(|_| {
-                    let chars = b"abcdefghijklmnopqrstuvwxyz";
-                    chars[rng().random_range(0..chars.len())] as char
-                })
-                .collect::<String>()
+            Self::generate_lowercase_string(8)
         );
-        // Store the flag in Redis
-        let _: () = redis::cmd("SADD")
-            .arg(&key)
-            .arg(&value)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to register new flag")?;
+        self.redis_sadd(&key, &value).await?;
         Ok(value)
     }
 
@@ -1302,7 +1152,8 @@ impl RedisManager {
                 timestamp,
                 team_id,
                 1, // 1 occurrence for this flag redemption
-            ).await?;
+            )
+            .await?;
             // set the current state of the flag check to true
             self.set_check_current_state(
                 competition_name,
@@ -1311,9 +1162,10 @@ impl RedisManager {
                 true,
                 0, // No failures on successful flag redemption
                 vec![event_message],
-                (1, 1), // 1 success out of 1 check
+                (1, 1),     // 1 success out of 1 check
                 Vec::new(), // No passing boxes for flag checks
-            ).await?;
+            )
+            .await?;
         }
 
         if exists {
@@ -1338,36 +1190,20 @@ impl RedisManager {
         success: bool,
         number_of_failures: u64,
         messages: Vec<String>,
-        success_fraction : (u64, u64), // fraction of successful checks over total checks
-        passing_boxes : Vec<String>,
+        success_fraction: (u64, u64), // fraction of successful checks over total checks
+        passing_boxes: Vec<String>,
     ) -> Result<()> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-
-        // Key for storing the current state of the flag check
-        let key = format!("{}:{}:current_state", competition_name, team_name);
-        let key2 = check_name_or_flag_check_name.to_string();
+        let key = self.team_key(competition_name, team_name, "current_state");
         let state = CheckCurrentState {
             success,
             number_of_failures,
-            message : messages,
-            success_fraction: success_fraction,
+            message: messages,
+            success_fraction,
             passing_boxes,
         };
-        let status = serde_yaml::to_string(&state).context("Failed to serialize check state to YAML")?;
-        // Store the current state as a YAML string
-        let _: () = redis::cmd("HSET")
-            .arg(&key)
-            .arg(key2)
-            .arg(status)
-            .query_async(&mut conn)
+        let status = Self::serialize_to_yaml(&state)?;
+        self.redis_hset(&key, check_name_or_flag_check_name, status)
             .await
-            .context("Failed to set current state")?;
-
-        Ok(())
     }
 
     pub async fn get_check_current_state(
@@ -1376,70 +1212,53 @@ impl RedisManager {
         team_name: &str,
         check_name_or_flag_check_name: &str,
     ) -> Result<Option<CheckCurrentState>> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
-        // Key for storing the current state of the flag check
-        let key = format!("{}:{}:current_state", competition_name, team_name);
-        // Get the current state for the specified check
-        let state: Option<String> = redis::cmd("HGET")
-            .arg(&key)
-            .arg(check_name_or_flag_check_name)
-            .query_async(&mut conn)
-            .await
-            .context("Failed to get current state")?;
-        if let Some(state_str) = state {
-            match serde_yaml::from_str::<CheckCurrentState>(&state_str) {
-                Ok(parsed) => {
-                    return Ok(Some(parsed));
-                }
+        let key = self.team_key(competition_name, team_name, "current_state");
+
+        if let Some(state_str) = self
+            .redis_hget::<_, _, String>(&key, check_name_or_flag_check_name)
+            .await?
+        {
+            match Self::deserialize_from_yaml(&state_str) {
+                Ok(parsed) => return Ok(Some(parsed)),
                 Err(e) => {
-                    return Err(anyhow::anyhow!("Invalid state format (YAML): {}: {}", state_str, e));
+                    return Err(anyhow::anyhow!(
+                        "Invalid state format (YAML): {}: {}",
+                        state_str,
+                        e
+                    ));
                 }
             }
         }
+
         Ok(Some(CheckCurrentState {
             success: false,
             number_of_failures: 0,
             message: Vec::from(["Unsolved".to_string()]),
             success_fraction: (0, 0),
             passing_boxes: Vec::new(),
-        })) // No state found
+        }))
     }
 
     // Get a specific user by username and find their team
     pub async fn get_user(&self, competition_name: &str, username: &str) -> Result<Option<User>> {
-        let mut conn = self
-            .client
-            .get_multiplexed_tokio_connection()
-            .await
-            .context("Failed to connect to Redis")?;
+        let users_key = self.competition_key(competition_name, "users");
+        let user_data_key = self.competition_key(competition_name, "user_data");
 
-        // Get all users to find the one with matching username
-        let users_key = format!("{}:users", competition_name);
-        let user_data_key = format!("{}:user_data", competition_name);
-        if redis::cmd("SISMEMBER")
+        let mut conn = self.get_connection().await?;
+        let user_exists: bool = redis::cmd("SISMEMBER")
             .arg(&users_key)
             .arg(username)
             .query_async(&mut conn)
             .await
-            .context("Failed to check if user exists")?
-        {
-            // User exists, get their data
-            let user_data: Option<String> = redis::cmd("HGET")
-                .arg(&user_data_key)
-                .arg(username)
-                .query_async(&mut conn)
-                .await
-                .context("Failed to get user data")?;
+            .context("Failed to check if user exists")?;
 
-            return if let Some(data) = user_data {
-                Ok(User::from_redis_format(&data))
-            } else {
-                Ok(None) // User data not found
-            };
+        if user_exists {
+            if let Some(data) = self
+                .redis_hget::<_, _, String>(&user_data_key, username)
+                .await?
+            {
+                return Ok(User::from_redis_format(&data));
+            }
         }
         Ok(None)
     }
@@ -1485,11 +1304,15 @@ impl RedisManager {
         // the key name
         let key = format!("{}:{}:{}", competition_name, team_id, check_name);
         // Get the number of events for this team/check at each timestamp
-        Ok(redis::transaction(&mut conn, &[key.clone()], |con, pipe| {
-            for timestamp in timestamps.clone() {
-                pipe.zcount(&key, "-inf", timestamp);
-            }
-            pipe.query(con)
-        })?)
+        Ok(redis::transaction(
+            &mut conn,
+            &[key.clone()],
+            |con, pipe| {
+                for timestamp in timestamps.clone() {
+                    pipe.zcount(&key, "-inf", timestamp);
+                }
+                pipe.query(con)
+            },
+        )?)
     }
 }

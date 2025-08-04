@@ -4,4 +4,4 @@ path_to_inventory: ../charts/carve/values.yaml  # Path to the inventory file
 competition_name: CarveCTF
 ssh_proxy: carve@localhost:2222
 api_host: https://carvectf.prizrak.me
-secret_key: fa5bc1c8701c4b0eb9d8d704f48318fb
+secret_key: 5524bb8f63b59e0b1ee591f4662a83c3

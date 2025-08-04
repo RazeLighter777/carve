@@ -88,7 +88,7 @@ class InventoryModule(BaseInventoryPlugin):
                             print(f"    No box details found for {hostname}, skipping")
                             continue
                         
-                        ip_address = box_details.get('ip_address')
+                        ip_address = box_details.get('ipAddress')
                         if not ip_address or ip_address in ['Unset', 'DNS Misconfiguration']:
                             print(f"    No IP address found for {hostname}, skipping")
                             continue
@@ -121,7 +121,7 @@ class InventoryModule(BaseInventoryPlugin):
             url = f"{self.api_host}/api/v1/internal/box"
             params = {'name': box_name}
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
-            
+            print(f"response data: {response.text}")
             if response.status_code == 200:
                 return response.json()
             else:
@@ -140,7 +140,7 @@ class InventoryModule(BaseInventoryPlugin):
                 'team': team_name
             }
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
-            
+            print(f"cred response data: {response.text}")
             if response.status_code == 200:
                 return response.json()
             else:

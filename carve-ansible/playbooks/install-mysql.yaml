@@ -1,0 +1,51 @@
+---
+- name: Install and secure MySQL/MariaDB
+  hosts: db
+  become: yes
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install MariaDB server
+      apt:
+        name: mariadb-server
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install expect package
+      apt:
+        name: expect
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Start and enable MariaDB service
+      systemd:
+        name: mariadb
+        state: started
+        enabled: yes
+    - name: install python3-pexpect
+      apt:
+        name: python3-pexpect
+        state: present
+      when: ansible_os_family == "Debian"
+    - name: Secure MariaDB installation
+      become: yes
+      expect:
+        command: mysql_secure_installation
+        responses:
+          'Enter current password for root': ''
+          'Set root password': 'n'
+          'Remove anonymous users': 'y'
+          'Disallow root login remotely': 'y'
+          'Remove test database': 'y'
+          'Reload privilege tables now': 'y'
+          'Switch to unix_socket authentication': 'n'
+        timeout: 1
+      register: secure_mariadb
+      failed_when: "'... Failed!' in secure_mariadb.stdout_lines"
+
+    - name: Display secure installation results
+      debug:
+        var: secure_mariadb.stdout_lines
