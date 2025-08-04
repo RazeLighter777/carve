@@ -2,8 +2,8 @@ use std::error::Error;
 
 use crate::types;
 use actix_session::{Session, SessionExt};
-use actix_web::cookie::Cookie;
 use actix_web::body::MessageBody;
+use actix_web::cookie::Cookie;
 use actix_web::guard::GuardContext;
 use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
 use carve::config::Competition;
@@ -38,7 +38,7 @@ pub fn validate_session(ctx: &GuardContext) -> bool {
 
 pub async fn validate_bearer_token(
     req: actix_web::dev::ServiceRequest,
-    next : actix_web::middleware::Next<impl MessageBody>,
+    next: actix_web::middleware::Next<impl MessageBody>,
 ) -> Result<actix_web::dev::ServiceResponse<impl MessageBody>, actix_web::Error> {
     if let Some(auth_header) = req.headers().get("Authorization") {
         if let Ok(auth_str) = auth_header.to_str() {
@@ -57,7 +57,9 @@ pub async fn validate_bearer_token(
             }
         }
     }
-    Err(actix_web::error::ErrorUnauthorized("Missing or invalid Authorization header"))
+    Err(actix_web::error::ErrorUnauthorized(
+        "Missing or invalid Authorization header",
+    ))
 }
 
 #[get("/get_oauth2_redirect_url")]
@@ -231,8 +233,9 @@ async fn oauth2_callback(
                                 identity_sources: vec![carve::redis_manager::IdentitySources::OIDC],
                             };
                             // call register_user in redis_manager
-                            let register_result =
-                                redis.register_user(&competition.name, &user, team_name.as_deref()).await;
+                            let register_result = redis
+                                .register_user(&competition.name, &user, team_name.as_deref())
+                                .await;
                             match register_result {
                                 Ok(_) => {
                                     println!("User {} registered successfully", username);
@@ -319,7 +322,10 @@ pub async fn login(
     }
 
     // verify the username/password against redis
-    match redis.verify_user_local_password(&competition.name, &query.username, &query.password).await {
+    match redis
+        .verify_user_local_password(&competition.name, &query.username, &query.password)
+        .await
+    {
         Ok(Some(user)) => {
             // create session with user info
             session.insert("username", user.username.clone())?;
@@ -407,9 +413,15 @@ pub async fn register(
         identity_sources: vec![carve::redis_manager::IdentitySources::LocalUserPassword],
     };
     // Register the user in Redis
-    match redis.register_user(&competition.name, &user, user.team_name.as_deref()).await {
+    match redis
+        .register_user(&competition.name, &user, user.team_name.as_deref())
+        .await
+    {
         Ok(_) => {
-            match redis.set_user_local_password(&competition.name, &query.username, &query.password).await {
+            match redis
+                .set_user_local_password(&competition.name, &query.username, &query.password)
+                .await
+            {
                 Ok(_) => {
                     // redirect to login page with success message
                     Ok(HttpResponse::Found()

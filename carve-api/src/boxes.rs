@@ -158,7 +158,10 @@ async fn get_box_credentials_helper(
     let box_type = parts[0];
 
     // Try to get credentials from Redis
-    match redis.read_box_credentials(&competition.name, team_name, box_type).await {
+    match redis
+        .read_box_credentials(&competition.name, team_name, box_type)
+        .await
+    {
         Ok(Some((username, password))) => {
             let response = types::BoxCredentialsResponse {
                 name: box_name.to_string(),
@@ -263,24 +266,39 @@ pub async fn send_box_restore(
     }
 
     // Check if restore cooldown is set
-    if let Some(cooldown) = redis.is_cooldown_ready(&competition.name, team_name, box_type).await {
+    if let Some(cooldown) = redis
+        .is_cooldown_ready(&competition.name, team_name, box_type)
+        .await
+    {
         return Ok(HttpResponse::TooManyRequests().json(serde_json::json!({
             "error": format!("Restore command is on cooldown. Please wait {} seconds.", cooldown)
         })));
     }
 
     // Send command to Redis
-    match redis.send_qemu_event(&competition.name, team_name, box_type, command).await {
+    match redis
+        .send_qemu_event(&competition.name, team_name, box_type, command)
+        .await
+    {
         Ok(_) => {
             // Set cooldown for the restore command
-            if let Err(_) = redis.create_cooldown(&competition.name, team_name, box_type, competition.restore_cooldown.unwrap_or(10)).await {
+            if let Err(_) = redis
+                .create_cooldown(
+                    &competition.name,
+                    team_name,
+                    box_type,
+                    competition.restore_cooldown.unwrap_or(10),
+                )
+                .await
+            {
                 return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
                     "error": "Failed to set restore cooldown"
                 })));
             }
             Ok(HttpResponse::Ok().json(serde_json::json!({
-            "status": "Command sent successfully"
-        }))) },
+                "status": "Command sent successfully"
+            })))
+        }
         Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "Failed to send command"
         }))),
@@ -308,7 +326,10 @@ pub async fn send_box_snapshot(
     // Verification of admin status is with a guard, so we can skip team checks
 
     // Send command to Redis
-    match redis.send_qemu_event(&competition.name, team_name, box_type, command).await {
+    match redis
+        .send_qemu_event(&competition.name, team_name, box_type, command)
+        .await
+    {
         Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
             "status": "Command sent successfully"
         }))),

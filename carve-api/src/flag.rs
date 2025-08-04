@@ -15,7 +15,10 @@ pub async fn generate_flag(
     let competition_name = &competition.name;
     let flag_check_name = &query.flag_check_name;
     let team_name = &query.team_name;
-    match redis.generate_new_flag(competition_name, team_name, flag_check_name).await {
+    match redis
+        .generate_new_flag(competition_name, team_name, flag_check_name)
+        .await
+    {
         Ok(flag) => {
             let response = types::GenerateFlagResponse { flag };
             Ok(HttpResponse::Ok().json(response))

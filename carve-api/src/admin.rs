@@ -65,7 +65,10 @@ pub async fn generate_join_code(
         })));
     }
     // generate a join code for the team
-    match redis.generate_team_join_code(&competition.name, &query.team_name).await {
+    match redis
+        .generate_team_join_code(&competition.name, &query.team_name)
+        .await
+    {
         Ok(join_code) => Ok(HttpResponse::Ok().json(serde_json::json!({
             "code": join_code,
         }))),
@@ -77,9 +80,7 @@ pub async fn generate_join_code(
 
 /// Generate a new API key
 #[post("/api_keys")]
-pub async fn create_api_key(
-    redis: web::Data<RedisManager>,
-) -> ActixResult<impl Responder> {
+pub async fn create_api_key(redis: web::Data<RedisManager>) -> ActixResult<impl Responder> {
     match redis.generate_api_key().await {
         Ok(api_key) => Ok(HttpResponse::Ok().json(ApiKeyResponse { api_key })),
         Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
@@ -90,9 +91,7 @@ pub async fn create_api_key(
 
 /// Get all API keys
 #[get("/api_keys")]
-pub async fn get_api_keys(
-    redis: web::Data<RedisManager>,
-) -> ActixResult<impl Responder> {
+pub async fn get_api_keys(redis: web::Data<RedisManager>) -> ActixResult<impl Responder> {
     match redis.get_api_keys().await {
         Ok(api_keys) => Ok(HttpResponse::Ok().json(ApiKeysListResponse { api_keys })),
         Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({

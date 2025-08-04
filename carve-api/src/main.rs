@@ -23,8 +23,8 @@ mod types;
 mod users;
 
 pub use boxes::get_box;
-pub use boxes::get_box_default_creds;
 pub use boxes::get_box_creds_for_team;
+pub use boxes::get_box_default_creds;
 pub use boxes::get_boxes;
 use rand::distr::SampleString;
 
@@ -42,7 +42,6 @@ async fn get_competition(
     }
 }
 
-
 //returns the score at a given point in time filtered by check
 #[post("/scoresat")]
 async fn get_scores_at_given_time(
@@ -51,7 +50,11 @@ async fn get_scores_at_given_time(
     redis: web::Data<RedisManager>,
 ) -> ActixResult<impl Responder> {
     let team_id = query.team_id;
-    let at_times = query.at_times.iter().map(|dt| dt.timestamp()).collect::<Vec<_>>();
+    let at_times = query
+        .at_times
+        .iter()
+        .map(|dt| dt.timestamp())
+        .collect::<Vec<_>>();
 
     // Validate team
     if team_id == 0 || team_id as usize > competition.teams.len() {
@@ -64,7 +67,11 @@ async fn get_scores_at_given_time(
     let checks_to_check: Vec<_> = if let Some(ref check_name) = query.scoring_check {
         if let Some(check) = competition.checks.iter().find(|c| c.name == *check_name) {
             vec![check.name.clone()]
-        } else if let Some(flag_check) = competition.flag_checks.iter().find(|c| c.name == *check_name) {
+        } else if let Some(flag_check) = competition
+            .flag_checks
+            .iter()
+            .find(|c| c.name == *check_name)
+        {
             vec![flag_check.name.clone()]
         } else {
             return Ok(HttpResponse::NotFound().json(serde_json::json!({
@@ -87,8 +94,7 @@ async fn get_scores_at_given_time(
             &check_name,
             at_times.clone(),
         ) {
-            Ok(scores) => 
-            {
+            Ok(scores) => {
                 for (i, score) in scores.iter().enumerate() {
                     total_score[i] += score;
                 }
@@ -116,12 +122,15 @@ async fn get_leaderboard(
 
         // Calculate total score for this team across all checks
         for check in &competition.checks {
-            match redis.get_team_score_by_check(
-                &competition.name,
-                competition.get_team_id_from_name(&team.name).unwrap_or(0),
-                &check.name,
-                check.points as i64,
-            ).await {
+            match redis
+                .get_team_score_by_check(
+                    &competition.name,
+                    competition.get_team_id_from_name(&team.name).unwrap_or(0),
+                    &check.name,
+                    check.points as i64,
+                )
+                .await
+            {
                 Ok(score) => total_score += score,
                 Err(_) => {
                     // Continue even if Redis query fails for this check
@@ -130,12 +139,15 @@ async fn get_leaderboard(
         }
         // Also include flag checks in the total score
         for flag_check in &competition.flag_checks {
-            match redis.get_team_score_by_check(
-                &competition.name,
-                competition.get_team_id_from_name(&team.name).unwrap_or(0),
-                &flag_check.name,
-                flag_check.points as i64,
-            ).await {
+            match redis
+                .get_team_score_by_check(
+                    &competition.name,
+                    competition.get_team_id_from_name(&team.name).unwrap_or(0),
+                    &flag_check.name,
+                    flag_check.points as i64,
+                )
+                .await
+            {
                 Ok(score) => total_score += score,
                 Err(_) => {
                     // Continue even if Redis query fails for this flag check
@@ -238,13 +250,16 @@ async fn submit_flag(
         })));
     }
     // Attempt to redeem the flag
-    match redis.redeem_flag(
-        &competition.name,
-        team_name,
-        competition.get_team_id_from_name(team_name).unwrap_or(0),
-        &query.flag,
-        flag_check,
-    ).await {
+    match redis
+        .redeem_flag(
+            &competition.name,
+            team_name,
+            competition.get_team_id_from_name(team_name).unwrap_or(0),
+            &query.flag,
+            flag_check,
+        )
+        .await
+    {
         Ok(true) => Ok(HttpResponse::Ok().json(types::RedeemFlagResponse {
             success: true,
             message: "Flag accepted!".to_string(),
@@ -368,7 +383,7 @@ async fn main() -> std::io::Result<()> {
                             .service(teams::get_team_check_status)
                             .service(submit_flag)
                             .service(boxes::send_box_restore)
-                            .service(get_scores_at_given_time)
+                            .service(get_scores_at_given_time),
                     )
                     .service(
                         web::scope("/oauth2")
@@ -395,14 +410,14 @@ async fn main() -> std::io::Result<()> {
                             .service(admin::get_api_keys)
                             .service(admin::delete_api_key)
                             .service(boxes::send_box_snapshot)
-                            .service(boxes::get_box_creds_for_team)
+                            .service(boxes::get_box_creds_for_team),
                     )
                     .service(
                         web::scope("/internal")
                             .wrap(middleware::from_fn(auth::validate_bearer_token))
                             .service(flag::generate_flag)
                             .service(boxes::get_box)
-                            .service(boxes::get_box_creds_for_team)
+                            .service(boxes::get_box_creds_for_team),
                     ),
             )
     })

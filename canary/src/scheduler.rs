@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use log::{error, info, debug};
+use log::{debug, error, info};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::{Duration, sleep};
@@ -17,7 +17,10 @@ pub struct Scheduler {
 
 impl Scheduler {
     pub fn new(competition: Competition, redis_manager: Arc<RedisManager>) -> Self {
-        debug!("Creating new Scheduler for competition: {}", competition.name);
+        debug!(
+            "Creating new Scheduler for competition: {}",
+            competition.name
+        );
         Self {
             competition,
             redis_manager,
@@ -25,7 +28,10 @@ impl Scheduler {
     }
 
     async fn preload_nix_checks(competition: &Competition) {
-        debug!("Preloading Nix checks for competition: {}", competition.name);
+        debug!(
+            "Preloading Nix checks for competition: {}",
+            competition.name
+        );
         for check in &competition.checks {
             if let carve::config::CheckSpec::Nix(nix_check) = &check.spec {
                 // Preload Nix checks by running nix-shell -p with all the packages
@@ -38,10 +44,17 @@ impl Scheduler {
                     .await;
                 match output {
                     Ok(output) if output.status.success() => {
-                        info!("Preloaded Nix check {} with packages: {:?}", check.name, packages);
+                        info!(
+                            "Preloaded Nix check {} with packages: {:?}",
+                            check.name, packages
+                        );
                     }
                     Ok(output) => {
-                        error!("Failed to preload Nix check {}: {}", check.name, String::from_utf8_lossy(&output.stderr));
+                        error!(
+                            "Failed to preload Nix check {}: {}",
+                            check.name,
+                            String::from_utf8_lossy(&output.stderr)
+                        );
                     }
                     Err(e) => {
                         error!("Error preloading Nix check {}: {}", check.name, e);
@@ -52,7 +65,10 @@ impl Scheduler {
     }
 
     pub async fn run(self) {
-        debug!("Starting scheduler run for competition: {}", self.competition.name);
+        debug!(
+            "Starting scheduler run for competition: {}",
+            self.competition.name
+        );
         Self::preload_nix_checks(&self.competition).await;
         let competition = self.competition.clone();
         let redis_manager = self.redis_manager.clone();
@@ -223,13 +239,19 @@ impl Scheduler {
                                 debug!("Messages for failed check: {:?}", messages);
                                 return;
                             }
-                            if let Err(e) = redis_manager.record_sucessful_check_result(
+                            if let Err(e) = redis_manager
+                                .record_sucessful_check_result(
                                     &competition_name,
                                     &check.name,
-                                    DateTime::from_timestamp(check_timestamp, 0).expect("Failed to create DateTime"),
-                                    competition.get_team_id_from_name(&team.name).expect("Team not found"),
+                                    DateTime::from_timestamp(check_timestamp, 0)
+                                        .expect("Failed to create DateTime"),
+                                    competition
+                                        .get_team_id_from_name(&team.name)
+                                        .expect("Team not found"),
                                     passing_boxes.len() as u64,
-                            ).await {
+                                )
+                                .await
+                            {
                                 error!("Failed to record successful check result: {}", e);
                             } else {
                                 info!(
@@ -238,11 +260,14 @@ impl Scheduler {
                                 );
                                 // get current state of the check so we can get the previous number of failures.
                                 let mut prev_failures = 0;
-                                if let Ok(Some(current_state)) = redis_manager.get_check_current_state(
-                                    &competition_name,
-                                    &team.name,
-                                    check.name.as_str(),
-                                ).await {
+                                if let Ok(Some(current_state)) = redis_manager
+                                    .get_check_current_state(
+                                        &competition_name,
+                                        &team.name,
+                                        check.name.as_str(),
+                                    )
+                                    .await
+                                {
                                     prev_failures = current_state.number_of_failures;
                                     info!(
                                         "Current state for check {} on team {}: {:?}",
@@ -255,20 +280,23 @@ impl Scheduler {
                                     );
                                 }
                                 // set the current state for the check
-                                if let Err(e) = redis_manager.set_check_current_state(
-                                    &competition_name,
-                                    &team.name,
-                                    check.name.as_str(),
-                                    passing_boxes.len() > 0,
-                                    if passing_boxes.len() > 0 {
-                                        0 // no failures if passing
-                                    } else {
-                                        prev_failures + 1 // increment failures if not passing
-                                    },
-                                    messages.clone(),
-                                    (passing_boxes.len() as u64, messages.len() as u64),
-                                    passing_boxes.clone(),
-                                ).await {
+                                if let Err(e) = redis_manager
+                                    .set_check_current_state(
+                                        &competition_name,
+                                        &team.name,
+                                        check.name.as_str(),
+                                        passing_boxes.len() > 0,
+                                        if passing_boxes.len() > 0 {
+                                            0 // no failures if passing
+                                        } else {
+                                            prev_failures + 1 // increment failures if not passing
+                                        },
+                                        messages.clone(),
+                                        (passing_boxes.len() as u64, messages.len() as u64),
+                                        passing_boxes.clone(),
+                                    )
+                                    .await
+                                {
                                     error!("Failed to set check state: {}", e);
                                 } else {
                                     info!(
@@ -288,7 +316,9 @@ impl Scheduler {
                                 let _ = res;
                             }
                             Err(_) => {
-                                error!("Team check task timed out and could not be aborted (handle moved)");
+                                error!(
+                                    "Team check task timed out and could not be aborted (handle moved)"
+                                );
                             }
                         }
                     }
@@ -331,9 +361,10 @@ fn apply_template_substitution(
                 code: http_spec.code,
                 regex,
                 method: http_spec.method.clone(),
-                forms: http_spec.forms.as_ref().map(|f| {
-                    apply_template_to_string(f, &template_context).unwrap_or_default()
-                }),
+                forms: http_spec
+                    .forms
+                    .as_ref()
+                    .map(|f| apply_template_to_string(f, &template_context).unwrap_or_default()),
             }))
         }
         CheckSpec::Icmp(icmp_spec) => {
@@ -360,12 +391,16 @@ fn apply_template_substitution(
                 password,
                 key_path,
             }))
-        }   
+        }
         CheckSpec::Nix(nix_spec) => {
             // Apply templating to Nix check script
             let script = apply_template_to_string(&nix_spec.script, &template_context)?;
             debug!("Nix script after templating: {}", script);
-            Ok(CheckSpec::Nix(carve::config::NixCheckSpec { script, packages: nix_spec.packages.clone(), timeout: nix_spec.timeout }))
+            Ok(CheckSpec::Nix(carve::config::NixCheckSpec {
+                script,
+                packages: nix_spec.packages.clone(),
+                timeout: nix_spec.timeout,
+            }))
         }
     }
 }

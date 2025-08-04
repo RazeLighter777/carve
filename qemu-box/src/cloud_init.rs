@@ -51,45 +51,45 @@ ethernets:
 "#
         );
         // SSH keypair
-        let (private_ssh_key, public_ssh_key) =
-            match redis_mgr.read_ssh_keypair(competition, team_name, box_name).await? {
-                Some(key) => (
-                    key.clone(),
-                    PrivateKey::from_openssh(&key)?.public_key().to_openssh()?,
-                ),
-                None => {
-                    let privatekey = PrivateKey::random(&mut OsRng, Algorithm::Ed25519)?;
-                    let publickey = privatekey.public_key();
-                    (
-                        privatekey
-                            .to_openssh(ssh_key::LineEnding::default())?
-                            .to_string(),
-                        publickey.to_openssh()?,
-                    )
-                }
-            };
+        let (private_ssh_key, public_ssh_key) = match redis_mgr
+            .read_ssh_keypair(competition, team_name, box_name)
+            .await?
+        {
+            Some(key) => (
+                key.clone(),
+                PrivateKey::from_openssh(&key)?.public_key().to_openssh()?,
+            ),
+            None => {
+                let privatekey = PrivateKey::random(&mut OsRng, Algorithm::Ed25519)?;
+                let publickey = privatekey.public_key();
+                (
+                    privatekey
+                        .to_openssh(ssh_key::LineEnding::default())?
+                        .to_string(),
+                    publickey.to_openssh()?,
+                )
+            }
+        };
         // password
         // Username/password
-        let (username, password) =
-            match redis_mgr.read_box_credentials(competition, team_name, box_name).await? {
-                Some((u, p)) => (u, p),
-                None => {
-                    let username = team_name;
-                    let password: String = rand::rng()
-                        .sample_iter(&rand::distr::Alphabetic)
-                        .take(8)
-                        .map(char::from)
-                        .collect();
-                    let _ = redis_mgr.write_box_credentials(
-                        competition,
-                        team_name,
-                        box_name,
-                        username,
-                        &password,
-                    ).await?;
-                    (username.to_owned(), password)
-                }
-            };
+        let (username, password) = match redis_mgr
+            .read_box_credentials(competition, team_name, box_name)
+            .await?
+        {
+            Some((u, p)) => (u, p),
+            None => {
+                let username = team_name;
+                let password: String = rand::rng()
+                    .sample_iter(&rand::distr::Alphabetic)
+                    .take(8)
+                    .map(char::from)
+                    .collect();
+                let _ = redis_mgr
+                    .write_box_credentials(competition, team_name, box_name, username, &password)
+                    .await?;
+                (username.to_owned(), password)
+            }
+        };
         //print username/password
         println!("Username: {}, Password: {}", username, password);
         // use mkpasswd to hash the password

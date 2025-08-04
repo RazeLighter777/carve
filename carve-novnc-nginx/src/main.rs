@@ -23,8 +23,7 @@ server { \
     // check if dns_upstream_service
     if let Some(dns_upstream_service) = competition.dns_upstream_service.clone() {
         resolver_address = dns_upstream_service;
-    } 
-    else if let Some(contents) = std::fs::read_to_string("/etc/resolv.conf").ok() {
+    } else if let Some(contents) = std::fs::read_to_string("/etc/resolv.conf").ok() {
         // Extract the first nameserver line
         for line in contents.lines() {
             if line.starts_with("nameserver") {

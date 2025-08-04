@@ -17,8 +17,8 @@ pub struct RedisConfig {
 pub struct Box {
     pub name: String,
     pub labels: String,
-    pub cores: Option<u32>,  // Optional number of CPU cores
-    pub ram_mb: Option<u32>, // Optional RAM in MB
+    pub cores: Option<u32>,    // Optional number of CPU cores
+    pub ram_mb: Option<u32>,   // Optional RAM in MB
     pub backing_image: String, // Path to the original disk image
 }
 
@@ -40,8 +40,8 @@ pub struct HttpCheckSpec {
     pub url: String,
     pub code: u16,
     pub regex: String,
-    pub method: HttpMethods, // HTTP method to use for the check
-    pub forms : Option<String>, // Optional forms to submit with the request
+    pub method: HttpMethods,   // HTTP method to use for the check
+    pub forms: Option<String>, // Optional forms to submit with the request
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -76,7 +76,7 @@ pub struct SshCheckSpec {
 pub struct NixCheckSpec {
     pub script: String,
     pub packages: Option<Vec<String>>, // Optional list of Nix packages to install
-    pub timeout: u64, // Timeout for the check in seconds
+    pub timeout: u64,                  // Timeout for the check in seconds
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
@@ -117,7 +117,7 @@ pub struct Competition {
     pub redis: RedisConfig,
     pub oidc_provider_name: String, // OIDC provider name
     pub cidr: Option<String>,       // Add this field for VTEP
-    pub dns_host: Option<String>,  // <-- Add this line for VTEP host
+    pub dns_host: Option<String>,   // <-- Add this line for VTEP host
     pub vtep_host: Option<String>,  // VTEP host
     pub boxes: Vec<Box>,
     pub teams: Vec<Team>,
@@ -129,7 +129,7 @@ pub struct Competition {
     pub registration_type: RegistrationType, // Registration type
     pub identity_sources: Vec<IdentitySources>,
     pub create_default_admin: bool, // Create default admin user
-    pub dns_upstream_service : Option<String>, // DNS upstream service for VTEP and carve-novnc-nginx
+    pub dns_upstream_service: Option<String>, // DNS upstream service for VTEP and carve-novnc-nginx
     pub restore_cooldown: Option<u64>, // Cooldown period for restoring boxes
 }
 

@@ -58,7 +58,10 @@ pub async fn switch_team(
             })));
         }
         // call redis manager's check_team_join_code to get team id (if the code is valid)
-        let team_name = match redis.check_team_join_code(&competition.name, query.team_join_code).await {
+        let team_name = match redis
+            .check_team_join_code(&competition.name, query.team_join_code)
+            .await
+        {
             Ok(Some(id)) => id,
             Ok(None) => {
                 return Ok(HttpResponse::NotFound().json(serde_json::json!({
@@ -72,24 +75,27 @@ pub async fn switch_team(
             }
         };
         // call redis manager's register_user to switch the user to the new team
-        match redis.register_user(
-            &competition.name,
-            &User {
-                username,
-                email: session
-                    .get::<String>("email")
-                    .unwrap_or(None)
-                    .unwrap_or_default(),
-                team_name: Some(team_name.clone()),
-                //check is is_admin is set in session, if not set to false
-                is_admin: session
-                    .get::<bool>("is_admin")
-                    .unwrap_or(Some(false))
-                    .unwrap_or(false),
-                identity_sources: vec![],
-            },
-            Some(&team_name),
-        ).await {
+        match redis
+            .register_user(
+                &competition.name,
+                &User {
+                    username,
+                    email: session
+                        .get::<String>("email")
+                        .unwrap_or(None)
+                        .unwrap_or_default(),
+                    team_name: Some(team_name.clone()),
+                    //check is is_admin is set in session, if not set to false
+                    is_admin: session
+                        .get::<bool>("is_admin")
+                        .unwrap_or(Some(false))
+                        .unwrap_or(false),
+                    identity_sources: vec![],
+                },
+                Some(&team_name),
+            )
+            .await
+        {
             Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
                 "message": "Switched team successfully",
                 "team_name": team_name,
@@ -122,7 +128,10 @@ pub async fn generate_join_code(
         })));
     }
     // generate a join code for the team
-    match redis.generate_team_join_code(&competition.name, &team_name).await {
+    match redis
+        .generate_team_join_code(&competition.name, &team_name)
+        .await
+    {
         Ok(join_code) => Ok(HttpResponse::Ok().json(serde_json::json!({
             "code": join_code,
         }))),

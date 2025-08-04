@@ -1,14 +1,17 @@
 use anyhow::{Context, Result};
-use log::{info, error, debug};
+use log::{debug, error, info};
 use regex::Regex;
 use ssh2::Session;
+use std::net::TcpStream;
 use std::time::Duration;
-use std::{net::TcpStream};
 
 use carve::config::{CheckSpec, HttpCheckSpec, HttpMethods, IcmpCheckSpec, SshCheckSpec};
 
 pub async fn perform_http_check(hostname: &str, spec: &HttpCheckSpec) -> Result<String> {
-    debug!("Starting HTTP check for host: {} with spec: {:?}", hostname, spec);
+    debug!(
+        "Starting HTTP check for host: {} with spec: {:?}",
+        hostname, spec
+    );
     let client = reqwest::Client::new();
     let url = format!("http://{}{}", hostname, spec.url);
 
@@ -23,11 +26,14 @@ pub async fn perform_http_check(hostname: &str, spec: &HttpCheckSpec) -> Result<
             url.clone(),
         )
         .timeout(Duration::from_secs(5))
-        .header("Content-Type", if spec.method == HttpMethods::Post {
-            "application/x-www-form-urlencoded"
-        } else {
-            "application/json"
-        })
+        .header(
+            "Content-Type",
+            if spec.method == HttpMethods::Post {
+                "application/x-www-form-urlencoded"
+            } else {
+                "application/json"
+            },
+        )
         .body(
             spec.forms
                 .as_ref()
@@ -46,7 +52,11 @@ pub async fn perform_http_check(hostname: &str, spec: &HttpCheckSpec) -> Result<
     debug!("HTTP response status: {}, body: {}", status, body);
 
     if status.as_u16() != spec.code {
-        error!("HTTP status code mismatch: expected {}, got {}", spec.code, status.as_u16());
+        error!(
+            "HTTP status code mismatch: expected {}, got {}",
+            spec.code,
+            status.as_u16()
+        );
         return Err(anyhow::anyhow!(
             "HTTP status code mismatch: expected {}, got {}",
             spec.code,
@@ -67,40 +77,43 @@ pub async fn perform_http_check(hostname: &str, spec: &HttpCheckSpec) -> Result<
     Ok(format!("HTTP check successful: {}", url))
 }
 
-pub async fn perform_nix_check(hostname: &str, spec: &carve::config::NixCheckSpec) -> Result<String> {
-    debug!("Starting Nix check for host: {} with spec: {:?}", hostname, spec);
-    
+pub async fn perform_nix_check(
+    hostname: &str,
+    spec: &carve::config::NixCheckSpec,
+) -> Result<String> {
+    debug!(
+        "Starting Nix check for host: {} with spec: {:?}",
+        hostname, spec
+    );
+
     // Execute the script directly with bash -c
     let script_with_hostname = format!("{} {}", spec.script, hostname);
     let p = tokio::process::Command::new("nix-shell")
-            .arg("-p")
-            .args(
-                spec.packages
-                    .as_ref()
-                    .map(|pkgs| pkgs.iter().map(String::as_str).collect::<Vec<_>>())
-                    .unwrap_or_default(),
-            )
-            .kill_on_drop(true)
-            .arg("--run")
-            .arg(format!("bash -c '{}'", script_with_hostname))
-            .output();
-    let output = tokio::time::timeout(
-        Duration::from_secs(spec.timeout),
-        p
-    );
+        .arg("-p")
+        .args(
+            spec.packages
+                .as_ref()
+                .map(|pkgs| pkgs.iter().map(String::as_str).collect::<Vec<_>>())
+                .unwrap_or_default(),
+        )
+        .kill_on_drop(true)
+        .arg("--run")
+        .arg(format!("bash -c '{}'", script_with_hostname))
+        .output();
+    let output = tokio::time::timeout(Duration::from_secs(spec.timeout), p);
     let output = match output.await {
         Ok(res) => {
             debug!("Nix check output: {:?}", res);
             res.context("Failed to execute Nix check command")
                 .map_err(|e| anyhow::anyhow!("Nix check command failed: {}", e))?
-        },
+        }
         Err(e) => {
             error!("Nix check command timed out after {}", e);
 
             return Err(anyhow::anyhow!("Nix check command timed out"));
         }
     };
-    
+
     if output.status.success() {
         info!("Nix check successful for host: {}", hostname);
         Ok(format!(
@@ -108,7 +121,11 @@ pub async fn perform_nix_check(hostname: &str, spec: &carve::config::NixCheckSpe
             String::from_utf8_lossy(&output.stdout)
         ))
     } else {
-        error!("Nix check failed for host: {}: {}", hostname, String::from_utf8_lossy(&output.stderr));
+        error!(
+            "Nix check failed for host: {}: {}",
+            hostname,
+            String::from_utf8_lossy(&output.stderr)
+        );
         Err(anyhow::anyhow!(
             "Nix check failed: {}",
             String::from_utf8_lossy(&output.stderr)
@@ -117,7 +134,10 @@ pub async fn perform_nix_check(hostname: &str, spec: &carve::config::NixCheckSpe
 }
 
 pub fn perform_icmp_check(hostname: &str, spec: &IcmpCheckSpec) -> Result<String> {
-    debug!("Starting ICMP check for host: {} with spec: {:?}", hostname, spec);
+    debug!(
+        "Starting ICMP check for host: {} with spec: {:?}",
+        hostname, spec
+    );
     // Simplify the ICMP check for now
     // In a real implementation, we would use proper DNS resolution and error handling
     // This is a simplified version that just checks if the host responds to ping
@@ -136,7 +156,12 @@ pub fn perform_icmp_check(hostname: &str, spec: &IcmpCheckSpec) -> Result<String
         info!("ICMP check successful for host: {}", hostname);
         Ok(format!("ICMP check successful: {}", hostname))
     } else {
-        error!("ICMP check failed for host: {}: expected code {}, got {}", hostname, spec.code, if success { 0 } else { 1 });
+        error!(
+            "ICMP check failed for host: {}: expected code {}, got {}",
+            hostname,
+            spec.code,
+            if success { 0 } else { 1 }
+        );
         Err(anyhow::anyhow!(
             "ICMP check failed: expected code {}, got {}",
             spec.code,
@@ -146,7 +171,10 @@ pub fn perform_icmp_check(hostname: &str, spec: &IcmpCheckSpec) -> Result<String
 }
 
 pub fn perform_ssh_check(hostname: &str, spec: &SshCheckSpec) -> Result<String> {
-    debug!("Starting SSH check for host: {} with spec: {:?}", hostname, spec);
+    debug!(
+        "Starting SSH check for host: {} with spec: {:?}",
+        hostname, spec
+    );
     let tcp = TcpStream::connect(format!("{}:{}", hostname, spec.port))
         .context("Failed to connect to SSH server")?;
     debug!("TCP connection established for SSH check");
@@ -167,7 +195,10 @@ pub fn perform_ssh_check(hostname: &str, spec: &SshCheckSpec) -> Result<String> 
             .context("SSH key authentication failed")?;
         debug!("SSH key authentication attempted");
     } else {
-        error!("No SSH authentication method provided for host: {}", hostname);
+        error!(
+            "No SSH authentication method provided for host: {}",
+            hostname
+        );
         return Err(anyhow::anyhow!("No SSH authentication method provided"));
     }
 
@@ -181,7 +212,10 @@ pub fn perform_ssh_check(hostname: &str, spec: &SshCheckSpec) -> Result<String> 
 }
 
 pub async fn perform_check(hostname: &str, check_spec: &CheckSpec) -> Result<String> {
-    debug!("Dispatching check for host: {} with spec: {:?}", hostname, check_spec);
+    debug!(
+        "Dispatching check for host: {} with spec: {:?}",
+        hostname, check_spec
+    );
     match check_spec {
         CheckSpec::Http(spec) => perform_http_check(hostname, spec).await,
         CheckSpec::Icmp(spec) => perform_icmp_check(hostname, spec),

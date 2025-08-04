@@ -4,7 +4,7 @@ mod scheduler;
 use actix_web::{App, HttpResponse, HttpServer, Responder, get, web};
 use anyhow::Result;
 use env_logger::Env;
-use log::{error, info, debug};
+use log::{debug, error, info};
 use std::sync::Arc;
 
 use crate::scheduler::Scheduler;
@@ -14,7 +14,6 @@ use carve::redis_manager::RedisManager;
 struct AppState {
     redis_managers: Vec<Arc<RedisManager>>,
 }
-
 
 #[get("/api/health")]
 async fn health_check(data: web::Data<AppState>) -> impl Responder {
@@ -28,7 +27,6 @@ async fn health_check(data: web::Data<AppState>) -> impl Responder {
 
     HttpResponse::Ok().body("Healthy")
 }
-
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -55,7 +53,10 @@ async fn main() -> Result<()> {
     let mut redis_managers = Vec::new();
 
     for competition in &config.competitions {
-        debug!("Setting up Redis manager for competition: {}", competition.name);
+        debug!(
+            "Setting up Redis manager for competition: {}",
+            competition.name
+        );
         let redis_manager = match RedisManager::new(&competition.redis) {
             Ok(manager) => Arc::new(manager),
             Err(e) => {
@@ -85,14 +86,10 @@ async fn main() -> Result<()> {
     let app_state = web::Data::new(AppState { redis_managers });
 
     info!("Starting HTTP server on 0.0.0.0:8080");
-    HttpServer::new(move || {
-        App::new()
-            .app_data(app_state.clone())
-            .service(health_check)
-    })
-    .bind("0.0.0.0:8080")?
-    .run()
-    .await?;
+    HttpServer::new(move || App::new().app_data(app_state.clone()).service(health_check))
+        .bind("0.0.0.0:8080")?
+        .run()
+        .await?;
 
     info!("HTTP server shut down");
     Ok(())
