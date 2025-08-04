@@ -11,7 +11,7 @@ Backend VM management, networking, scoring, authentication, administration tools
 
 Unlike most open-source CTF platforms out there, CARVE is designed to be easy to use and deployable with a few simple commands.
 
-CARVE **DOES NOT** include the actual challenges and setup scripts to make a real competition. You'll need to write them yourself and keep them private until the competition is over, so you don't spoil your game.
+CARVE includes some demo ansible scripts to make a proof of concept competition for testing / demos with a couple easy to find / exploit vulnerabilities. For a real competition, you'll need to write the ansible playbooks yourself and keep them private until the competition is over, so you don't spoil your game.
 ## ✨ Features
 - **Microservice Architecture:** Modular services for scoring, networking, orchestration, everything you need to run a CTF at scale.
 - **Automatic Infrastructure Management**: Let CARVE handle the tedious work of making networks and virtual machines. Unlike many CTFs, carve gives players VMs (not containers) expanding the range of possibilities. And the network managed network is isolated, secure, and created automatically with the magic of VXLANs. 
