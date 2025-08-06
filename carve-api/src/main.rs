@@ -93,7 +93,7 @@ async fn get_scores_at_given_time(
             team_id,
             &check_name,
             at_times.clone(),
-        ) {
+        ).await {
             Ok(scores) => {
                 for (i, score) in scores.iter().enumerate() {
                     total_score[i] += score;
@@ -383,7 +383,8 @@ async fn main() -> std::io::Result<()> {
                             .service(teams::get_team_check_status)
                             .service(submit_flag)
                             .service(boxes::send_box_restore)
-                            .service(get_scores_at_given_time),
+                            .service(get_scores_at_given_time)
+                            .service(users::listen_for_toasts)
                     )
                     .service(
                         web::scope("/oauth2")
@@ -410,7 +411,8 @@ async fn main() -> std::io::Result<()> {
                             .service(admin::get_api_keys)
                             .service(admin::delete_api_key)
                             .service(boxes::send_box_snapshot)
-                            .service(boxes::get_box_creds_for_team),
+                            .service(boxes::get_box_creds_for_team)
+                            .service(admin::publish_toast)
                     )
                     .service(
                         web::scope("/internal")

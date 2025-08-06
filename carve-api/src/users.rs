@@ -3,8 +3,10 @@
 use crate::types;
 use actix_session::Session;
 use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
+use actix_ws::AggregatedMessage;
 use carve::config::Competition;
 use carve::redis_manager::{RedisManager, User};
+use futures::StreamExt as _;
 
 #[get("/user")]
 pub async fn get_user(
@@ -139,4 +141,50 @@ pub async fn generate_join_code(
             "error": "Failed to generate join code"
         }))),
     }
+}
+
+#[get("/listen_toasts")]
+async fn listen_for_toasts(
+    redis : web::Data<RedisManager>,
+    req: actix_web::HttpRequest,
+    stream: web::Payload,
+    subscribe_request: web::Query<types::ToastSubscribeRequest>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let (res, mut session, stream) = actix_ws::handle(&req, stream)?;
+
+    let mut stream = stream
+        .aggregate_continuations()
+        // aggregate continuation frames up to 1MiB
+        .max_continuation_size(2_usize.pow(20));
+
+    // start task but don't wait for it
+    let mut session_clone = session.clone();
+    actix_web::rt::spawn(async move {
+        while let Ok(msg) = redis.wait_for_next_toast(subscribe_request.user.clone(), subscribe_request.team.clone()).await {
+            if let Some(toast) = msg {
+                // send the toast notification to the client
+                if let Err(e) = session_clone.text(serde_json::to_string(&toast).unwrap_or_default()).await {
+                    log::error!("Failed to send toast notification: {}", e);
+                    break;
+                }
+            }
+        }
+    });
+    // start task to respond to ping
+    actix_web::rt::spawn(async move {
+        while let Some(Ok(msg)) = stream.next().await {
+            match msg {
+                AggregatedMessage::Ping(msg) => {
+                    if let Err(e) = session.pong(&msg).await {
+                        log::error!("Failed to send pong response: {}", e);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+    });
+
+    // respond immediately with response connected to WS session
+    Ok(res)
 }

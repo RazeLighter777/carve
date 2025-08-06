@@ -1,3 +1,6 @@
+use crate::config::ToastSeverity;
+use crate::config::ToastNotification;
+
 use super::*;
 
 impl RedisManager {
@@ -126,6 +129,14 @@ impl RedisManager {
         }
         let new_team_key = self.team_key(competition_name, new_team, "users");
         self.redis_sadd(&new_team_key, username).await?;
+        //publish a toast notification to the team
+        self.publish_toast(&ToastNotification {
+            title: "Team Change".to_string(),
+            message: format!("User '{}' has joined the team '{}'.", username, new_team),
+            severity: ToastSeverity::Info,
+            user: None,
+            team: Some(new_team.to_string()),
+        }).await?;
         Ok(())
     }
 }

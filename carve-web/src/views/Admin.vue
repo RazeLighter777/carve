@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import apiService from '@/services/api'
 import CompetitionStatus from '@/components/CompetitionStatus.vue'
-import type { Team, ApiKeysListResponse } from '@/types'
+import { type Team, type ApiKeysListResponse, type ToastNotification, ToastSeverity } from '@/types'
 
 const competition = ref<any>(null)
 const loading = ref(true)
@@ -27,6 +27,16 @@ const apiKeysError = ref('')
 const creatingApiKey = ref(false)
 const deletingApiKey = ref<string | null>(null)
 const copiedApiKey = ref<string | null>(null)
+
+// Toast notification publishing
+const toastTitle = ref('')
+const toastMessage = ref('')
+const toastSeverity = ref<ToastSeverity>(ToastSeverity.Info) // Default to Info
+const toastTargetType = ref<'global' | 'user' | 'team'>('global')
+const toastTargetValue = ref('')
+const toastPublishing = ref(false)
+const toastError = ref('')
+const toastSuccess = ref('')
 
 const fetchCompetition = async () => {
   loading.value = true
@@ -201,6 +211,46 @@ const deleteApiKey = async (apiKey: string) => {
   deletingApiKey.value = null
 }
 
+const publishToast = async () => {
+  toastPublishing.value = true
+  toastError.value = ''
+  toastSuccess.value = ''
+  
+  try {
+    const notification: ToastNotification = {
+      title: toastTitle.value,
+      message: toastMessage.value,
+      severity: toastSeverity.value,
+      user: toastTargetType.value === 'user' ? toastTargetValue.value : undefined,
+      team: toastTargetType.value === 'team' ? toastTargetValue.value : undefined
+    }
+    
+    await apiService.publishToast(notification)
+    
+    // Clear form on success
+    toastTitle.value = ''
+    toastMessage.value = ''
+    toastTargetValue.value = ''
+    toastSuccess.value = 'Toast notification published successfully!'
+    setTimeout(() => {
+      toastSuccess.value = ''
+    }, 3000)
+  } catch (e) {
+    toastError.value = 'Failed to publish toast notification.'
+  }
+  toastPublishing.value = false
+}
+
+const resetToastForm = () => {
+  toastTitle.value = ''
+  toastMessage.value = ''
+  toastSeverity.value = ToastSeverity.Info
+  toastTargetType.value = 'global'
+  toastTargetValue.value = ''
+  toastError.value = ''
+  toastSuccess.value = ''
+}
+
 onMounted(async () => {
   await fetchCompetition()
   await fetchTeams()
@@ -250,6 +300,140 @@ onMounted(async () => {
         </div>
         <div v-if="boxSnapshotSuccess" class="text-green-600 text-center mt-2">{{ boxSnapshotSuccess }}</div>
         <div v-if="boxSnapshotError" class="text-red-600 text-center mt-2">{{ boxSnapshotError }}</div>
+      </div>
+      
+      <!-- Toast Notification Publishing Section -->
+      <div class="mt-8 card p-6">
+        <h2 class="text-xl font-semibold mb-4">Publish Toast Notification</h2>
+        
+        <div class="space-y-4">
+          <!-- Title -->
+          <div>
+            <label for="toast-title" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <input
+              id="toast-title"
+              v-model="toastTitle"
+              type="text"
+              placeholder="Notification title"
+              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          
+          <!-- Message -->
+          <div>
+            <label for="toast-message" class="block text-sm font-medium text-gray-700 mb-1">Message</label>
+            <textarea
+              id="toast-message"
+              v-model="toastMessage"
+              rows="3"
+              placeholder="Notification message"
+              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
+            ></textarea>
+          </div>
+          
+          <!-- Severity -->
+          <div>
+            <label for="toast-severity" class="block text-sm font-medium text-gray-700 mb-1">Severity</label>
+            <select
+              id="toast-severity"
+              v-model="toastSeverity"
+              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option :value="ToastSeverity.Info">Info</option>
+              <option :value="ToastSeverity.Warning">Warning</option>
+              <option :value="ToastSeverity.Error">Error</option>
+            </select>
+          </div>
+          
+          <!-- Target Type -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Target</label>
+            <div class="space-y-2">
+              <label class="flex items-center">
+                <input
+                  v-model="toastTargetType"
+                  type="radio"
+                  value="global"
+                  class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                  @change="toastTargetValue = ''"
+                />
+                <span class="ml-2 text-sm text-gray-700">Global (all users)</span>
+              </label>
+              <label class="flex items-center">
+                <input
+                  v-model="toastTargetType"
+                  type="radio"
+                  value="user"
+                  class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span class="ml-2 text-sm text-gray-700">Specific user</span>
+              </label>
+              <label class="flex items-center">
+                <input
+                  v-model="toastTargetType"
+                  type="radio"
+                  value="team"
+                  class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span class="ml-2 text-sm text-gray-700">Specific team</span>
+              </label>
+            </div>
+          </div>
+          
+          <!-- Target Value -->
+          <div v-if="toastTargetType !== 'global'">
+            <label :for="`toast-target-${toastTargetType}`" class="block text-sm font-medium text-gray-700 mb-1">
+              {{ toastTargetType === 'user' ? 'Username' : 'Team Name' }}
+            </label>
+            <div v-if="toastTargetType === 'team'" class="flex gap-2">
+              <select
+                v-model="toastTargetValue"
+                class="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a team</option>
+                <option v-for="team in teams" :key="team.id" :value="team.name">{{ team.name }}</option>
+              </select>
+            </div>
+            <input
+              v-else
+              :id="`toast-target-${toastTargetType}`"
+              v-model="toastTargetValue"
+              type="text"
+              :placeholder="`Enter ${toastTargetType === 'user' ? 'username' : 'team name'}`"
+              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          
+          <!-- Action Buttons -->
+          <div class="flex gap-3">
+            <button
+              @click="publishToast"
+              :disabled="toastPublishing || !toastTitle.trim() || !toastMessage.trim() || (toastTargetType !== 'global' && !toastTargetValue.trim())"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg v-if="!toastPublishing" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+              </svg>
+              <svg v-else class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ toastPublishing ? 'Publishing...' : 'Publish Notification' }}
+            </button>
+            
+            <button
+              @click="resetToastForm"
+              :disabled="toastPublishing"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Clear Form
+            </button>
+          </div>
+          
+          <!-- Success/Error Messages -->
+          <div v-if="toastSuccess" class="text-green-600 text-sm font-medium">{{ toastSuccess }}</div>
+          <div v-if="toastError" class="text-red-600 text-sm font-medium">{{ toastError }}</div>
+        </div>
       </div>
       
       <!-- API Keys Management Section -->

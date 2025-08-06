@@ -1,3 +1,5 @@
+use crate::config::{ToastNotification, ToastSeverity};
+
 use super::*;
 
 impl RedisManager {
@@ -78,6 +80,16 @@ impl RedisManager {
                 .query_async(&mut conn)
                 .await
                 .context("Failed to remove flag from set")?;
+            // Publish a toast notification for the flag redemption
+            self.publish_toast(&ToastNotification {
+                title: "Flag Redeemed".to_string(),
+                message: format!("Team '{}' redeemed the flag '{}'.", team_name, flag),
+                severity: ToastSeverity::Info,
+                user: None,
+                team: Some(team_name.to_string()),
+            })
+            .await
+            .context("Failed to publish flag redemption toast notification")?;
             Ok(true) // Flag redeemed successfully
         } else {
             Ok(false) // Flag does not exist

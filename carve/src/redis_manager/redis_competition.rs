@@ -1,3 +1,5 @@
+use crate::config::{ToastNotification, ToastSeverity};
+
 use super::*;
 
 impl RedisManager {
@@ -127,6 +129,15 @@ impl RedisManager {
                     .query_async(&mut conn)
                     .await
                     .context("Failed to publish competition start event")?;
+                // publish a toast notification
+                self.publish_toast(&ToastNotification {
+                    title: "Competition Started".to_string(),
+                    message: format!("The competition '{}' has started.", competition_name),
+                    severity: ToastSeverity::Info,
+                    user: None,
+                    team: None,
+                }).await
+                .context("Failed to publish competition start toast notification")?;
                 Ok(())
             }
             CompetitionStatus::Finished => Err(anyhow::anyhow!("Competition has already finished")),
@@ -172,6 +183,14 @@ impl RedisManager {
                     .query_async(&mut conn)
                     .await
                     .context("Failed to publish competition end event")?;
+                self.publish_toast(&ToastNotification {
+                    title: "Competition Ended".to_string(),
+                    message: format!("The competition '{}' has ended.", competition_name),
+                    severity: ToastSeverity::Info,
+                    user: None,
+                    team: None,
+                }).await
+                .context("Failed to publish competition end toast notification")?;
                 Ok(())
             }
             CompetitionStatus::Unstarted => Err(anyhow::anyhow!("Competition has not started yet")),

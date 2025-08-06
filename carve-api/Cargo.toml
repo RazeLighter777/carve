@@ -22,6 +22,7 @@ actix-cors = "0.7.1"
 log = "0.4.27"
 rand = "0.9.1"
 futures = "0.3.31"
+actix-ws = "0.3.0"
 
 [[bin]]
 name = "carve-api"

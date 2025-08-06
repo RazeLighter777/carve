@@ -185,3 +185,22 @@ export interface BoxCredentialsResponse {
   username: string;
   password: string;
 }
+
+export enum ToastSeverity {
+  Info = "Info",
+  Warning = "Warning",
+  Error = "Error",
+}
+
+export interface ToastNotification {
+  title: string;
+  message: string;
+  severity: ToastSeverity;
+  user?: string;
+  team?: string;
+}
+
+export interface ToastSubscribeRequest {
+  user?: string;
+  team?: string;
+}

@@ -26,6 +26,12 @@ pub struct CompetitionResponse {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct ToastSubscribeRequest {
+    pub(crate) user: Option<String>,
+    pub(crate) team: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
 pub(crate) struct AdminGenerateCodeQuery {
     pub(crate) team_name: String,
 }

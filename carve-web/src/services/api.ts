@@ -23,7 +23,8 @@ import type {
   ApiKeysListResponse,
   DeleteApiKeyRequest,
   BoxCredsForTeamQuery,
-  BoxCredentialsResponse
+  BoxCredentialsResponse,
+  ToastNotification
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 
@@ -207,6 +208,11 @@ export const apiService = {
 
   async deleteApiKey(request: DeleteApiKeyRequest): Promise<void> {
     await api.delete('admin/api_keys', { data: request });
+  },
+
+  // Toast notification publishing (admin only)
+  async publishToast(notification: ToastNotification): Promise<void> {
+    await api.post('admin/toast', notification);
   },
 
   async getTeam(teamId: number): Promise<Team> {

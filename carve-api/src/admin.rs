@@ -121,3 +121,19 @@ pub async fn delete_api_key(
         }))),
     }
 }
+
+// publish a toast notification
+#[post("/toast")]
+pub async fn publish_toast(
+    redis: web::Data<RedisManager>,
+    toast: web::Json<carve::config::ToastNotification>,
+) -> ActixResult<impl Responder> {
+    match redis.publish_toast(&toast.into_inner()).await {
+        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "message": "Toast notification published successfully"
+        }))),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "Failed to publish toast notification"
+        }))),
+    }
+}

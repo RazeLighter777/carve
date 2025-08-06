@@ -1,3 +1,6 @@
+use crate::config::ToastNotification;
+use crate::config::ToastSeverity;
+
 use super::*;
 
 impl RedisManager {
@@ -83,7 +86,14 @@ impl RedisManager {
             .query_async(&mut conn)
             .await
             .context("Failed to publish QEMU command")?;
-
+        // publish a warning toast notification to the team
+        self.publish_toast(&ToastNotification {
+            title: "Box Event".to_string(),
+            message: format!("Box '{}' has received a '{:?}' command.", box_name, command),
+            severity: ToastSeverity::Warning,
+            user: None,
+            team: Some(team_name.to_string()),
+        }).await?;
         Ok(())
     }
 
@@ -439,29 +449,21 @@ impl RedisManager {
         Ok(count)
     }
 
-    pub fn get_number_of_successful_checks_at_times(
+    pub async fn get_number_of_successful_checks_at_times(
         &self,
         competition_name: &str,
         team_id: u64,
         check_name: &str,
         timestamps: impl IntoIterator<Item = i64> + Clone,
     ) -> Result<Vec<i64>> {
-        let mut conn = self
-            .client
-            .get_connection()
-            .context("Failed to connect to Redis")?;
+        let mut conn = self.get_connection().await?;
         // the key name
         let key = format!("{}:{}:{}", competition_name, team_id, check_name);
-        // Get the number of events for this team/check at each timestamp
-        Ok(redis::transaction(
-            &mut conn,
-            &[key.clone()],
-            |con, pipe| {
-                for timestamp in timestamps.clone() {
-                    pipe.zcount(&key, "-inf", timestamp);
-                }
-                pipe.query(con)
-            },
-        )?)
+        let mut pipeline = redis::pipe();
+        pipeline.atomic();
+        for timestamp in timestamps.clone() {
+            pipeline.cmd("ZCOUNT").arg(&key).arg("-inf").arg(timestamp);
+        }
+        pipeline.query_async(&mut conn).await.context("Failed to get team scores by check at times")
     }
 }

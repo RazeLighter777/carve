@@ -22,6 +22,23 @@ pub struct Box {
     pub backing_image: String, // Path to the original disk image
 }
 
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum ToastSeverity {
+    Info,
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ToastNotification {
+    pub title: String,
+    pub message: String,
+    pub severity: ToastSeverity, // Severity of the notification
+    pub user: Option<String>, // Optional user to notify
+    pub team: Option<String>, // Optional team to notify
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct Team {
     pub name: String,
