@@ -174,7 +174,20 @@ impl VmManager {
                 "ACCEPT",
             ])
             .status();
-
+        // disallow competition ips from sending packets to container
+        let _ = Command::new("iptables")
+            .args([
+                "-A",
+                "INPUT",
+                "-s",
+                &self.get_competition_config()?.cidr.clone().expect("CIDR not set in competition config"),
+                "-i",
+                "eth0",
+                "-j",
+                "DROP",
+            ])
+            .status();
+                
         println!("Network configuration complete");
         Ok(())
     }
@@ -203,6 +216,8 @@ impl VmManager {
                 &format!("nic,model=virtio,macaddr={}", mac_address),
                 "-net",
                 "bridge,br=br0",
+                "-usbdevice",
+                "tablet",
                 "-display",
                 "vnc=0.0.0.0:0,websocket=5700,power-control=on",
                 "-device",
@@ -210,6 +225,7 @@ impl VmManager {
                 "-chardev",
                 "socket,id=char0,websocket=on,host=0.0.0.0,port=9999,mux=on,server=on,wait=off",
                 "-daemonize",
+                "-no-shutdown",
                 "-pidfile",
                 "/tmp/qemu.pid",
                 "-monitor",

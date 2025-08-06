@@ -106,7 +106,15 @@ ethernets:
 ssh_pwauth: True
 package_update: true
 package_upgrade: true
+write_files:
+    - path: /etc/systemd/system/serial-getty@ttyS1.service.d/override.conf
+      content: |
+        [Service]
+        Environment=TERM=xterm-256color
+      owner: root:root
+      permissions: '0644'
 runcmd:
+    - [ systemctl, daemon-reload ]
     - [ systemctl, enable, --now, ssh ]
     - [ systemctl, enable, --now, serial-getty@ttyS1 ]
 users:

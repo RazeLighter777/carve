@@ -6,6 +6,7 @@ use actix_web::post;
 use actix_web::{
     get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result as ActixResult,
 };
+use anyhow::Context;
 use carve::config::{Check, FlagCheck};
 use carve::{
     config::{AppConfig, Competition},
@@ -162,6 +163,7 @@ async fn get_leaderboard(
             rank: 0, // Will be set after sorting
         });
     }
+    let _ = redis.set_team_last_known_scores(&competition.name, leaderboard_entries.iter().map(|e| (e.team_name.clone(), e.score)).collect::<Vec<_>>()).await.context("Failed to set team last known scores");
 
     // Sort by score (descending) and assign ranks
     leaderboard_entries.sort_by(|a, b| b.score.cmp(&a.score));

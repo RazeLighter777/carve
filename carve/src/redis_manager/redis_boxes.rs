@@ -448,6 +448,106 @@ impl RedisManager {
         // Try to get the check points from the check or flag_check (not available here, so just return count)
         Ok(count)
     }
+    const TEAM_PASSED_TOAST_MESSAGES: [&str; 15] = [
+        "😭 Cry more, Team [B]! Team [A] just stole your spotlight… and your dignity. ⚡",
+        "🚨 Breaking: Team [B] officially outclassed. Team [A] says hi from the top! 🖐️",
+        "👀 Did you blink? Team [A] just swiped the lead while Team [B] was napping! 💤",
+        "💥 Boom! Team [A] just turned Team [B]’s lead into a “behind”! 😂",
+        "🏴‍☠️ Ahoy, losers! Team [A] just hijacked [B]'s score and its pride! 🏴‍☠️",
+        "🐌 Slow much, Team [B]? Team [A] left you in the dust! 💨",
+        "🤡 Step aside, Team [B] clowns! Team [A] is running the circus now 🎪",
+        "⚡ Zapped! Team [B] just got outsmarted by Team [A]’s genius hacks 💻💀",
+        "🎯 Direct hit! Team [B] is now officially target practice for Team [A]!",
+        "🔥 Hot tip: Team [B] might want to consider a career in spectator sports… Team [A] takes the lead.🏟️",
+        "💪 Weak flex, Team [B]. Team [A] just made you look silly. 😎",
+        "🕹️ Team [A] is now officially in the driver’s seat! Team [B] is downgraded to the passenger princess!🏁",
+        "🐢 Slowpoke alert! Team [A] lapped Team [B] and is having a snack 🍿",
+        "🎉 Surprise! Team [A] just crashed Team [B]’s party and took the lead! 🎊",
+        "🚀 To infinity and beyond! Team [A] just launched past Team [B] like a rocket!🚀",
+    ];
+    pub async fn set_team_last_known_scores(
+        &self,
+        competition_name: &str,
+        mut ranks: Vec<(String, i64)>,
+    ) -> Result<()> {
+
+        // Sort the rankings by score (descending)
+        ranks.sort_by(|a, b| b.1.cmp(&a.1));
+        
+        let key = format!("{}:last_known_rankings", competition_name);
+        //query current rankings to see if they changed
+        let conn = self.get_connection().await?;
+        let current_rankings: Option<String> = redis::cmd("GET")
+            .arg(&key)
+            .query_async(&mut conn.clone())
+            .await
+            .context("Failed to get last known rankings")?;
+        let current_rankings: Vec<(String, i64)> = if let Some(ref rankings) = current_rankings {
+            serde_yaml::from_str(rankings)
+                .context("Failed to deserialize last known rankings from YAML")?
+        } else {
+            Vec::new()
+        };
+        
+        if current_rankings != ranks {
+            // If rankings have changed, update them
+            let value = serde_yaml::to_string(&ranks)
+                .context("Failed to serialize last known rankings to YAML")?;
+            let mut conn = self.get_connection().await?;
+            redis::cmd("SET")
+                .arg(&key)
+                .arg(&value)
+                .query_async::<()>(&mut conn)
+                .await
+                .context("Failed to set last known rankings")?;
+            //send out a toast notification to all teams that their ranking has changed, but only if the competition is active and if only if the rank changed for the top 3 teams and only if the teams scores are not tied
+            let state = self.get_competition_state(competition_name).await?;
+            
+            if state.status == CompetitionStatus::Active {
+                // Create maps for both current and previous rankings by position
+                let mut previous_positions: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+                for (pos, (team, _)) in current_rankings.iter().enumerate() {
+                    previous_positions.insert(team.clone(), pos);
+                }
+                
+                // Check for position changes in top 3
+                for (new_pos, (team, score)) in ranks.iter().enumerate().take(3) {
+                    
+                    if let Some(&old_pos) = previous_positions.get(team) {
+                        
+                        // Team moved up in ranking (lower position number = higher rank)
+                        if new_pos < old_pos && old_pos < 3 {
+                            
+                            // Find the team that was passed (now at the old position or worse)
+                            let mut passed_team: Option<&String> = None;
+                            for (pos, (other_team, other_score)) in ranks.iter().enumerate() {
+                                if pos >= old_pos && other_team != team && *other_score != *score {
+                                    passed_team = Some(other_team);
+                                    break;
+                                }
+                            }
+                            
+                            if let Some(other_team) = passed_team {
+                                let message_template = Self::TEAM_PASSED_TOAST_MESSAGES
+                                    [(rand::random::<u64>() % (Self::TEAM_PASSED_TOAST_MESSAGES.len() as u64)) as usize];
+                                let message = message_template
+                                    .replace("[A]", team)
+                                    .replace("[B]", other_team);
+                                self.publish_toast(&ToastNotification {
+                                    title: "Ranking Update".to_string(),
+                                    message,
+                                    severity: ToastSeverity::Info,
+                                    user: None,
+                                    team: None,
+                                }).await?;
+                            } 
+                        } 
+                    } 
+                }
+            } 
+        }
+        Ok(())
+    }
 
     pub async fn get_number_of_successful_checks_at_times(
         &self,
