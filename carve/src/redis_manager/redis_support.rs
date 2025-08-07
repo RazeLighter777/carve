@@ -199,6 +199,7 @@ impl RedisManager {
             severity: ToastSeverity::Info,
             user: None,
             team: None, // Global notification for admins
+            sound_effect: None,
         }).await?;
 
         Ok(ticket_id)
@@ -237,6 +238,7 @@ impl RedisManager {
                     severity: ToastSeverity::Info,
                     user: None,
                     team: Some(team_name.to_string()),
+                    sound_effect: None,
                 }).await?;
             } else {
                 // Team added a message - notify all admins
@@ -246,6 +248,7 @@ impl RedisManager {
                     severity: ToastSeverity::Info,
                     user: None,
                     team: None, // Global notification for admins
+                    sound_effect: None,
                 }).await?;
             }
 
@@ -281,6 +284,7 @@ impl RedisManager {
             severity: ToastSeverity::Info,
             user: None,
             team: Some(team_name.to_string()),
+            sound_effect: None,
         }).await?;
 
         Ok(())
@@ -323,6 +327,7 @@ impl RedisManager {
                 severity: ToastSeverity::Info,
                 user: None,
                 team: Some(team_name.to_string()),
+                sound_effect: None,
             }).await?;
 
             Ok(())
@@ -355,6 +360,7 @@ impl RedisManager {
                 severity: ToastSeverity::Info,
                 user: None,
                 team: Some(team_name.to_string()),
+                sound_effect: None,
             }).await?;
             Ok(true)
         } else {

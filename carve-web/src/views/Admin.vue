@@ -37,6 +37,7 @@ const toastTargetValue = ref('')
 const toastPublishing = ref(false)
 const toastError = ref('')
 const toastSuccess = ref('')
+const soundEffect = ref<string | null>(null)
 
 const fetchCompetition = async () => {
   loading.value = true
@@ -222,7 +223,8 @@ const publishToast = async () => {
       message: toastMessage.value,
       severity: toastSeverity.value,
       user: toastTargetType.value === 'user' ? toastTargetValue.value : undefined,
-      team: toastTargetType.value === 'team' ? toastTargetValue.value : undefined
+      team: toastTargetType.value === 'team' ? toastTargetValue.value : undefined,
+      sound_effect : soundEffect.value || undefined, // Optional sound effect
     }
     
     await apiService.publishToast(notification)
@@ -309,7 +311,7 @@ onMounted(async () => {
         <div class="space-y-4">
           <!-- Title -->
           <div>
-            <label for="toast-title" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <label for="toast-title" class="block text-sm font-medium text-gray-700 mb-1 dark:text-white">Title</label>
             <input
               id="toast-title"
               v-model="toastTitle"
@@ -321,7 +323,7 @@ onMounted(async () => {
           
           <!-- Message -->
           <div>
-            <label for="toast-message" class="block text-sm font-medium text-gray-700 mb-1">Message</label>
+            <label for="toast-message" class="block text-sm font-medium text-gray-700 mb-1 dark:text-white">Message</label>
             <textarea
               id="toast-message"
               v-model="toastMessage"
@@ -333,7 +335,7 @@ onMounted(async () => {
           
           <!-- Severity -->
           <div>
-            <label for="toast-severity" class="block text-sm font-medium text-gray-700 mb-1">Severity</label>
+            <label for="toast-severity" class="block text-sm font-medium text-gray-700 dark:text-white mb-1">Severity</label>
             <select
               id="toast-severity"
               v-model="toastSeverity"
@@ -344,10 +346,22 @@ onMounted(async () => {
               <option :value="ToastSeverity.Error">Error</option>
             </select>
           </div>
+
+          <!-- Sound Effect -->
+          <div>
+            <label for="toast-sound-effect" class="block text-sm font-medium text-gray-700 dark:text-white mb-1">Sound Effect (optional)</label>
+            <input
+              id="toast-sound-effect"
+              v-model="soundEffect"
+              type="text"
+              placeholder="Enter sound effect name (without extension)"
+              class="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
           
           <!-- Target Type -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Target</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">Target</label>
             <div class="space-y-2">
               <label class="flex items-center">
                 <input
@@ -357,7 +371,7 @@ onMounted(async () => {
                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                   @change="toastTargetValue = ''"
                 />
-                <span class="ml-2 text-sm text-gray-700">Global (all users)</span>
+                <span class="ml-2 text-sm text-gray-700 dark:text-white">Global (all users)</span>
               </label>
               <label class="flex items-center">
                 <input
@@ -366,7 +380,7 @@ onMounted(async () => {
                   value="user"
                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                 />
-                <span class="ml-2 text-sm text-gray-700">Specific user</span>
+                <span class="ml-2 text-sm text-gray-700 dark:text-white">Specific user</span>
               </label>
               <label class="flex items-center">
                 <input
@@ -375,7 +389,7 @@ onMounted(async () => {
                   value="team"
                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                 />
-                <span class="ml-2 text-sm text-gray-700">Specific team</span>
+                <span class="ml-2 text-sm text-gray-700 dark:text-white">Specific team</span>
               </label>
             </div>
           </div>

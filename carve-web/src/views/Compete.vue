@@ -1,11 +1,11 @@
 <template>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 class="text-3xl font-bold mb-6">Compete</h1>
-        <p class="mb-4 text-gray-700">Click on a service or flag in the treemap below to view details or submit a flag.</p>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-white dark:bg-gray-900 rounded-xl shadow-md">
+        <h1 class="text-3xl font-bold mb-6 dark:text-gray-100">Compete</h1>
+        <p class="mb-4 text-gray-700 dark:text-gray-300">Click on a service or flag in the treemap below to view details or submit a flag.</p>
         <div v-if="loading" class="flex justify-center items-center min-h-96">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-300"></div>
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-300 dark:border-gray-600"></div>
         </div>
-        <div v-else-if="error" class="text-red-600 text-center">{{ error }}</div>
+        <div v-else-if="error" class="text-red-600 dark:text-red-400 text-center">{{ error }}</div>
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
                 <canvas ref="checkTreemap" height="400"></canvas>
@@ -15,14 +15,14 @@
             </div>
         </div>
         <div v-if="selectedItem" class="fixed inset-0 bg-black/40 bg-blend-overlay flex items-center justify-center z-50" @click.self="selectedItem = null">
-            <div class="bg-white rounded-lg shadow-lg p-8 max-w-md w-full relative">
-                <button class="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 max-w-md w-full relative">
+                <button class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
                     @click="selectedItem = null">&times;</button>
-                <h2 class="text-xl font-bold mb-2">{{ selectedItem.name }}</h2>
-                <p class="mb-2">{{ selectedItem.description }}</p>
-                <p class="mb-2 font-semibold">Points: {{ selectedItem.points }}</p>
-                <p class="mb-4 font-semibold" v-if="selectedItem.interval">Interval: {{ selectedItem.interval }} seconds</p>
-                <p class="mb-4 font-semibold" v-if="selectedItem.message">
+                <h2 class="text-xl font-bold mb-2 dark:text-gray-100">{{ selectedItem.name }}</h2>
+                <p class="mb-2 dark:text-gray-300">{{ selectedItem.description }}</p>
+                <p class="mb-2 font-semibold dark:text-gray-100">Points: {{ selectedItem.points }}</p>
+                <p class="mb-4 font-semibold dark:text-gray-100" v-if="selectedItem.interval">Interval: {{ selectedItem.interval }} seconds</p>
+                <p class="mb-4 font-semibold dark:text-gray-100" v-if="selectedItem.message">
                     Status:
                     <span v-if="Array.isArray(selectedItem.message)">
                         <ul class="list-disc list-inside">
@@ -34,24 +34,24 @@
                 <!-- Show passing boxes for regular checks -->
                 <div v-if="!selectedItem.isFlag">
                     <div class="mb-2">
-                        <span class="font-semibold">Passing boxes:</span>
+                        <span class="font-semibold dark:text-gray-100">Passing boxes:</span>
                         <span v-if="selectedItem.passing_boxes && selectedItem.passing_boxes.length > 0">
-                            <ul class="list-disc list-inside">
+                            <ul class="list-disc list-inside dark:text-gray-300">
                                 <li v-for="box in selectedItem.passing_boxes" :key="box">{{ box }}</li>
                             </ul>
                         </span>
-                        <span v-else class="text-gray-500">None</span>
+                        <span v-else class="text-gray-500 dark:text-gray-400">None</span>
                     </div>
                 </div>
                 <div v-if="selectedItem.isFlag">
                     <div v-if="getFlagSolved(selectedItem.name)">
-                        <span class="text-green-600 font-bold">Flag already solved!</span>
+                        <span class="text-green-600 dark:text-green-400 font-bold">Flag already solved!</span>
                     </div>
                     <div v-else>
-                        <input v-model="flagInput" class="input-field w-full mb-2" placeholder="Enter flag..." :disabled="!competitionRunning" />
-                        <button @click="redeemFlag" class="btn-primary w-full mb-2" :disabled="!competitionRunning" :class="{'opacity-50 cursor-not-allowed': !competitionRunning}">Submit Flag</button>
-                        <div v-if="!competitionRunning" class="text-gray-500 text-center mb-2">Competition not running yet 😢</div>
-                        <div v-if="redeemMessage" :class="redeemSuccess ? 'text-green-600' : 'text-red-600'">{{
+                        <input v-model="flagInput" class="w-full mb-2 border border-gray-300 dark:border-gray-600 rounded-md p-2 text-base bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Enter flag..." :disabled="!competitionRunning" />
+                        <button @click="redeemFlag" class="w-full mb-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-900 dark:hover:bg-blue-800 text-white rounded-md px-4 py-2 font-semibold transition-colors duration-200" :disabled="!competitionRunning" :class="{'opacity-50 cursor-not-allowed': !competitionRunning}">Submit Flag</button>
+                        <div v-if="!competitionRunning" class="text-gray-500 dark:text-gray-400 text-center mb-2">Competition not running yet 😢</div>
+                        <div v-if="redeemMessage" :class="redeemSuccess ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">{{
                             redeemMessage }}</div>
                     </div>
                 </div>
@@ -311,24 +311,3 @@ export default defineComponent({
 });
 </script>
 
-<style scoped>
-.input-field {
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    padding: 0.5rem;
-    font-size: 1rem;
-}
-
-.btn-primary {
-    background: #2563eb;
-    color: white;
-    border-radius: 0.375rem;
-    padding: 0.5rem 1rem;
-    font-weight: 600;
-    transition: background 0.2s;
-}
-
-.btn-primary:hover {
-    background: #1d4ed8;
-}
-</style>

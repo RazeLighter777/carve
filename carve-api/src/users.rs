@@ -129,6 +129,12 @@ pub async fn generate_join_code(
             "error": "User is not in a team"
         })));
     }
+    // if the option config.allow_non_admins_to_generate_join_codes is false, return an error
+    if !competition.allow_non_admins_to_generate_join_codes {
+        return Ok(HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Non-admins are not allowed to generate join codes"
+        })));
+    }
     // generate a join code for the team
     match redis
         .generate_team_join_code(&competition.name, &team_name)

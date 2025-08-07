@@ -20,6 +20,7 @@ import type {
   ScoresAtGivenTimeResponse,
   ScoreAtGivenTimesQuery,
   ApiKeyResponse,
+  GamerulesResponse,
   ApiKeysListResponse,
   DeleteApiKeyRequest,
   BoxCredsForTeamQuery,
@@ -153,6 +154,10 @@ export const apiService = {
 
   async getBoxCredsForTeam(query: BoxCredsForTeamQuery): Promise<BoxCredentialsResponse> {
     const response = await api.get<BoxCredentialsResponse>(`admin/box/creds_for?name=${query.name}&team=${query.team}`);
+    return response.data;
+  },
+  async getGamerules(): Promise<GamerulesResponse> {
+    const response = await api.get<GamerulesResponse>('competition/gamerules');
     return response.data;
   },
   async switchTeam(code : string): Promise<void> {

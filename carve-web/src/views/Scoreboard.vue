@@ -331,13 +331,13 @@ const toggleExpand = async (teamId: string) => {
 const getRankColor = (rank: number) => {
   switch (rank) {
     case 1:
-      return 'text-yellow-600 bg-yellow-50'
+      return 'text-yellow-600 bg-yellow-50 dark:bg-yellow-200 dark:text-yellow-300'
     case 2:
-      return 'text-gray-600 bg-gray-50'
+      return 'text-gray-600 bg-gray-50 dark:bg-gray-200 dark:text-gray-300'
     case 3:
-      return 'text-orange-600 bg-orange-50'
+      return 'text-orange-600 bg-orange-50 dark:bg-orange-300 dark:text-orange-300'
     default:
-      return 'text-gray-700 bg-gray-100'
+      return 'text-gray-700 bg-gray-100 dark:bg-gray-800 dark:text-gray-300'
   }
 }
 const getRankIcon = (rank: number) => {
@@ -403,8 +403,8 @@ const lineOptions = {
         <div class="flex items-center">
           <TrophyIcon class="h-8 w-8 text-black mr-3" />
           <div>
-            <h1 class="text-3xl font-bold text-gray-900">Leaderboard</h1>
-            <p class="text-gray-600 mt-1">Current team rankings and scores</p>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Leaderboard</h1>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">Current team rankings and scores</p>
           </div>
         </div>
         <button
@@ -417,7 +417,7 @@ const lineOptions = {
           Refresh
         </button>
       </div>
-      <div v-if="leaderboardLastUpdated" class="text-sm text-gray-500 mt-2">
+      <div v-if="leaderboardLastUpdated" class="text-sm text-gray-500 dark:text-gray-400 mt-2">
         Last updated: {{ leaderboardLastUpdated.toLocaleTimeString() }}
       </div>
     </div>
@@ -431,23 +431,23 @@ const lineOptions = {
     </div>
     <div v-else-if="leaderboard.length" class="card overflow-hidden mb-8">
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-800">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team ID</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rank</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Team</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Score</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Team ID</th>
             </tr>
           </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
+          <tbody class="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
             <template v-for="entry in leaderboard" :key="entry.teamId">
               <tr
-                class="hover:bg-gray-50 transition-colors cursor-pointer"
+                class="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                 @click="toggleExpand(entry.teamId.toString())"
                 :class="[
-                  expandedTeamId === entry.teamId.toString() ? 'bg-gray-100' : '',
-                  isCompetitionFinished && winnerTeamId === entry.teamId ? 'bg-yellow-100 font-bold' : ''
+                  expandedTeamId === entry.teamId.toString() ? 'bg-gray-100 dark:bg-gray-800' : '',
+                  isCompetitionFinished && winnerTeamId === entry.teamId ? 'bg-yellow-100 dark:bg-yellow-700 font-bold' : ''
                 ]"
               >
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -460,28 +460,28 @@ const lineOptions = {
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm font-medium text-gray-900">
+                  <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {{ entry.teamName }}
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm text-gray-900 font-mono">
+                  <div class="text-sm text-gray-900 dark:text-gray-100 font-mono">
                     {{ entry.score.toLocaleString() }}
                   </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-100">
                   {{ entry.teamId }}
                 </td>
               </tr>
               <tr v-if="expandedTeamId === entry.teamId.toString()">
-                <td colspan="4" class="bg-gray-50 px-8 py-4">
+                <td colspan="4" class="bg-gray-50 dark:bg-gray-800 px-8 py-4">
                   <div>
-                    <h4 class="font-semibold text-gray-700 mb-2">Team Members</h4>
-                    <div v-if="expandedTeamLoading[entry.teamId.toString()]" class="text-gray-500">Loading...</div>
+                    <h4 class="font-semibold text-gray-700 dark:text-gray-100 mb-2">Team Members</h4>
+                    <div v-if="expandedTeamLoading[entry.teamId.toString()]" class="text-gray-500 dark:text-gray-400">Loading...</div>
                     <div v-else-if="expandedTeamError[entry.teamId.toString()]" class="text-red-600">{{ expandedTeamError[entry.teamId.toString()] }}</div>
                     <table v-else class="min-w-full text-sm">
                       <thead>
-                        <tr class="bg-gray-100">
+                        <tr class="bg-gray-100 dark:bg-gray-800">
                           <th class="px-4 py-2 text-left">Name</th>
                         </tr>
                       </thead>
@@ -490,7 +490,7 @@ const lineOptions = {
                           <td class="px-4 py-2">{{ member.name || 'Unknown' }}</td>
                         </tr>
                         <tr v-if="!expandedTeamMembers[entry.teamId.toString()] || !expandedTeamMembers[entry.teamId.toString()].length">
-                          <td class="px-4 py-2 text-gray-400">No members found.</td>
+                          <td class="px-4 py-2 text-gray-400 dark:text-gray-300">No members found.</td>
                         </tr>
                       </tbody>
                     </table>
@@ -511,12 +511,12 @@ const lineOptions = {
     <div class="card p-6 mb-6">
       <div class="flex items-center mb-4">
         <FunnelIcon class="h-5 w-5 text-gray-600 mr-2" />
-        <h2 class="text-lg font-medium text-gray-900">Filters</h2>
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Filters</h2>
       </div>
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Team</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-100 mb-2">Team</label>
           <select v-model="selectedTeam" @change="loadData" class="input-field">
             <option value="">All Teams</option>
             <option v-for="team in teams" :key="team.id" :value="team.id.toString()">
@@ -525,7 +525,7 @@ const lineOptions = {
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Scoring Check</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-100 mb-2">Scoring Check</label>
           <select v-model="selectedCheck" @change="loadData" class="input-field">
             <option value="">All Checks</option>
             <option v-for="check in allCheckNames" :key="check.name" :value="check.name">
@@ -554,7 +554,7 @@ const lineOptions = {
 
     <!-- Time Range Dropdown -->
     <div class="mb-4 flex items-center">
-      <label class="block text-sm font-medium text-gray-700 mr-2">Time Range:</label>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-100 mr-2">Time Range:</label>
       <select v-model="selectedTime" @change="loadData" class="input-field w-auto">
         <option v-for="option in timeOptions" :key="option.value" :value="option.value">
           {{ option.label }}
@@ -563,10 +563,10 @@ const lineOptions = {
     </div>
     <!-- Scoreboard content -->
     <div v-if="filteredScoreboard.length" class="space-y-4">
-      <div class="text-sm text-gray-600 mb-4">
+      <div class="text-sm text-gray-600 dark:text-gray-300 mb-4">
         Showing {{ filteredScoreboard.length }} event{{ filteredScoreboard.length !== 1 ? 's' : '' }}
       </div>
-      <div class="bg-white rounded shadow p-4 mb-6">
+      <div class="bg-white dark:bg-gray-800 rounded shadow p-4 mb-6">
         <Line :data="patchedLineData" :options="lineOptions" class="h-60" />
       </div>
     </div>
@@ -574,8 +574,8 @@ const lineOptions = {
     <!-- Check Status Section -->
     <div v-if="filteredChecks.length || filteredFlagChecks.length" class="mt-8">
       <div class="mb-4">
-        <h2 class="text-xl font-bold text-gray-900">Current Check Status</h2>
-        <p class="text-gray-600 text-sm">Status for selected team and check</p>
+        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">Current Check Status</h2>
+        <p class="text-gray-600 dark:text-gray-300 text-sm">Status for selected team and check</p>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Status Checks -->

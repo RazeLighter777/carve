@@ -43,6 +43,17 @@ async fn get_competition(
     }
 }
 
+#[get("/gamerules")]
+async fn get_gamerules(
+    competition: web::Data<Competition>,
+) -> ActixResult<impl Responder> {
+    let response = types::GameruleResponse {
+        allow_non_admins_to_generate_join_codes: competition.allow_non_admins_to_generate_join_codes,
+        restore_cooldown: competition.restore_cooldown.unwrap_or(0),
+    };
+    Ok(HttpResponse::Ok().json(response))
+}
+
 //returns the score at a given point in time filtered by check
 #[post("/scoresat")]
 async fn get_scores_at_given_time(
@@ -392,6 +403,7 @@ async fn main() -> std::io::Result<()> {
                             .service(boxes::send_box_restore)
                             .service(get_scores_at_given_time)
                             .service(users::listen_for_toasts)
+                            .service(get_gamerules)
                     )
                     .service(
                         web::scope("/oauth2")

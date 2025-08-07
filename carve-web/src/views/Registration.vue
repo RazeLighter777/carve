@@ -75,25 +75,25 @@ const goToLogin = () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
     <div class="max-w-md w-full space-y-8">
       <div>
-        <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-primary-100">
-          <svg class="h-8 w-8 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900">
+          <svg class="h-8 w-8 text-black dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
         </div>
-        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-gray-100">
           Create Account
         </h2>
-        <p class="mt-2 text-center text-sm text-gray-600">
+        <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
           Join the CARVE competition platform
         </p>
       </div>
 
       <div class="mt-8 space-y-6">
         <!-- Success message -->
-        <div v-if="success" class="rounded-md bg-green-50 p-4">
+        <div v-if="success" class="rounded-md bg-green-50 dark:bg-green-900/30 p-4">
           <div class="flex">
             <div class="flex-shrink-0">
               <svg class="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -101,16 +101,16 @@ const goToLogin = () => {
               </svg>
             </div>
             <div class="ml-3">
-              <h3 class="text-sm font-medium text-green-800">
+              <h3 class="text-sm font-medium text-green-800 dark:text-green-200">
                 Registration Successful
               </h3>
-              <div class="mt-2 text-sm text-green-700">
+              <div class="mt-2 text-sm text-green-700 dark:text-green-300">
                 {{ success }}
               </div>
               <div class="mt-4">
                 <button
                   @click="goToLogin"
-                  class="text-sm text-green-800 font-medium hover:text-green-600 underline"
+                  class="text-sm text-green-800 dark:text-green-200 font-medium hover:text-green-600 dark:hover:text-green-300 underline"
                 >
                   Go to Login
                 </button>
@@ -120,16 +120,16 @@ const goToLogin = () => {
         </div>
 
         <!-- Error message -->
-        <div v-if="error" class="rounded-md bg-red-50 p-4">
+        <div v-if="error" class="rounded-md bg-red-50 dark:bg-red-900/30 p-4">
           <div class="flex">
             <div class="flex-shrink-0">
               <ExclamationTriangleIcon class="h-5 w-5 text-red-400" />
             </div>
             <div class="ml-3">
-              <h3 class="text-sm font-medium text-red-800">
+              <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
                 Registration Error
               </h3>
-              <div class="mt-2 text-sm text-red-700">
+              <div class="mt-2 text-sm text-red-700 dark:text-red-300">
                 {{ error }}
               </div>
             </div>
@@ -139,15 +139,15 @@ const goToLogin = () => {
         <!-- Registration form -->
         <div v-if="!success" class="card p-6">
           <div class="text-center mb-6">
-            <h3 class="text-lg font-medium text-gray-900">Register for CARVE</h3>
-            <p class="text-sm text-gray-600 mt-1">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Register for CARVE</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Fill in your details to create an account
             </p>
           </div>
           
           <form @submit.prevent="handleRegistration" class="space-y-4">
             <div>
-              <label for="username" class="block text-sm font-medium text-gray-700">
+              <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Username *
               </label>
               <input
@@ -155,16 +155,16 @@ const goToLogin = () => {
                 v-model="registrationForm.username"
                 type="text"
                 required
-                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Choose a username"
               />
-              <p class="mt-1 text-xs text-gray-500">
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Username must be 3-32 characters, start with a letter, and may only contain letters, numbers, underscores, or hyphens.
               </p>
             </div>
             
             <div>
-              <label for="email" class="block text-sm font-medium text-gray-700">
+              <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Email Address *
               </label>
               <input
@@ -172,13 +172,13 @@ const goToLogin = () => {
                 v-model="registrationForm.email"
                 type="email"
                 required
-                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Enter your email address"
               />
             </div>
             
             <div>
-              <label for="password" class="block text-sm font-medium text-gray-700">
+              <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Password *
               </label>
               <input
@@ -186,26 +186,26 @@ const goToLogin = () => {
                 v-model="registrationForm.password"
                 type="password"
                 required
-                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Create a strong password"
               />
-              <p class="mt-1 text-xs text-gray-500">
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Password must be at least 8 characters long.
               </p>
             </div>
             
             <div>
-              <label for="team_join_code" class="block text-sm font-medium text-gray-700">
+              <label for="team_join_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Team Join Code (Optional)
               </label>
               <input
                 id="team_join_code"
                 v-model.number="registrationForm.team_join_code"
                 type="number"
-                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Enter team join code (if you have one)"
               />
-              <p class="mt-1 text-xs text-gray-500">
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Leave blank if you don't have a team join code yet
               </p>
             </div>
@@ -225,11 +225,11 @@ const goToLogin = () => {
           </form>
           
           <div class="mt-6 text-center">
-            <p class="text-sm text-gray-600">
+            <p class="text-sm text-gray-600 dark:text-gray-400">
               Already have an account?
               <button
                 @click="goToLogin"
-                class="font-medium text-primary-600 hover:text-primary-500 underline"
+                class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-500 dark:hover:text-primary-300 underline"
               >
                 Sign in here
               </button>
@@ -238,7 +238,7 @@ const goToLogin = () => {
         </div>
 
         <div class="text-center">
-          <p class="text-xs text-gray-500">
+          <p class="text-xs text-gray-500 dark:text-gray-400">
             By creating an account, you agree to participate in the competition according to the rules and guidelines.
           </p>
         </div>

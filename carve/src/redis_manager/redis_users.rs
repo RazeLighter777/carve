@@ -136,6 +136,7 @@ impl RedisManager {
             severity: ToastSeverity::Info,
             user: None,
             team: Some(new_team.to_string()),
+            sound_effect: None,
         }).await?;
         Ok(())
     }

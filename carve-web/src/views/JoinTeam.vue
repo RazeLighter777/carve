@@ -31,10 +31,10 @@ const logout = () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50">
-    <div class="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
-      <h1 class="text-2xl font-bold mb-4 text-center">Join a Team</h1>
-      <p class="mb-6 text-gray-600 text-center">Enter your team code to join a team and participate in the competition. Ask your team captain or competition administrator if you don't have one.</p>
+  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+    <div class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+      <h1 class="text-2xl font-bold mb-4 text-center text-gray-900 dark:text-gray-100">Join a Team</h1>
+      <p class="mb-6 text-gray-600 dark:text-gray-400 text-center">Enter your team code to join a team and participate in the competition. Ask your team captain or competition administrator if you don't have one.</p>
       <form @submit.prevent="submit">
         <input
           v-model="code"
@@ -42,7 +42,7 @@ const logout = () => {
           inputmode="numeric"
           pattern="[0-9]*"
           maxlength="10"
-          class="w-full px-4 py-2 border rounded mb-4 focus:outline-none focus:ring-2 focus:ring-primary"
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="Team Code"
           :disabled="loading"
         />
@@ -53,7 +53,7 @@ const logout = () => {
         >
           {{ loading ? 'Joining...' : 'Join Team' }}
         </button>
-        <div v-if="error" class="text-red-600 mt-4 text-center">{{ error }}</div>
+        <div v-if="error" class="text-red-600 dark:text-red-400 mt-4 text-center">{{ error }}</div>
       </form>
       <button @click="logout" class="w-full btn-secondary mt-6">Logout</button>
     </div>

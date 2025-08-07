@@ -65,6 +65,14 @@ onMounted(() => {
       emit('close')
     }, timeout)
   }
+  // Play sound effect if specified
+  if (props.notification.sound_effect) {
+    const audio_resource = import(`@/assets/sounds/${props.notification.sound_effect}.mp3`)
+    audio_resource.then(audio => {
+      const audioElement = new Audio(audio.default)
+      audioElement.play().catch(err => console.error('Error playing sound:', err))
+    }).catch(err => console.error('Error loading sound:', err))
+  }
 })
 
 onUnmounted(() => {

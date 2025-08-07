@@ -285,3 +285,9 @@ pub(crate) struct CreateSupportTicketResponse {
     pub(crate) ticket_id: u64,
     pub(crate) message: String,
 }
+
+#[derive(Serialize)]
+pub(crate) struct GameruleResponse {
+    pub(crate) allow_non_admins_to_generate_join_codes: bool, // Allow non-admins to generate join codes
+    pub(crate) restore_cooldown : u64, // Cooldown period for restoring boxes in seconds
+}

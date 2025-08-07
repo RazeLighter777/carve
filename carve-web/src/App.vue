@@ -21,7 +21,7 @@ let nextToastId = 0
 
 const connectToToastSocket = () => {
   const user = userInfo.value
-  if (!user || !user.team_name) {
+  if (!user) {
     return
   }
 
@@ -40,7 +40,7 @@ const connectToToastSocket = () => {
   const port = window.location.port ? `:${window.location.port}` : ''
   const params = new URLSearchParams({
     user: user.username,
-    team: user.team_name.toString()
+    team: user.team_name || undefined,
   })
   const url = `${protocol}://${host}${port}/api/v1/competition/listen_toasts?${params.toString()}`
 
@@ -62,7 +62,7 @@ const connectToToastSocket = () => {
   toastSocket.onclose = () => {
     console.log('Toast WebSocket disconnected')
     // Attempt to reconnect after 5 seconds if user is still logged in
-    if (userInfo.value && userInfo.value.team_name) {
+    if (userInfo.value) {
       setTimeout(connectToToastSocket, 5000)
     }
   }
@@ -96,19 +96,17 @@ const removeToast = (id: string) => {
 
 // Watch for user login/logout changes
 watch(userInfo, (newUser, oldUser) => {
-  if (newUser && newUser.team_name && (!oldUser || !oldUser.team_name)) {
-    // User logged in with a team
+  if (newUser && !oldUser) {
     connectToToastSocket()
-  } else if ((!newUser || !newUser.team_name) && oldUser && oldUser.team_name) {
-    // User logged out or lost team
+  } else if (!newUser && oldUser) {
     disconnectToastSocket()
-    toasts.value = [] // Clear existing toasts
+    toasts.value = []
   }
 }, { immediate: true })
 
 onMounted(() => {
   initializeTheme()
-  if (userInfo.value && userInfo.value.team_name) {
+  if (userInfo.value) {
     connectToToastSocket()
   }
 })

@@ -198,6 +198,7 @@ export interface ToastNotification {
   severity: ToastSeverity;
   user?: string;
   team?: string;
+  sound_effect?: string; // Optional sound effect for the toast
 }
 
 export interface ToastSubscribeRequest {
@@ -254,4 +255,11 @@ export interface SupportTicketsResponse {
 export interface CreateSupportTicketResponse {
   ticketId: number;
   message: string;
+}
+
+export interface GamerulesResponse {
+  // Allow non-admins to generate join codes
+  allow_non_admins_to_generate_join_codes: boolean;
+  // Cooldown period for restoring boxes in seconds
+  restore_cooldown: number;
 }

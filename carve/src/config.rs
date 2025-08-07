@@ -38,6 +38,7 @@ pub struct ToastNotification {
     pub severity: ToastSeverity, // Severity of the notification
     pub user: Option<String>, // Optional user to notify
     pub team: Option<String>, // Optional team to notify
+    pub sound_effect: Option<String>, // Optional sound effect to play.
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -173,6 +174,8 @@ pub struct Competition {
     pub create_default_admin: bool, // Create default admin user
     pub dns_upstream_service: Option<String>, // DNS upstream service for VTEP and carve-novnc-nginx
     pub restore_cooldown: Option<u64>, // Cooldown period for restoring boxes
+    #[serde(default)]
+    pub allow_non_admins_to_generate_join_codes: bool, // Allow non-admins to generate join codes defaults to false
 }
 
 #[derive(Debug, Deserialize, Clone)]

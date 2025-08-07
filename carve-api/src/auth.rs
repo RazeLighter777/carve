@@ -397,6 +397,14 @@ pub async fn register(
         {
             team_name = Some(team);
         }
+    // if TeamWithLeastMembers is enabled, find the team with the least members
+    } else if competition.registration_type == carve::config::RegistrationType::TeamWithLeastMembers {
+        if let Ok(Some(team)) = redis
+            .get_team_with_least_members(&competition.name)
+            .await
+        {
+            team_name = Some(team);
+        }
     }
     // Check if the username already exists
     if let Ok(Some(_)) = redis.get_user(&competition.name, &query.username).await {

@@ -49,9 +49,9 @@ const closeMenu = () => {
           <div class="flex-shrink-0">
             <div class="flex items-center">
               <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center mr-3">
-                <span class="text-white font-bold text-sm">C</span>
+                <span class="text-white font-bold text-xl">🎃</span>
               </div>
-              <h1 class="text-xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent">CARVE</h1>
+              <h1 class="text-xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 text-gray-700 dark:text-white bg-clip-text">CARVE</h1>
             </div>
           </div>
           
@@ -71,7 +71,7 @@ const closeMenu = () => {
               active-class="text-black dark:text-white bg-white dark:bg-gray-700"
             >
               <FlagIcon class="w-4 h-4 mr-2" />
-              Compete
+              Flags/Checks
             </RouterLink>
             <RouterLink 
               to="/scoreboard" 
@@ -119,15 +119,11 @@ const closeMenu = () => {
 
         <!-- User info and logout -->
         <div class="hidden md:flex md:items-center md:space-x-4">
-          <!-- Dark mode toggle -->
-          <button
-            @click="toggleDarkMode"
-            class="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-            :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-          >
-            <SunIcon v-if="isDark" class="w-5 h-5" />
-            <MoonIcon v-else class="w-5 h-5" />
-          </button>
+          <label class="inline-flex items-center cursor-pointer">
+            <input type="checkbox" value="" class="sr-only peer" @change="toggleDarkMode" :checked="isDark">
+            <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 dark:peer-checked:bg-blue-600"></div>
+            <span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">Dark/Light</span>
+          </label>
           
           <div class="text-sm text-gray-700 dark:text-gray-300" v-if="userInfo">
             Welcome, <span class="font-medium">{{ userInfo.username }}</span>
@@ -184,7 +180,7 @@ const closeMenu = () => {
           active-class="text-black dark:text-white bg-white dark:bg-gray-700"
         >
           <FlagIcon class="w-5 h-5 mr-3" />
-          Compete
+          Flags/Checks
         </RouterLink>
         <RouterLink 
           to="/scoreboard" 

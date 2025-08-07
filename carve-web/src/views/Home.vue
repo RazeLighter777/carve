@@ -2,8 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { apiService } from '@/services/api'
 import { cookieUtils } from '@/utils/cookies'
-import type { CompetitionState, User, Team } from '@/types'
-import { UserGroupIcon, CubeTransparentIcon, ChartBarIcon } from '@heroicons/vue/24/outline'
+import type { CompetitionState, User, Team, GamerulesResponse } from '@/types'
+import { UserGroupIcon, CubeTransparentIcon, ChartBarIcon, TrophyIcon } from '@heroicons/vue/24/outline'
 import CompetitionStatus from '@/components/CompetitionStatus.vue'
 
 const loading = ref(true)
@@ -11,6 +11,7 @@ const competition = ref<any>(null)
 const user = ref<User>()
 const team = ref<Team>()
 const userInfo = ref<any>()
+const gamerules = ref<GamerulesResponse | null>(null)
 const error = ref('')
 
 onMounted(async () => {
@@ -21,6 +22,7 @@ onMounted(async () => {
     competition.value = await apiService.getCompetition()
     user.value = await apiService.getCurrentUser()
     team.value = await apiService.getUserTeam()
+    gamerules.value = await apiService.getGamerules()
   } catch (err) {
     console.error('Failed to load home data:', err)
     error.value = 'Failed to load competition data'
@@ -93,15 +95,15 @@ const switchTeam = async () => {
       <!-- Competition Info -->
       <div class="card p-6">
         <div class="text-center">
-          <h1 class="text-3xl font-bold text-gray-900 mb-2">
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             {{ competition?.name || 'CARVE Competition' }}
           </h1>
-          <p class="text-lg text-gray-600 mb-6">
+          <p class="text-lg text-gray-600 dark:text-gray-400 mb-6">
             Welcome to {{ competition?.name || 'CARVE Competition' }}!
           </p>
 
           <!-- Game Explanation -->
-          <div class="mb-6 text-base text-gray-700 text-left mx-auto">
+          <div class="mb-6 text-base text-gray-700 dark:text-gray-300 text-left mx-auto">
             <p class="mb-2">
               This is a Capture The Flag (CTF) competition where you can test your skills in cybersecurity.
               Hack into other teams' boxes, defend your own, and find hidden flags to score points.
@@ -126,25 +128,25 @@ const switchTeam = async () => {
         <!-- User Info -->
         <div class="card p-6">
           <div class="flex items-center mb-4">
-            <UserGroupIcon class="h-6 w-6 text-black mr-2" />
-            <h2 class="text-xl font-semibold text-gray-900">Your Profile</h2>
+            <UserGroupIcon class="h-6 w-6 text-black dark:text-gray-100 mr-2" />
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Your Profile</h2>
           </div>
           
           <div v-if="user && userInfo" class="space-y-3">
             <div>
-              <span class="font-medium text-gray-700">Name:</span>
-              <span class="ml-2 text-gray-900">{{ user.name }}</span>
+              <span class="font-medium text-gray-700 dark:text-gray-300">Name:</span>
+              <span class="ml-2 text-gray-900 dark:text-gray-100">{{ user.name }}</span>
             </div>
             <div>
-              <span class="font-medium text-gray-700">Email:</span>
-              <span class="ml-2 text-gray-600">{{ user.email }}</span>
+              <span class="font-medium text-gray-700 dark:text-gray-300">Email:</span>
+              <span class="ml-2 text-gray-600 dark:text-gray-400">{{ user.email }}</span>
             </div>
             <div>
-              <span class="font-medium text-gray-700">Username:</span>
-              <span class="ml-2 text-gray-600">{{ userInfo.username }}</span>
+              <span class="font-medium text-gray-700 dark:text-gray-300">Username:</span>
+              <span class="ml-2 text-gray-600 dark:text-gray-400">{{ userInfo.username }}</span>
             </div>
             <div v-if="userInfo.is_admin">
-              <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
+              <span class="px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs font-medium rounded-full">
                 Administrator
               </span>
             </div>
@@ -154,46 +156,48 @@ const switchTeam = async () => {
         <!-- Team Info -->
         <div class="card p-6">
           <div class="flex items-center mb-4">
-            <TrophyIcon class="h-6 w-6 text-black mr-2" />
-            <h2 class="text-xl font-semibold text-gray-900">Your Team</h2>
+            <TrophyIcon class="h-6 w-6 text-black dark:text-gray-100 mr-2" />
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Your Team</h2>
           </div>
           <div v-if="team" class="space-y-4">
             <div>
-              <span class="font-medium text-gray-700">Team Name:</span>
-              <span class="ml-2 text-gray-900 font-medium">{{ team.name }}</span>
+              <span class="font-medium text-gray-700 dark:text-gray-300">Team Name:</span>
+              <span class="ml-2 text-gray-900 dark:text-gray-100 font-medium">{{ team.name }}</span>
             </div>
             <div>
-              <span class="font-medium text-gray-700 block mb-2">Team Members:</span>
+              <span class="font-medium text-gray-700 dark:text-gray-300 block mb-2">Team Members:</span>
               <div class="space-y-2">
                 <div v-for="member in team.members" :key="member.name" 
-                     class="flex items-center p-2 bg-gray-50 rounded-md">
-                  <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
-                    <span class="text-black font-medium text-sm">
+                     class="flex items-center p-2 bg-gray-50 dark:bg-gray-700 rounded-md">
+                  <div class="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center mr-3">
+                    <span class="text-black dark:text-white font-medium text-sm">
                       {{ member.name.charAt(0).toUpperCase() }}
                     </span>
                   </div>
-                  <span class="text-gray-900">{{ member.name }}</span>
+                  <span class="text-gray-900 dark:text-gray-100">{{ member.name }}</span>
                 </div>
               </div>
             </div>
             <div class="mt-6 space-y-4">
-              <button @click="generateJoinCode" class="btn-primary w-full" :disabled="joinCodeLoading">
-                {{ joinCodeLoading ? 'Generating...' : 'Generate Team Join Code' }}
-              </button>
-              <div v-if="joinCode" class="mt-2 text-center">
-                <span class="font-mono text-lg bg-gray-100 px-3 py-1 rounded">{{ joinCode }}</span>
-                <span v-if="joinCodeSuccess" class="ml-2 text-green-600">Copied!</span>
+              <div v-if="gamerules?.allow_non_admins_to_generate_join_codes">
+                <button @click="generateJoinCode" class="btn-primary w-full" :disabled="joinCodeLoading">
+                  {{ joinCodeLoading ? 'Generating...' : 'Generate Team Join Code' }}
+                </button>
+                <div v-if="joinCode" class="mt-2 text-center">
+                  <span class="font-mono text-lg bg-gray-100 px-3 py-1 rounded">{{ joinCode }}</span>
+                  <span v-if="joinCodeSuccess" class="ml-2 text-green-600">Copied!</span>
+                </div>
+                <div v-if="joinCodeError" class="text-red-600 text-center mt-2">{{ joinCodeError }}</div>
               </div>
-              <div v-if="joinCodeError" class="text-red-600 text-center mt-2">{{ joinCodeError }}</div>
               <form @submit.prevent="switchTeam" class="mt-6">
-                <label class="block font-medium text-gray-700 mb-1">Switch Teams</label>
+                <label class="block font-medium text-gray-700 dark:text-gray-300 mb-1">Switch Teams</label>
                 <div class="flex space-x-2">
-                  <input v-model="switchCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="9" class="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Enter team code" :disabled="switchCodeLoading" />
+                  <input v-model="switchCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="9" class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Enter team code" :disabled="switchCodeLoading" />
                   <button type="submit" class="btn-secondary" :disabled="switchCodeLoading">
                     {{ switchCodeLoading ? 'Joining...' : 'Join' }}
                   </button>
                 </div>
-                <div v-if="switchCodeError" class="text-red-600 mt-2">{{ switchCodeError }}</div>
+                <div v-if="switchCodeError" class="text-red-600 dark:text-red-400 mt-2">{{ switchCodeError }}</div>
               </form>
             </div>
           </div>
@@ -202,40 +206,40 @@ const switchTeam = async () => {
 
       <!-- Quick Actions -->
       <div class="card p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Quick Actions</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <RouterLink 
             to="/boxes" 
-            class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-white transition-colors"
+            class="flex items-center p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:bg-white dark:hover:bg-gray-700 transition-colors"
           >
-            <CubeTransparentIcon class="h-8 w-8 text-black mr-3" />
+            <CubeTransparentIcon class="h-8 w-8 text-black dark:text-gray-100 mr-3" />
             <div>
-              <div class="font-medium text-gray-900">Boxes</div>
-              <div class="text-sm text-gray-600">Log into your boxes and hack the other teams!</div>
+              <div class="font-medium text-gray-900 dark:text-gray-100">Boxes</div>
+              <div class="text-sm text-gray-600 dark:text-gray-400">Log into your boxes and hack the other teams!</div>
             </div>
           </RouterLink>
           
           <RouterLink 
             to="/scoreboard" 
-            class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-white transition-colors"
+            class="flex items-center p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:bg-white dark:hover:bg-gray-700 transition-colors"
           >
-            <ChartBarIcon class="h-8 w-8 text-black mr-3" />
+            <ChartBarIcon class="h-8 w-8 text-black dark:text-gray-100 mr-3" />
             <div>
-              <div class="font-medium text-gray-900">Scoreboard</div>
-              <div class="text-sm text-gray-600">View score history</div>
+              <div class="font-medium text-gray-900 dark:text-gray-100">Scoreboard</div>
+              <div class="text-sm text-gray-600 dark:text-gray-400">View score history</div>
             </div>
           </RouterLink>
           
           <RouterLink 
             to="/about" 
-            class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-white transition-colors"
+            class="flex items-center p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-primary-300 dark:hover:border-primary-600 hover:bg-white dark:hover:bg-gray-700 transition-colors"
           >
-            <svg class="h-8 w-8 text-black mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg class="h-8 w-8 text-black dark:text-gray-100 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <div class="font-medium text-gray-900">About</div>
-              <div class="text-sm text-gray-600">Platform information</div>
+              <div class="font-medium text-gray-900 dark:text-gray-100">About</div>
+              <div class="text-sm text-gray-600 dark:text-gray-400">Platform information</div>
             </div>
           </RouterLink>
         </div>

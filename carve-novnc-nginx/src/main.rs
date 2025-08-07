@@ -6,7 +6,7 @@ use carve::{config::AppConfig, redis_manager};
 async fn main() {
     let config = AppConfig::new().expect("Failed to load configuration");
     let competition = &config.competitions[0];
-    let redis_manager =
+    let redis_manager: redis_manager::RedisManager =
         redis_manager::RedisManager::new(&competition.redis).expect("Failed to connect to Redis");
     let mut nginx_config = "# Nginx configuration for Carve competition\n\
     map $http_upgrade $connection_upgrade { \

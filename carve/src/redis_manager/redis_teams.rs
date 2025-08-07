@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::*;
 
 impl RedisManager {
@@ -57,5 +59,29 @@ impl RedisManager {
         }
 
         Ok(result)
+    }
+    pub async fn get_team_with_least_members(
+        &self,
+        competition_name: &str,
+    ) -> Result<Option<String>> {
+        match self.get_all_users(competition_name).await {
+            Ok(users) => {
+                let mut team_members: HashMap<String, usize> = HashMap::new();
+                for user in users {
+                    if let Some(team) = &user.team_name {
+                        *team_members.entry(team.clone()).or_insert(0) += 1;
+                    }
+                }
+
+                // Find the team with the least members
+                let min_team = team_members
+                    .iter()
+                    .min_by_key(|&(_, count)| count)
+                    .map(|(team, _)| team.clone());
+
+                Ok(min_team)
+            }
+            Err(e) => Err(e),
+        }
     }
 }

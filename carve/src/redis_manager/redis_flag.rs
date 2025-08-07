@@ -87,6 +87,7 @@ impl RedisManager {
                 severity: ToastSeverity::Info,
                 user: None,
                 team: Some(team_name.to_string()),
+                sound_effect: Some("flag_redeemed".to_string()), // Optional sound effect
             })
             .await
             .context("Failed to publish flag redemption toast notification")?;

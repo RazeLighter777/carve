@@ -1,6 +1,6 @@
 /* ./src/index.css */
 @import "tailwindcss";
-@import "tailwindcss/utilities";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   body {

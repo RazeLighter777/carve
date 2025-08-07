@@ -33,6 +33,7 @@ const terminal = ref<Terminal | null>(null)
 const fitAddon = ref<FitAddon | null>(null)
 const clipboardAddon = ref<ClipboardAddon | null>(null)
 const xtermSocket = ref<WebSocket | null>(null)
+let darkModeObserver: MutationObserver | null = null
 
 function handleResize() {
   if (consoleType.value === 'xtermjs' && fitAddon.value) {
@@ -127,6 +128,34 @@ function restoreBox() {
   })
 }
 
+function updateTerminalTheme() {
+  if (!terminal.value) return
+  
+  const isDarkMode = document.documentElement.classList.contains('dark')
+  
+  terminal.value.options.theme = {
+    background: isDarkMode ? '#111827' : '#222',
+    foreground: isDarkMode ? '#f9fafb' : '#fff',
+    cursor: isDarkMode ? '#f9fafb' : '#fff',
+    black: isDarkMode ? '#374151' : '#000',
+    red: isDarkMode ? '#ef4444' : '#cd0000',
+    green: isDarkMode ? '#22c55e' : '#00cd00',
+    yellow: isDarkMode ? '#eab308' : '#cdcd00',
+    blue: isDarkMode ? '#3b82f6' : '#0000ee',
+    magenta: isDarkMode ? '#a855f7' : '#cd00cd',
+    cyan: isDarkMode ? '#06b6d4' : '#00cdcd',
+    white: isDarkMode ? '#f3f4f6' : '#e5e5e5',
+    brightBlack: isDarkMode ? '#6b7280' : '#7f7f7f',
+    brightRed: isDarkMode ? '#f87171' : '#ff0000',
+    brightGreen: isDarkMode ? '#4ade80' : '#00ff00',
+    brightYellow: isDarkMode ? '#fbbf24' : '#ffff00',
+    brightBlue: isDarkMode ? '#60a5fa' : '#5c5cff',
+    brightMagenta: isDarkMode ? '#c084fc' : '#ff00ff',
+    brightCyan: isDarkMode ? '#22d3ee' : '#00ffff',
+    brightWhite: isDarkMode ? '#ffffff' : '#ffffff',
+  }
+}
+
 function setupXtermjs(url: string) {
   if (terminal.value) {
     terminal.value = null
@@ -135,17 +164,36 @@ function setupXtermjs(url: string) {
     xtermSocket.value.close()
     xtermSocket.value = null
   }
-  terminal.value = new Terminal({theme: {
-    background: '#222',
-    foreground: '#fff',
-    cursor: '#fff',
-  },
-  cursorBlink: true,
-  fontSize: 14,
-  fontFamily: 'monospace',
-
-
-});
+  
+  // Check if dark mode is active
+  const isDarkMode = document.documentElement.classList.contains('dark')
+  
+  terminal.value = new Terminal({
+    theme: {
+      background: isDarkMode ? '#111827' : '#222',
+      foreground: isDarkMode ? '#f9fafb' : '#fff',
+      cursor: isDarkMode ? '#f9fafb' : '#fff',
+      black: isDarkMode ? '#374151' : '#000',
+      red: isDarkMode ? '#ef4444' : '#cd0000',
+      green: isDarkMode ? '#22c55e' : '#00cd00',
+      yellow: isDarkMode ? '#eab308' : '#cdcd00',
+      blue: isDarkMode ? '#3b82f6' : '#0000ee',
+      magenta: isDarkMode ? '#a855f7' : '#cd00cd',
+      cyan: isDarkMode ? '#06b6d4' : '#00cdcd',
+      white: isDarkMode ? '#f3f4f6' : '#e5e5e5',
+      brightBlack: isDarkMode ? '#6b7280' : '#7f7f7f',
+      brightRed: isDarkMode ? '#f87171' : '#ff0000',
+      brightGreen: isDarkMode ? '#4ade80' : '#00ff00',
+      brightYellow: isDarkMode ? '#fbbf24' : '#ffff00',
+      brightBlue: isDarkMode ? '#60a5fa' : '#5c5cff',
+      brightMagenta: isDarkMode ? '#c084fc' : '#ff00ff',
+      brightCyan: isDarkMode ? '#22d3ee' : '#00ffff',
+      brightWhite: isDarkMode ? '#ffffff' : '#ffffff',
+    },
+    cursorBlink: true,
+    fontSize: 14,
+    fontFamily: 'monospace',
+  })
   fitAddon.value = new FitAddon()
   clipboardAddon.value = new ClipboardAddon()
 
@@ -320,11 +368,31 @@ onMounted(async () => {
   
   // Add window resize listener
   window.addEventListener('resize', handleResize)
+  
+  // Set up dark mode observer
+  darkModeObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+        updateTerminalTheme()
+      }
+    })
+  })
+  
+  darkModeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class']
+  })
 })
 
 onUnmounted(() => {
   // Remove window resize listener
   window.removeEventListener('resize', handleResize)
+  
+  // Disconnect dark mode observer
+  if (darkModeObserver) {
+    darkModeObserver.disconnect()
+  }
+  
   cleanupConsoles()
 })
 </script>
@@ -335,33 +403,30 @@ onUnmounted(() => {
     <div v-if="!boxName || !teamName" class="text-muted">Missing team or box parameter.</div>
     <div v-else class="flex flex-col items-center" style="min-height: 600px; width: 100%;">
       <div class="w-full mb-4 flex justify-end">
-        <label for="consoleType" class="mr-2 font-semibold">Console Type:</label>
-        <select id="consoleType" v-model="consoleType" class="bg-gray-100 border border-gray-300 rounded px-2 py-1">
+        <label for="consoleType" class="mr-2 font-semibold text-gray-900 dark:text-gray-100">Console Type:</label>
+        <select id="consoleType" v-model="consoleType" class="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded px-2 py-1">
           <option value="xtermjs">xterm.js</option>
           <option value="novnc">noVNC</option>
         </select>
       </div>
       <div v-if="boxCreds || boxCredsError" class="w-full mb-4">
-        <div v-if="boxCreds" class="bg-gray-100 border border-gray-300 rounded p-3 text-center">
+        <div v-if="boxCreds" class="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded p-3 text-center">
           <span class="font-semibold">Box Credentials:</span>
           <span class="ml-2 font-mono">{{ boxCreds.username }}</span>
           <span class="mx-1">/</span>
           <span class="font-mono">{{ boxCreds.password }}</span>
         </div>
-        <div v-else-if="boxCredsError" class="text-red-600 text-center">{{ boxCredsError }}</div>
+        <div v-else-if="boxCredsError" class="text-red-600 dark:text-red-400 text-center">{{ boxCredsError }}</div>
       </div>
-      <div id="top_bar" class="w-full flex items-center justify-between bg-blue-900 text-white px-4 py-2 rounded-t">
+      <div id="top_bar" class="w-full flex items-center justify-between bg-blue-900 dark:bg-blue-800 text-white px-4 py-2 rounded-t">
         <div id="status">{{ statusText }}</div>
         <div class="flex items-center">
-          <button id="sendCtrlAltDelButton" @click="sendCtrlAltDel" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Send CtrlAltDel</button>
-          <button @click="machineReboot" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Reboot</button>
-          <button @click="machineReset" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Reset</button>
-          <button @click="machineShutdown" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Shutdown</button>
-          <button @click="fullscreen" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Fullscreen</button>
-          <button @click="restoreBox" class="bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded ml-2">Restore Box</button>
+          <button id="sendCtrlAltDelButton" @click="sendCtrlAltDel" class="bg-blue-700 dark:bg-blue-600 hover:bg-blue-600 dark:hover:bg-blue-500 px-3 py-1 rounded ml-2">Send CtrlAltDel</button>
+          <button @click="fullscreen" class="bg-blue-700 dark:bg-blue-600 hover:bg-blue-600 dark:hover:bg-blue-500 px-3 py-1 rounded ml-2">Fullscreen</button>
+          <button @click="restoreBox" class="bg-blue-700 dark:bg-blue-600 hover:bg-blue-600 dark:hover:bg-blue-500 px-3 py-1 rounded ml-2">Restore Box</button>
         </div>
       </div>
-      <div id="console-container" ref="consoleContainer" style="width: 100%; height: 600px; background: #222; border-radius: 0 0 8px 8px; overflow: hidden; position: relative;">
+      <div id="console-container" ref="consoleContainer" class="console-container bg-gray-900 dark:bg-gray-800">
         <div v-show="consoleType === 'novnc'" id="screen" ref="screenEl" style="width: 100%; height: 100%; top: 0; left: 0;"></div>
         <div v-show="consoleType === 'xtermjs'" id="xtermjs" ref="xtermEl" style="width: 100%; height: 100%; top: 0; left: 0;"></div>
       </div>
@@ -372,20 +437,29 @@ onUnmounted(() => {
 
 <style scoped>
 .text-muted {
-  color: #888;
+  color: #6b7280;
+}
+
+:global(.dark) .text-muted {
+  color: #9ca3af;
 }
 
 #top_bar {
   border-bottom: 1px solid #3b5998;
 }
-#console-container {
+
+.console-container {
   min-width: 320px;
   min-height: 240px;
   width: 100%;
   height: 600px;
-  background: #222;
   border-radius: 0 0 8px 8px;
   overflow: hidden;
   position: relative;
+  background: #222;
+}
+
+:global(.dark) .console-container {
+  background: #1f2937;
 }
 </style>

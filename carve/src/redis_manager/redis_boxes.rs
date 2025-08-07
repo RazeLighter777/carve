@@ -93,6 +93,7 @@ impl RedisManager {
             severity: ToastSeverity::Warning,
             user: None,
             team: Some(team_name.to_string()),
+            sound_effect: None
         }).await?;
         Ok(())
     }
@@ -539,6 +540,7 @@ impl RedisManager {
                                     severity: ToastSeverity::Info,
                                     user: None,
                                     team: None,
+                                    sound_effect: Some("ranking_update".to_string()), // Optional sound effect
                                 }).await?;
                             } 
                         } 

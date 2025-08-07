@@ -136,6 +136,7 @@ impl RedisManager {
                     severity: ToastSeverity::Info,
                     user: None,
                     team: None,
+                    sound_effect: Some("competition_started".to_string()), // Optional sound effect
                 }).await
                 .context("Failed to publish competition start toast notification")?;
                 Ok(())
@@ -189,6 +190,7 @@ impl RedisManager {
                     severity: ToastSeverity::Info,
                     user: None,
                     team: None,
+                    sound_effect: Some("competition_ended".to_string()), // Optional sound effect
                 }).await
                 .context("Failed to publish competition end toast notification")?;
                 Ok(())

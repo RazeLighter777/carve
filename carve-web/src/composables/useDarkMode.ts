@@ -2,14 +2,36 @@ import { ref, watch } from 'vue'
 
 export const isDark = ref(false)
 
+// Track if we've already set up the watcher to avoid duplicates
+let watcherInitialized = false
+
+const updateTheme = () => {
+  const html = document.documentElement
+  if (isDark.value) {
+    html.classList.add('dark')
+  } else {
+    html.classList.remove('dark')
+  }
+  
+  // Debug logging
+  console.log('Dark mode:', isDark.value, 'HTML classes:', html.classList.contains('dark'))
+}
+
+// Set up the watcher only once
+if (!watcherInitialized && typeof window !== 'undefined') {
+  watch(isDark, updateTheme, { immediate: true })
+  
+  watcherInitialized = true
+}
+
 export function useDarkMode() {
   const initializeTheme = () => {
-    // Check for saved user preference or default to system preference
+    // Check for saved user preference or default to dark mode
     const savedTheme = localStorage.getItem('theme')
     if (savedTheme) {
       isDark.value = savedTheme === 'dark'
     } else {
-      isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+      isDark.value = true // Default to dark mode
     }
     updateTheme()
   }
@@ -19,25 +41,6 @@ export function useDarkMode() {
     localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
     updateTheme()
   }
-
-  const updateTheme = () => {
-    if (isDark.value) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }
-
-  // Watch for system theme changes
-  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-  const handleSystemThemeChange = (e: MediaQueryListEvent) => {
-    if (!localStorage.getItem('theme')) {
-      isDark.value = e.matches
-      updateTheme()
-    }
-  }
-
-  mediaQuery.addEventListener('change', handleSystemThemeChange)
 
   return {
     isDark,
