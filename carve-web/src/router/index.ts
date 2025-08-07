@@ -78,6 +78,12 @@ const router = createRouter({
       name: 'Compete',
       component: Compete,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/tickets',
+      name: 'Tickets',
+      component: () => import('@/views/Tickets.vue'),
+      meta: { requiresAuth: true }
     }
   ],
 })

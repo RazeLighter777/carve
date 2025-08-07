@@ -4,53 +4,53 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 font-sans;
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans;
   }
 }
 
 @layer components {
     .card {
-        @apply bg-white rounded-xl shadow-xl border border-gray-200/60;
+        @apply bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200/60 dark:border-gray-700/60;
     }
 
     .sub-card {
-        @apply bg-gray-50 rounded-lg shadow-md border border-gray-200/60;
+        @apply bg-gray-50 dark:bg-gray-700 rounded-lg shadow-md border border-gray-200/60 dark:border-gray-600/60;
     }
     
     .card-hover {
-        @apply bg-white rounded-xl shadow-xl border border-gray-200/60 hover:shadow-md transition-all duration-200 hover:border-gray-300/80;
+        @apply bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200/60 dark:border-gray-700/60 hover:shadow-md transition-all duration-200 hover:border-gray-300/80 dark:hover:border-gray-600/80;
     }
     
     .btn-primary {
-        @apply bg-white hover:bg-white focus:bg-white text-shadow-black font-medium rounded-lg transition-colors duration-200 focus:outline-none py-2 px-4 focus:ring-2 focus:ring-black focus:ring-offset-2;
+        @apply bg-white dark:bg-gray-700 hover:bg-white dark:hover:bg-gray-600 focus:bg-white dark:focus:bg-gray-600 text-shadow-black dark:text-gray-100 font-medium rounded-lg transition-colors duration-200 focus:outline-none py-2 px-4 focus:ring-2 focus:ring-black dark:focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-800;
     }
     
     .btn-secondary {
-        @apply bg-white hover:bg-gray-50 focus:bg-gray-50 text-gray-700 font-medium border border-gray-300 rounded-lg transition-colors py-2 px-4 duration-200 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2;
+        @apply bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:bg-gray-50 dark:focus:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium border border-gray-300 dark:border-gray-600 rounded-lg transition-colors py-2 px-4 duration-200 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-800;
     }
     
     .input-field {
-        @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-gray-200 transition-colors duration-200;
+        @apply block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-gray-400 focus:border-gray-200 dark:focus:border-gray-500 transition-colors duration-200;
     }
     
     .nav-link {
-        @apply flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:text-black hover:bg-white transition-all duration-200;
+        @apply flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-gray-700 transition-all duration-200;
     }
     
     .nav-link-active {
-        @apply text-black bg-white border-l-2 border-gray-300;
+        @apply text-black dark:text-white bg-white dark:bg-gray-700 border-l-2 border-gray-300 dark:border-gray-500;
     }
     
     .stats-card {
-        @apply bg-gradient-to-br from-white to-gray-50 rounded-xl p-6 border border-gray-200/60 shadow-xl;
+        @apply bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-xl p-6 border border-gray-200/60 dark:border-gray-700/60 shadow-xl;
     }
     
     .table-header {
-        @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50;
+        @apply px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-700;
     }
     
     .table-cell {
-        @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
+        @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100;
     }
     
     .badge {
@@ -58,44 +58,44 @@
     }
     
     .badge-success {
-        @apply bg-green-100 text-green-800;
+        @apply bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200;
     }
     
     .badge-warning {
-        @apply bg-yellow-100 text-yellow-800;
+        @apply bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200;
     }
     
     .badge-error {
-        @apply bg-red-100 text-red-800;
+        @apply bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200;
     }
     
     .badge-info {
-        @apply bg-blue-100 text-blue-800;
+        @apply bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200;
     }
 
     .text-heading {
-        @apply text-2xl font-bold text-gray-900 mb-4;
+        @apply text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4;
     }
     .text-subheading {
-        @apply text-xl font-semibold text-gray-700 mb-2;
+        @apply text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2;
     }
     .text-body {
-        @apply text-base text-gray-600;
+        @apply text-base text-gray-600 dark:text-gray-400;
     }
     
     .text-muted {
-        @apply text-sm text-gray-500;
+        @apply text-sm text-gray-500 dark:text-gray-400;
     }
     
     .text-link {
-        @apply text-blue-600 hover:text-blue-800 transition-colors duration-200;
+        @apply text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200;
     }
     
     .text-error {
-        @apply text-red-600;
+        @apply text-red-600 dark:text-red-400;
     }
     
     .text-success {
-        @apply text-green-600;
+        @apply text-green-600 dark:text-green-400;
     }
 }

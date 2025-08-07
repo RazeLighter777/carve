@@ -5,10 +5,14 @@ import Navigation from '@/components/Navigation.vue'
 import Toast from '@/components/Toast.vue'
 import { cookieUtils } from '@/utils/cookies'
 import { type ToastNotification } from '@/types'
+import { useDarkMode } from '@/composables/useDarkMode'
 
 const route = useRoute()
 const showNavigation = computed(() => route.path !== '/login' && cookieUtils.hasUserInfo())
 const userInfo = computed(() => cookieUtils.getUserInfo())
+
+// Initialize dark mode
+const { initializeTheme } = useDarkMode()
 
 // Toast notification system
 const toasts = ref<(ToastNotification & { id: string })[]>([])
@@ -103,6 +107,7 @@ watch(userInfo, (newUser, oldUser) => {
 }, { immediate: true })
 
 onMounted(() => {
+  initializeTheme()
   if (userInfo.value && userInfo.value.team_name) {
     connectToToastSocket()
   }
@@ -115,7 +120,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+  <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
     <Navigation v-if="showNavigation" />
     <main :class="showNavigation ? 'pt-16' : ''" class="min-h-screen">
       <RouterView />

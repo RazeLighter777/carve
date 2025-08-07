@@ -95,7 +95,7 @@ const handlePasswordLogin = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+  <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
     <!-- Left Fire -->
     <div class="absolute left-0 top-1/2 transform -translate-y-1/2 z-0" style="width: 300px; height: 400px;">
       <Fire />
@@ -106,47 +106,47 @@ const handlePasswordLogin = async () => {
     </div>
     <div class="max-w-md w-full space-y-8 relative z-10">
       <div>
-        <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-primary-100">
-          <svg class="h-8 w-8 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900">
+          <svg class="h-8 w-8 text-black dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
         </div>
-        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-gray-100">
           Welcome to CARVE
         </h2>
-        <p class="mt-2 text-center text-sm text-gray-600">
+        <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
           Sign in to access the competition platform
         </p>
       </div>
 
       <div class="mt-8 space-y-6">
         <!-- Error message -->
-        <div v-if="error" class="rounded-md bg-red-50 p-4">
+        <div v-if="error" class="rounded-md bg-red-50 dark:bg-red-900/30 p-4">
           <div class="flex">
             <div class="flex-shrink-0">
               <ExclamationTriangleIcon class="h-5 w-5 text-red-400" />
             </div>
             <div class="ml-3">
-              <h3 class="text-sm font-medium text-red-800">
+              <h3 class="text-sm font-medium text-red-800 dark:text-red-200">
                 Authentication Error
               </h3>
-              <div class="mt-2 text-sm text-red-700">
+              <div class="mt-2 text-sm text-red-700 dark:text-red-300">
                 {{ error }}
               </div>
             </div>
           </div>
         </div>
         <!-- Success message -->
-        <div v-if="route.query.message" class="rounded-md bg-green-50 p-4">
+        <div v-if="route.query.message" class="rounded-md bg-green-50 dark:bg-green-900/30 p-4">
           <div class="flex">
             <div class="flex-shrink-0">
               <ExclamationTriangleIcon class="h-5 w-5 text-green-400" />
             </div>
             <div class="ml-3">
-              <h3 class="text-sm font-medium text-green-800">
+              <h3 class="text-sm font-medium text-green-800 dark:text-green-200">
                 Success
               </h3>
-              <div class="mt-2 text-sm text-green-700">
+              <div class="mt-2 text-sm text-green-700 dark:text-green-300">
                 {{ message }}
               </div>
             </div>
@@ -158,14 +158,14 @@ const handlePasswordLogin = async () => {
           <!-- Show password form if LocalUserPassword is available -->
           <div v-if="showPasswordForm">
             <div class="text-center mb-6">
-              <h3 class="text-lg font-medium text-gray-900">Sign in with Password</h3>
-              <p class="text-sm text-gray-600 mt-1">
+              <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Sign in with Password</h3>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Enter your username and password
               </p>
             </div>
             <form @submit.prevent="handlePasswordLogin" class="space-y-4">
               <div>
-                <label for="username" class="block text-sm font-medium text-gray-700">
+                <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Username
                 </label>
                 <input
@@ -173,12 +173,12 @@ const handlePasswordLogin = async () => {
                   v-model="loginForm.username"
                   type="text"
                   required
-                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter your username"
                 />
               </div>
               <div>
-                <label for="password" class="block text-sm font-medium text-gray-700">
+                <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Password
                 </label>
                 <input
@@ -186,7 +186,7 @@ const handlePasswordLogin = async () => {
                   v-model="loginForm.password"
                   type="password"
                   required
-                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter your password"
                 />
               </div>
@@ -221,7 +221,7 @@ const handlePasswordLogin = async () => {
           </div>
           <!-- If only OIDC is available, show OIDC login button -->
           <div v-else class="text-center">
-            <p class="text-sm text-gray-600 mb-6">
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
               Use your organization credentials to sign in
             </p>
             <button
@@ -240,13 +240,13 @@ const handlePasswordLogin = async () => {
         </div>
 
         <div class="text-center">
-          <p class="text-xs text-gray-500">
+          <p class="text-xs text-gray-500 dark:text-gray-400">
             By signing in, you agree to participate in the competition according to the rules and guidelines.
           </p>
           <div class="mt-4">
             <router-link
               to="/register"
-              class="text-sm text-primary-600 hover:text-primary-500 font-medium underline"
+              class="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-500 dark:hover:text-primary-300 font-medium underline"
             >
               Don't have an account? Register here
             </router-link>

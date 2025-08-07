@@ -204,3 +204,54 @@ export interface ToastSubscribeRequest {
   user?: string;
   team?: string;
 }
+
+export interface SupportTicketMessage {
+  sender: string; // "team" or "admin"
+  message: string;
+  timestamp: string; // ISO8601 string
+}
+
+export enum SupportTicketState {
+  Open = 'Open',
+  Closed = 'Closed',
+}
+
+export interface SupportTicket {
+  team_name: string;
+  date: string; // ISO8601 string
+  subject: string;
+  messages: SupportTicketMessage[];
+  state?: SupportTicketState; // Optional state field
+}
+
+// Support ticket API request/response types
+export interface CreateSupportTicketRequest {
+  message: string;
+  subject: string;
+}
+
+export interface AddSupportTicketMessageRequest {
+  message: string;
+}
+
+export interface UpdateSupportTicketStatusRequest {
+  status: string;
+}
+
+export interface SupportTicketQuery {
+  ticketId: number;
+}
+
+export interface SupportTicketResponse {
+  ticketId: number;
+  ticket: SupportTicket;
+}
+
+export interface SupportTicketsResponse {
+  tickets: SupportTicketResponse[];
+}
+
+export interface CreateSupportTicketResponse {
+  ticketId: number;
+  message: string;
+}

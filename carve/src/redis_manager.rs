@@ -16,6 +16,7 @@ mod redis_auth;
 mod redis_boxes;
 mod redis_competition;
 mod redis_flag;
+mod redis_support;
 mod redis_teams;
 mod redis_users;
 

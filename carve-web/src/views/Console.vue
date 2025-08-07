@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { computed, ref, onMounted, nextTick, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import '@xterm/xterm/css/xterm.css';
 // @ts-ignore
 import RFB from '@novnc/novnc/lib/rfb.js'
@@ -33,6 +33,12 @@ const terminal = ref<Terminal | null>(null)
 const fitAddon = ref<FitAddon | null>(null)
 const clipboardAddon = ref<ClipboardAddon | null>(null)
 const xtermSocket = ref<WebSocket | null>(null)
+
+function handleResize() {
+  if (consoleType.value === 'xtermjs' && fitAddon.value) {
+    fitAddon.value.fit()
+  }
+}
 
 function status(text: string) {
   statusText.value = text
@@ -136,6 +142,7 @@ function setupXtermjs(url: string) {
   },
   cursorBlink: true,
   fontSize: 14,
+  fontFamily: 'monospace',
 
 
 });
@@ -154,6 +161,10 @@ function setupXtermjs(url: string) {
   if (xtermEl.value) {
     terminal.value.open(xtermEl.value)
     fitAddon.value.fit()
+    // Fit again after a small delay to ensure proper sizing
+    setTimeout(() => {
+      fitAddon.value?.fit()
+    }, 100)
   }
   const text_decoder = new TextDecoder();
   xtermSocket.value = new WebSocket(url, 'binary');
@@ -306,11 +317,20 @@ onMounted(async () => {
   // fetch competition name
   competitionName.value = (await apiService.getCompetition()).name;
   await fetchBoxCreds()
+  
+  // Add window resize listener
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  // Remove window resize listener
+  window.removeEventListener('resize', handleResize)
+  cleanupConsoles()
 })
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="w-full px-4 sm:px-6 lg:px-8 py-8">
     <h1 class="text-3xl font-bold mb-6 text-subheading">Console: {{ teamName }} / {{ boxName }}</h1>
     <div v-if="!boxName || !teamName" class="text-muted">Missing team or box parameter.</div>
     <div v-else class="flex flex-col items-center" style="min-height: 600px; width: 100%;">

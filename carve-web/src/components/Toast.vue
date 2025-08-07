@@ -17,13 +17,13 @@ let timeoutId: number | null = null
 const severityClass = computed(() => {
   switch (props.notification.severity) {
     case ToastSeverity.Info:
-      return 'border-blue-400 bg-blue-50 text-blue-800'
+      return 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
     case ToastSeverity.Warning:
-      return 'border-yellow-400 bg-yellow-50 text-yellow-800'
+      return 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
     case ToastSeverity.Error:
-      return 'border-red-400 bg-red-50 text-red-800'
+      return 'border-red-400 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200'
     default:
-      return 'border-gray-400 bg-gray-50 text-gray-800'
+      return 'border-gray-400 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
   }
 })
 
@@ -76,7 +76,7 @@ onUnmounted(() => {
 
 <template>
   <div 
-    class="w-full bg-white shadow-lg rounded-lg pointer-events-auto border-l-4 transform transition-all duration-300 ease-in-out"
+    class="w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto border-l-4 transform transition-all duration-300 ease-in-out"
     :class="severityClass"
   >
     <div class="p-4">
@@ -110,7 +110,7 @@ onUnmounted(() => {
         <div class="ml-4 flex-shrink-0 flex">
           <button
             @click="handleClose"
-            class="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            class="inline-flex text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             <span class="sr-only">Close</span>
             <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

@@ -272,7 +272,7 @@ onMounted(async () => {
       <div class="mt-8 card p-6">
         <h2 class="text-xl font-semibold mb-4">Generate Team Join Code</h2>
         <div class="flex flex-col sm:flex-row sm:items-center gap-4">
-          <select v-model="selectedTeam" class="border rounded px-3 py-2">
+          <select v-model="selectedTeam" class="border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded px-3 py-2">
             <option v-for="team in teams" :key="team.id" :value="team.name">{{ team.name }}</option>
           </select>
           <button class="btn-primary" :disabled="joinCodeLoading || !selectedTeam" @click="generateJoinCode">
@@ -280,7 +280,7 @@ onMounted(async () => {
           </button>
         </div>
         <div v-if="joinCode" class="mt-4 text-center">
-          <span class="font-mono text-lg bg-gray-100 px-3 py-1 rounded">{{ joinCode }}</span>
+          <span class="font-mono text-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-1 rounded">{{ joinCode }}</span>
         </div>
         <div v-if="joinCodeError" class="text-red-600 text-center mt-2">{{ joinCodeError }}</div>
       </div>
@@ -288,7 +288,7 @@ onMounted(async () => {
       <div class="mt-8 card p-6">
         <h2 class="text-xl font-semibold mb-4">Box Snapshots</h2>
         <div class="flex flex-col sm:flex-row sm:items-center gap-4">
-          <select v-model="selectedBox" class="border rounded px-3 py-2">
+          <select v-model="selectedBox" class="border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded px-3 py-2">
             <option v-for="box in boxes" :key="box.name" :value="box.name">{{ box.name }}</option>
           </select>
           <button class="btn-primary" :disabled="boxSnapshotLoading || !selectedBox" @click="snapshotBox">
@@ -315,7 +315,7 @@ onMounted(async () => {
               v-model="toastTitle"
               type="text"
               placeholder="Notification title"
-              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              class="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           
@@ -327,7 +327,7 @@ onMounted(async () => {
               v-model="toastMessage"
               rows="3"
               placeholder="Notification message"
-              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
+              class="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
             ></textarea>
           </div>
           
@@ -337,7 +337,7 @@ onMounted(async () => {
             <select
               id="toast-severity"
               v-model="toastSeverity"
-              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              class="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option :value="ToastSeverity.Info">Info</option>
               <option :value="ToastSeverity.Warning">Warning</option>
@@ -388,7 +388,7 @@ onMounted(async () => {
             <div v-if="toastTargetType === 'team'" class="flex gap-2">
               <select
                 v-model="toastTargetValue"
-                class="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                class="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select a team</option>
                 <option v-for="team in teams" :key="team.id" :value="team.name">{{ team.name }}</option>
@@ -400,7 +400,7 @@ onMounted(async () => {
               v-model="toastTargetValue"
               type="text"
               :placeholder="`Enter ${toastTargetType === 'user' ? 'username' : 'team name'}`"
-              class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              class="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           
@@ -409,7 +409,7 @@ onMounted(async () => {
             <button
               @click="publishToast"
               :disabled="toastPublishing || !toastTitle.trim() || !toastMessage.trim() || (toastTargetType !== 'global' && !toastTargetValue.trim())"
-              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <svg v-if="!toastPublishing" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
@@ -424,7 +424,7 @@ onMounted(async () => {
             <button
               @click="resetToastForm"
               :disabled="toastPublishing"
-              class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Clear Form
             </button>
@@ -447,25 +447,25 @@ onMounted(async () => {
         <div v-else>
           <!-- API Keys Table -->
           <div v-if="apiKeys.length > 0" class="mb-4">
-            <div class="bg-gray-50 rounded-lg overflow-hidden">
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden">
               <table class="w-full">
-                <thead class="bg-gray-100">
+                <thead class="bg-gray-100 dark:bg-gray-600">
                   <tr>
-                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">API Key</th>
-                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">API Key</th>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr 
                     v-for="(apiKey, index) in apiKeys" 
                     :key="apiKey"
-                    class="border-t border-gray-200"
+                    class="border-t border-gray-200 dark:border-gray-600"
                     :class="{ 'opacity-50': deletingApiKey === apiKey }"
                   >
                     <td class="px-4 py-3">
                       <div class="relative inline-block">
                         <code 
-                          class="font-mono text-sm bg-gray-100 px-2 py-1 rounded hover:bg-green-100 hover:text-green-700 transition-colors cursor-pointer group inline-block"
+                          class="font-mono text-sm bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-gray-100 px-2 py-1 rounded hover:bg-green-100 dark:hover:bg-green-800 hover:text-green-700 dark:hover:text-green-300 transition-colors cursor-pointer group inline-block"
                           @click="copyApiKey(apiKey)"
                           :title="copiedApiKey === apiKey ? 'Copied!' : 'Click to copy'"
                         >
@@ -483,7 +483,7 @@ onMounted(async () => {
                       <button
                         @click="deleteApiKey(apiKey)"
                         :disabled="deletingApiKey === apiKey"
-                        class="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                        class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                       >
                         {{ deletingApiKey === apiKey ? 'Deleting...' : 'Delete' }}
                       </button>
@@ -495,7 +495,7 @@ onMounted(async () => {
           </div>
           
           <!-- No API Keys Message -->
-          <div v-else class="text-center text-gray-500 py-8">
+          <div v-else class="text-center text-gray-500 dark:text-gray-400 py-8">
             <p class="mb-2">No API keys found.</p>
             <p class="text-sm">Create your first API key using the button below.</p>
           </div>

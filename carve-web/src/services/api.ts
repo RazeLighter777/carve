@@ -24,7 +24,14 @@ import type {
   DeleteApiKeyRequest,
   BoxCredsForTeamQuery,
   BoxCredentialsResponse,
-  ToastNotification
+  ToastNotification,
+  CreateSupportTicketRequest,
+  AddSupportTicketMessageRequest,
+  UpdateSupportTicketStatusRequest,
+  SupportTicketQuery,
+  SupportTicketResponse,
+  SupportTicketsResponse,
+  CreateSupportTicketResponse
 } from '@/types';
 import { cookieUtils } from '@/utils/cookies';
 
@@ -244,6 +251,30 @@ export const apiService = {
         boxName: request.boxName,
       }
     });
+  },
+
+  // Support ticket endpoints
+  async getSupportTickets(): Promise<SupportTicketsResponse> {
+    const response = await api.get<SupportTicketsResponse>('competition/team/support_tickets');
+    return response.data;
+  },
+
+  async getSupportTicket(ticketId: number): Promise<SupportTicketResponse> {
+    const response = await api.get<SupportTicketResponse>(`competition/team/support_ticket?ticketId=${ticketId}`);
+    return response.data;
+  },
+
+  async createSupportTicket(request: CreateSupportTicketRequest): Promise<CreateSupportTicketResponse> {
+    const response = await api.post<CreateSupportTicketResponse>('competition/team/support_ticket', request);
+    return response.data;
+  },
+
+  async addSupportTicketMessage(ticketId: number, request: AddSupportTicketMessageRequest): Promise<void> {
+    await api.post(`competition/team/support_ticket/message?ticketId=${ticketId}`, request);
+  },
+
+  async updateSupportTicketStatus(ticketId: number, request: UpdateSupportTicketStatusRequest): Promise<void> {
+    await api.post(`competition/team/support_ticket/status?ticketId=${ticketId}`, request);
   }
 };
 

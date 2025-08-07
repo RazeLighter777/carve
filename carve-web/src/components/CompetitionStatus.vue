@@ -14,9 +14,9 @@ const statusText = computed(() => {
 })
 
 const statusClass = computed(() => {
-    if (props.competition.status == "Active") return 'text-green-600'
-    if (props.competition.status == "Unstarted") return 'text-yellow-600'
-    if (props.competition.status == "Finished") return 'text-red-600'
+    if (props.competition.status == "Active") return 'text-green-600 dark:text-green-400'
+    if (props.competition.status == "Unstarted") return 'text-yellow-600 dark:text-yellow-400'
+    if (props.competition.status == "Finished") return 'text-red-600 dark:text-red-400'
     console.warn('Unknown competition status:', props.competition.status)
 })
 
@@ -48,11 +48,11 @@ function updateTimeRemaining() {
   timeRemaining.value = `${hours.toString().padStart(2, '0')}:${minutes
     .toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   if (diff > 3600) {
-    timerColor.value = 'text-green-600'
+    timerColor.value = 'text-green-600 dark:text-green-400'
   } else if (diff > 600) {
-    timerColor.value = 'text-yellow-600'
+    timerColor.value = 'text-yellow-600 dark:text-yellow-400'
   } else {
-    timerColor.value = 'text-red-600'
+    timerColor.value = 'text-red-600 dark:text-red-400'
   }
 }
 

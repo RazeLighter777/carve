@@ -1,5 +1,6 @@
 // Configuration logic moved from canary/src/config.rs
 use anyhow::Result;
+use chrono::DateTime;
 use config::{Config, File};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -126,6 +127,30 @@ pub struct Check {
     #[serde(rename = "labelSelector")]
     pub label_selector_alt: Option<HashMap<String, String>>,
     pub spec: CheckSpec,
+}
+
+
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SupportTicket {
+    pub team_name: String,
+    pub date : DateTime<chrono::Utc>,
+    pub messages: Vec<SupportTicketMessage>,
+    pub subject: String, // Subject of the support ticket
+    pub state: SupportTicketState,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub enum SupportTicketState {
+    Open,
+    Closed,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SupportTicketMessage {
+    pub sender: String, // "team" or "admin"
+    pub message: String,
+    pub timestamp: DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

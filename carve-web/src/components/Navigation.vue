@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { cookieUtils } from '@/utils/cookies'
+import { useDarkMode } from '@/composables/useDarkMode'
 import { 
   Bars3Icon, 
   XMarkIcon, 
@@ -11,12 +12,16 @@ import {
   InformationCircleIcon,
   ArrowRightOnRectangleIcon,
   CubeTransparentIcon,
-  FlagIcon
+  FlagIcon,
+  ChatBubbleLeftRightIcon,
+  SunIcon,
+  MoonIcon
 } from '@heroicons/vue/24/outline'
 
 const userInfo = ref<any>(null)
 const isMenuOpen = ref(false)
 const isAdmin = ref(false)
+const { isDark, toggleDarkMode } = useDarkMode()
 
 onMounted(async () => {
   userInfo.value = cookieUtils.getUserInfo()
@@ -37,7 +42,7 @@ const closeMenu = () => {
 }
 </script>
 
-<template>  <nav class="bg-white/80 backdrop-blur-sm shadow-xl border-b border-gray-200/60 fixed w-full top-0 z-50">
+<template>  <nav class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-xl border-b border-gray-200/60 dark:border-gray-700/60 fixed w-full top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
         <div class="flex items-center">
@@ -54,49 +59,57 @@ const closeMenu = () => {
           <div class="hidden md:ml-6 md:flex md:space-x-8">
             <RouterLink 
               to="/" 
-              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-              active-class="text-black bg-white"
+              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              active-class="text-black dark:text-white bg-white dark:bg-gray-700"
             >
               <HomeIcon class="w-4 h-4 mr-2" />
               Home
             </RouterLink>
             <RouterLink 
               to="/compete" 
-              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-              active-class="text-black bg-white"
+              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              active-class="text-black dark:text-white bg-white dark:bg-gray-700"
             >
               <FlagIcon class="w-4 h-4 mr-2" />
               Compete
             </RouterLink>
             <RouterLink 
               to="/scoreboard" 
-              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-              active-class="text-black bg-white"
+              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              active-class="text-black dark:text-white bg-white dark:bg-gray-700"
             >
               <ChartBarIcon class="w-4 h-4 mr-2" />
               Scoreboard
             </RouterLink>
             <RouterLink 
               to="/about" 
-              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-              active-class="text-black bg-white"
+              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              active-class="text-black dark:text-white bg-white dark:bg-gray-700"
             >
               <InformationCircleIcon class="w-4 h-4 mr-2" />
               About
             </RouterLink>
             <RouterLink 
               to="/boxes" 
-              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-              active-class="text-black bg-white"
+              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              active-class="text-black dark:text-white bg-white dark:bg-gray-700"
             >
               <CubeTransparentIcon class="w-4 h-4 mr-2" />
               Boxes
             </RouterLink>
             <RouterLink 
+              to="/tickets" 
+              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              active-class="text-black dark:text-white bg-white dark:bg-gray-700"
+            >
+              <ChatBubbleLeftRightIcon class="w-4 h-4 mr-2" />
+              Tickets
+            </RouterLink>
+            <RouterLink 
               v-if="isAdmin" 
               to="/admin" 
-              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-              active-class="text-black bg-white"
+              class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              active-class="text-black dark:text-white bg-white dark:bg-gray-700"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
               Admin
@@ -106,13 +119,23 @@ const closeMenu = () => {
 
         <!-- User info and logout -->
         <div class="hidden md:flex md:items-center md:space-x-4">
-          <div class="text-sm text-gray-700" v-if="userInfo">
+          <!-- Dark mode toggle -->
+          <button
+            @click="toggleDarkMode"
+            class="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+            :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+          >
+            <SunIcon v-if="isDark" class="w-5 h-5" />
+            <MoonIcon v-else class="w-5 h-5" />
+          </button>
+          
+          <div class="text-sm text-gray-700 dark:text-gray-300" v-if="userInfo">
             Welcome, <span class="font-medium">{{ userInfo.username }}</span>
-            <span v-if="userInfo.team_name" class="text-gray-500 ml-1">({{ userInfo.team_name }})</span>
+            <span v-if="userInfo.team_name" class="text-gray-500 dark:text-gray-400 ml-1">({{ userInfo.team_name }})</span>
           </div>
           <RouterLink 
             to="/logout" 
-            class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-red-600 hover:bg-red-50 transition-colors"
+            class="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
           >
             <ArrowRightOnRectangleIcon class="w-4 h-4 mr-2" />
             Logout
@@ -120,10 +143,20 @@ const closeMenu = () => {
         </div>
 
         <!-- Mobile menu button -->
-        <div class="md:hidden flex items-center">
+        <div class="md:hidden flex items-center space-x-2">
+          <!-- Dark mode toggle for mobile -->
+          <button
+            @click="toggleDarkMode"
+            class="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+            :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+          >
+            <SunIcon v-if="isDark" class="w-5 h-5" />
+            <MoonIcon v-else class="w-5 h-5" />
+          </button>
+          
           <button
             @click="toggleMenu"
-            class="text-gray-700 hover:text-black focus:outline-none focus:text-black transition-colors"
+            class="text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white focus:outline-none focus:text-black dark:focus:text-white transition-colors"
           >
             <Bars3Icon v-if="!isMenuOpen" class="w-6 h-6" />
             <XMarkIcon v-else class="w-6 h-6" />
@@ -134,12 +167,12 @@ const closeMenu = () => {
 
     <!-- Mobile Navigation Menu -->
     <div v-if="isMenuOpen" class="md:hidden">
-      <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t">
+      <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700">
         <RouterLink 
           to="/" 
           @click="closeMenu"
-          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-          active-class="text-black bg-white"
+          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          active-class="text-black dark:text-white bg-white dark:bg-gray-700"
         >
           <HomeIcon class="w-5 h-5 mr-3" />
           Home
@@ -147,8 +180,8 @@ const closeMenu = () => {
         <RouterLink 
           to="/compete" 
           @click="closeMenu"
-          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-          active-class="text-black bg-white"
+          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          active-class="text-black dark:text-white bg-white dark:bg-gray-700"
         >
           <FlagIcon class="w-5 h-5 mr-3" />
           Compete
@@ -156,8 +189,8 @@ const closeMenu = () => {
         <RouterLink 
           to="/scoreboard" 
           @click="closeMenu"
-          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-          active-class="text-black bg-white"
+          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          active-class="text-black dark:text-white bg-white dark:bg-gray-700"
         >
           <ChartBarIcon class="w-5 h-5 mr-3" />
           Scoreboard
@@ -165,17 +198,26 @@ const closeMenu = () => {
         <RouterLink 
           to="/boxes" 
           @click="closeMenu"
-          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-          active-class="text-black bg-white"
+          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          active-class="text-black dark:text-white bg-white dark:bg-gray-700"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4M8 3v4"/></svg>
+          <CubeTransparentIcon class="w-5 h-5 mr-3" />
           Boxes
+        </RouterLink>
+        <RouterLink 
+          to="/tickets" 
+          @click="closeMenu"
+          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          active-class="text-black dark:text-white bg-white dark:bg-gray-700"
+        >
+          <ChatBubbleLeftRightIcon class="w-5 h-5 mr-3" />
+          Tickets
         </RouterLink>
         <RouterLink 
           to="/about" 
           @click="closeMenu"
-          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-          active-class="text-black bg-white"
+          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          active-class="text-black dark:text-white bg-white dark:bg-gray-700"
         >
           <InformationCircleIcon class="w-5 h-5 mr-3" />
           About
@@ -184,22 +226,22 @@ const closeMenu = () => {
           v-if="isAdmin" 
           to="/admin"
           @click="closeMenu"
-          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-black hover:bg-gray-50 transition-colors"
-          active-class="text-black bg-white"
+          class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          active-class="text-black dark:text-white bg-white dark:bg-gray-700"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
           Admin
         </RouterLink>
 
-        <div class="border-t pt-4" v-if="userInfo">
-          <div class="px-3 py-2 text-sm text-gray-700">
+        <div class="border-t dark:border-gray-700 pt-4" v-if="userInfo">
+          <div class="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">
             Welcome, <span class="font-medium">{{ userInfo.username }}</span>
-            <div v-if="userInfo.team_name" class="text-gray-500">Team: {{ userInfo.team_name }}</div>
+            <div v-if="userInfo.team_name" class="text-gray-500 dark:text-gray-400">Team: {{ userInfo.team_name }}</div>
           </div>
           <RouterLink 
             to="/logout" 
             @click="closeMenu"
-            class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-red-600 hover:bg-red-50 transition-colors"
+            class="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
           >
             <ArrowRightOnRectangleIcon class="w-5 h-5 mr-3" />
             Logout

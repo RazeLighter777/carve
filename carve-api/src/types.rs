@@ -243,3 +243,45 @@ pub(crate) struct RegistrationQuery {
 pub(crate) struct IdentitySourcesResponse {
     pub(crate) sources: Vec<IdentitySources>,
 }
+
+// Support ticket types
+#[derive(Deserialize)]
+pub(crate) struct CreateSupportTicketRequest {
+    pub(crate) message: String,
+    pub(crate) subject: String, // Added subject field
+}
+
+#[derive(Deserialize)]
+pub(crate) struct AddSupportTicketMessageRequest {
+    pub(crate) message: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct UpdateSupportTicketStatusRequest {
+    pub(crate) status: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct SupportTicketQuery {
+    #[serde(rename = "ticketId")]
+    pub(crate) ticket_id: u64,
+}
+
+#[derive(Serialize)]
+pub(crate) struct SupportTicketResponse {
+    #[serde(rename = "ticketId")]
+    pub(crate) ticket_id: u64,
+    pub(crate) ticket: carve::config::SupportTicket,
+}
+
+#[derive(Serialize)]
+pub(crate) struct SupportTicketsResponse {
+    pub(crate) tickets: Vec<SupportTicketResponse>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct CreateSupportTicketResponse {
+    #[serde(rename = "ticketId")]
+    pub(crate) ticket_id: u64,
+    pub(crate) message: String,
+}

@@ -34,7 +34,7 @@ const logout = () => {
   <div class="min-h-screen flex items-center justify-center bg-gray-50">
     <div class="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
       <h1 class="text-2xl font-bold mb-4 text-center">Join a Team</h1>
-      <p class="mb-6 text-gray-600 text-center">Enter your team code to join a team and participate in the competition.</p>
+      <p class="mb-6 text-gray-600 text-center">Enter your team code to join a team and participate in the competition. Ask your team captain or competition administrator if you don't have one.</p>
       <form @submit.prevent="submit">
         <input
           v-model="code"
